@@ -1,4 +1,4 @@
-// server.js - Agregando logging y rate limiting
+// server.js - Agregando rutas (posible punto de crash)
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -28,10 +28,46 @@ const logger = winston.createLogger({
   ]
 });
 
+// IMPORTAR RUTAS CON MANEJO DE ERRORES
+let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, adminRoutes;
+
+try {
+  logger.info('Importando rutas...');
+  
+  authRoutes = require('./routes/authRoutes');
+  logger.info('✅ authRoutes importado correctamente');
+  
+  studentRoutes = require('./routes/studentRoutes');
+  logger.info('✅ studentRoutes importado correctamente');
+  
+  teacherRoutes = require('./routes/teacherRoutes');
+  logger.info('✅ teacherRoutes importado correctamente');
+  
+  transferRoutes = require('./routes/transferRoutes');
+  logger.info('✅ transferRoutes importado correctamente');
+  
+  activityRoutes = require('./routes/activityRoutes');
+  logger.info('✅ activityRoutes importado correctamente');
+  
+  adminRoutes = require('./routes/admin/adminRoutes');
+  logger.info('✅ adminRoutes importado correctamente');
+  
+  logger.info('🎉 Todas las rutas importadas exitosamente');
+  
+} catch (error) {
+  logger.error('❌ Error importando rutas:', {
+    error: error.message,
+    stack: error.stack
+  });
+  
+  // No crashear el servidor, continuar sin las rutas problemáticas
+  console.error('ERROR CRÍTICO AL IMPORTAR RUTAS:', error.message);
+}
+
 // Rate limiting básico
 const basicRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo 100 requests por ventana
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     status: 'error',
     message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
@@ -50,20 +86,24 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Rate limiting
 app.use('/api/', basicRateLimiter);
 
 // Ruta principal
 app.get('/', (req, res) => {
-  logger.info('Ruta principal accedida');
   res.status(200).json({
     status: 'success',
     message: '🏦 BANCARIZATE API - Sistema Bancario Educativo',
     version: '2.0.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    features: ['logging', 'rate-limiting'],
+    routes_loaded: {
+      auth: !!authRoutes,
+      students: !!studentRoutes,
+      teachers: !!teacherRoutes,
+      transfers: !!transferRoutes,
+      activity: !!activityRoutes,
+      admin: !!adminRoutes
+    },
     documentation: {
       health: '/api/health',
       test: '/api/test',
@@ -72,38 +112,74 @@ app.get('/', (req, res) => {
   });
 });
 
+// USAR RUTAS SI FUERON CARGADAS CORRECTAMENTE
+try {
+  if (authRoutes) {
+    app.use('/api/auth', authRoutes);
+    logger.info('✅ Rutas auth registradas');
+  }
+  
+  if (studentRoutes) {
+    app.use('/api/students', studentRoutes);
+    logger.info('✅ Rutas students registradas');
+  }
+  
+  if (teacherRoutes) {
+    app.use('/api/teachers', teacherRoutes);
+    logger.info('✅ Rutas teachers registradas');
+  }
+  
+  if (transferRoutes) {
+    app.use('/api/transfers', transferRoutes);
+    logger.info('✅ Rutas transfers registradas');
+  }
+  
+  if (activityRoutes) {
+    app.use('/api/activity', activityRoutes);
+    logger.info('✅ Rutas activity registradas');
+  }
+  
+  if (adminRoutes) {
+    app.use('/api/admin', adminRoutes);
+    logger.info('✅ Rutas admin registradas');
+  }
+  
+} catch (error) {
+  logger.error('❌ Error registrando rutas:', error);
+}
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  logger.info('Health check realizado');
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     version: '2.0.0',
     uptime: Math.floor(process.uptime()),
-    logging: 'winston activo',
-    rateLimit: 'activo',
-    memory: {
-      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
-      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
+    routes_status: {
+      auth: !!authRoutes ? 'loaded' : 'failed',
+      students: !!studentRoutes ? 'loaded' : 'failed',
+      teachers: !!teacherRoutes ? 'loaded' : 'failed',
+      transfers: !!transferRoutes ? 'loaded' : 'failed',
+      activity: !!activityRoutes ? 'loaded' : 'failed',
+      admin: !!adminRoutes ? 'loaded' : 'failed'
     }
   });
 });
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
-  logger.info('Test endpoint accedido');
   res.status(200).json({
     status: 'success',
-    message: '✅ API funcionando correctamente con logging',
+    message: '✅ API funcionando con rutas',
     timestamp: new Date().toISOString(),
-    logging_test: 'Este mensaje fue loggeado',
-    rate_limit_test: 'Rate limiting activo',
-    environment_check: {
-      hasJwtSecret: !!process.env.JWT_SECRET,
-      hasSupabaseUrl: !!process.env.SUPABASE_URL,
-      hasSupabaseKey: !!process.env.SUPABASE_ANON_KEY,
-      nodeEnv: process.env.NODE_ENV
+    available_routes: {
+      auth: !!authRoutes,
+      students: !!studentRoutes,
+      teachers: !!teacherRoutes,
+      transfers: !!transferRoutes,
+      activity: !!activityRoutes,
+      admin: !!adminRoutes
     }
   });
 });
@@ -116,9 +192,10 @@ app.use('*', (req, res) => {
     message: `Endpoint no encontrado: ${req.method} ${req.originalUrl}`,
     available_endpoints: [
       'GET /',
-      'GET /api',
       'GET /api/health',
-      'GET /api/test'
+      'GET /api/test',
+      authRoutes ? 'POST /api/auth/login' : 'auth routes: failed',
+      studentRoutes ? 'GET /api/students' : 'student routes: failed'
     ]
   });
 });
@@ -138,13 +215,14 @@ app.use((err, req, res, next) => {
     message: process.env.NODE_ENV === 'production' 
       ? 'Error interno del servidor' 
       : err.message,
+    error_details: err.message,
     ...(process.env.NODE_ENV !== 'production' && { 
       stack: err.stack
     })
   });
 });
 
-logger.info('BANCARIZATE API con logging inicializado');
+logger.info('BANCARIZATE API con rutas inicializado');
 
 // Export para serverless
 module.exports = app;
