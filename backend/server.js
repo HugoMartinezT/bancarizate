@@ -1,8 +1,10 @@
-// server.js - Versión intermedia para diagnosticar el problema
+// server.js - Agregando logging y rate limiting
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
+const winston = require('winston');
+const rateLimit = require('express-rate-limit');
 
 // Cargar variables de entorno
 dotenv.config();
@@ -10,7 +12,35 @@ dotenv.config();
 // Crear aplicación Express
 const app = express();
 
-// Middlewares básicos de seguridad
+// Configurar logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'bancarizate-api' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.simple()
+    })
+  ]
+});
+
+// Rate limiting básico
+const basicRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // máximo 100 requests por ventana
+  message: {
+    status: 'error',
+    message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Middlewares de seguridad
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'development' 
@@ -21,14 +51,19 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting
+app.use('/api/', basicRateLimiter);
+
 // Ruta principal
 app.get('/', (req, res) => {
+  logger.info('Ruta principal accedida');
   res.status(200).json({
     status: 'success',
     message: '🏦 BANCARIZATE API - Sistema Bancario Educativo',
     version: '2.0.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    features: ['logging', 'rate-limiting'],
     documentation: {
       health: '/api/health',
       test: '/api/test',
@@ -39,12 +74,15 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  logger.info('Health check realizado');
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     version: '2.0.0',
     uptime: Math.floor(process.uptime()),
+    logging: 'winston activo',
+    rateLimit: 'activo',
     memory: {
       used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
       total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
@@ -52,30 +90,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// API info endpoint
-app.get('/api', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'BANCARIZATE API v2.0.0',
-    available_endpoints: {
-      health: 'GET /api/health',
-      test: 'GET /api/test',
-      auth: {
-        login: 'POST /api/auth/login',
-        logout: 'POST /api/auth/logout',
-        verify: 'GET /api/auth/verify'
-      }
-    },
-    note: 'Versión intermedia - agregando componentes gradualmente'
-  });
-});
-
-// Test endpoint básico
+// Test endpoint
 app.get('/api/test', (req, res) => {
+  logger.info('Test endpoint accedido');
   res.status(200).json({
     status: 'success',
-    message: '✅ API funcionando correctamente - Versión intermedia',
+    message: '✅ API funcionando correctamente con logging',
     timestamp: new Date().toISOString(),
+    logging_test: 'Este mensaje fue loggeado',
+    rate_limit_test: 'Rate limiting activo',
     environment_check: {
       hasJwtSecret: !!process.env.JWT_SECRET,
       hasSupabaseUrl: !!process.env.SUPABASE_URL,
@@ -87,6 +110,7 @@ app.get('/api/test', (req, res) => {
 
 // 404 handler
 app.use('*', (req, res) => {
+  logger.warn(`Ruta no encontrada: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     status: 'error',
     message: `Endpoint no encontrado: ${req.method} ${req.originalUrl}`,
@@ -101,11 +125,12 @@ app.use('*', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error no manejado:', {
+  logger.error('Error no manejado:', {
     error: err.message,
     stack: err.stack,
     url: req.originalUrl,
-    method: req.method
+    method: req.method,
+    ip: req.ip
   });
 
   res.status(err.status || 500).json({
@@ -119,6 +144,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ❌ NO USAR app.listen() en Vercel - Causa crash
-// ✅ Export para serverless
+logger.info('BANCARIZATE API con logging inicializado');
+
+// Export para serverless
 module.exports = app;
