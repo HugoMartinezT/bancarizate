@@ -1,4 +1,4 @@
-
+// vercel.json (NUEVA CONFIGURACIÓN)
 {
   "version": 2,
   "builds": [
@@ -15,10 +15,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "server.js": {
-      "maxDuration": 30
-    }
   }
 }
