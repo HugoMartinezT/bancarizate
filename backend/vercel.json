@@ -1,5 +1,4 @@
-# Crear vercel.json
-@"
+
 {
   "version": 2,
   "builds": [
@@ -23,4 +22,3 @@
     }
   }
 }
-"@ | Out-File -FilePath vercel.json -Encoding UTF8
