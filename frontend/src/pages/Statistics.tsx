@@ -1,4 +1,4 @@
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Users, GraduationCap, Calendar, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, DollarSign, Users, GraduationCap, Calendar, ArrowUpRight, ArrowDownLeft, SendHorizontal } from 'lucide-react';
 
 const Statistics = () => {
   // Datos de ejemplo para las estadísticas
@@ -98,12 +98,9 @@ const Statistics = () => {
         <div className="space-y-4">
           {monthlyData.map((data) => (
             <div key={data.month} className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-gray-700">{data.month}</span>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-green-600">{formatCurrency(data.ingresos)}</span>
-                  <span className="text-red-600">{formatCurrency(data.egresos)}</span>
-                </div>
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>{data.month}</span>
+                <span>{formatCurrency(data.ingresos - data.egresos)}</span>
               </div>
               <div className="flex gap-2 h-8">
                 <div className="relative flex-1 bg-gray-100 rounded-lg overflow-hidden">

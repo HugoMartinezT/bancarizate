@@ -107,7 +107,7 @@ const EditStudent = () => {
     }
   }, [formData.institutionId]);
 
-  // ✅ NUEVA FUNCIÓN: Cargar instituciones activas
+  // ✅ NUEVA FUNCIÓN: Cargar instituciones activas (CORREGIDA)
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
@@ -116,7 +116,8 @@ const EditStudent = () => {
       const response = await apiService.getActiveInstitutions();
       
       if (response.status === 'success') {
-        const institutionOptions = apiService.formatInstitutionsForSelect(response.data);
+        // ✅ CORREGIDO: Pasar response completa, no response.data
+        const institutionOptions = apiService.formatInstitutionsForSelect(response);
         setInstitutions(institutionOptions);
         console.log('✅ Instituciones cargadas:', institutionOptions.length);
       }
@@ -131,7 +132,7 @@ const EditStudent = () => {
     }
   };
 
-  // ✅ NUEVA FUNCIÓN: Cargar cursos por institución
+  // ✅ NUEVA FUNCIÓN: Cargar cursos por institución (CORREGIDA)
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
@@ -141,7 +142,8 @@ const EditStudent = () => {
       const response = await apiService.getCoursesByInstitutionId(institutionId);
       
       if (response.status === 'success') {
-        const courseOptions = apiService.formatCoursesForSelect(response.data);
+        // ✅ CORREGIDO: Pasar response completa, no response.data
+        const courseOptions = apiService.formatCoursesForSelect(response);
         setCourses(courseOptions);
         console.log('✅ Cursos cargados:', courseOptions.length);
       }

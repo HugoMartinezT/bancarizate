@@ -520,12 +520,12 @@ const CourseManager = () => {
                     <div className="flex items-center gap-1">
                       <Building className="w-3 h-3 text-gray-400" />
                       <span className="text-xs text-gray-700">
-                        {course.institutions ? course.institutions.name : getInstitutionName(course.institutionId)}
+                        {course.institution ? course.institution.name : getInstitutionName(course.institutionId)}
                       </span>
                     </div>
-                    {course.institutions && (
+                    {course.institution && (
                       <p className="text-[10px] text-gray-500 ml-4">
-                        {course.institutions.type}
+                        {course.institution.type}
                       </p>
                     )}
                   </td>

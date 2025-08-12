@@ -81,13 +81,13 @@ const SystemSettings = () => {
         return;
       }
       
-      // Validar rango
-      if (config.minValue !== null && validatedValue < config.minValue) {
+      // ✅ CORREGIDO: Validar rango con verificación de null/undefined
+      if (config.minValue !== null && config.minValue !== undefined && validatedValue < config.minValue) {
         setError(`El valor debe ser mayor o igual a ${config.minValue}`);
         return;
       }
       
-      if (config.maxValue !== null && validatedValue > config.maxValue) {
+      if (config.maxValue !== null && config.maxValue !== undefined && validatedValue > config.maxValue) {
         setError(`El valor debe ser menor o igual a ${config.maxValue}`);
         return;
       }
@@ -132,10 +132,11 @@ const SystemSettings = () => {
       
       console.log(`💾 Guardando ${changesArray.length} configuraciones...`);
       
+      // ✅ CORREGIDO: Mapear correctamente con 'id' en lugar de 'key'
       const response = await apiService.updateMultipleConfigurations(
         changesArray.map(change => ({
-          key: change.key,
-          value: change.value
+          id: change.key,  // ✅ Cambiado de 'key' a 'id'
+          value: change.value.toString()  // Convertir a string
         }))
       );
       
@@ -253,8 +254,8 @@ const SystemSettings = () => {
                 value={currentValue}
                 onChange={(e) => handleValueChange(config, e.target.value)}
                 disabled={!config.isEditable || isSaving}
-                min={config.minValue || undefined}
-                max={config.maxValue || undefined}
+                min={config.minValue !== null && config.minValue !== undefined ? config.minValue : undefined}
+                max={config.maxValue !== null && config.maxValue !== undefined ? config.maxValue : undefined}
                 className={`w-full px-3 py-2 text-sm border rounded-lg transition-colors ${
                   !config.isEditable 
                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
@@ -268,7 +269,7 @@ const SystemSettings = () => {
             {/* Información de rango */}
             {config.dataType === 'number' && (config.minValue !== null || config.maxValue !== null) && (
               <p className="text-xs text-gray-500 mt-1">
-                Rango: {config.minValue || 'Sin mínimo'} - {config.maxValue || 'Sin máximo'}
+                Rango: {config.minValue !== null && config.minValue !== undefined ? config.minValue : 'Sin mínimo'} - {config.maxValue !== null && config.maxValue !== undefined ? config.maxValue : 'Sin máximo'}
               </p>
             )}
           </div>

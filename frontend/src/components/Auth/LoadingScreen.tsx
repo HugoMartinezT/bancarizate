@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Check } from 'lucide-react';
+import type { LoadingScreenProps } from '../../types/types';
 
-const LoadingScreen = ({ onComplete, userName = 'Usuario' }) => {
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ onComplete, userName = 'Usuario', skipAnimation = false }) => {
   const [showCheckmark, setShowCheckmark] = useState(false);
   const [showText, setShowText] = useState(false);
   const hasCompletedRef = useRef(false);
 
   useEffect(() => {
+    if (skipAnimation) {
+      onComplete?.();
+      return;
+    }
+
     console.log('🚀 Iniciando secuencia de éxito');
     
     // Mostrar checkmark después de 500ms
@@ -33,7 +39,7 @@ const LoadingScreen = ({ onComplete, userName = 'Usuario' }) => {
       clearTimeout(textTimer);
       clearTimeout(completeTimer);
     };
-  }, [onComplete]);
+  }, [onComplete, skipAnimation]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-8 font-sans">

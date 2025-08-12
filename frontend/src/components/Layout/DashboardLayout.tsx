@@ -1,17 +1,7 @@
 import React, { useState, ReactNode, useEffect } from 'react';
 import Sidebar from './Sidebar'; // Asumiendo que Sidebar.tsx está en la misma carpeta
 import { Menu } from 'lucide-react';
-
-// Definir el tipo User aquí para que coincida con tu estructura
-interface User {
-  id: string;
-  run: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  balance: number;
-  overdraftLimit: number;
-}
+import type { User } from '../../types/types';
 
 interface DashboardLayoutProps {
   user: User | null; // Puede ser null si el usuario no está logueado

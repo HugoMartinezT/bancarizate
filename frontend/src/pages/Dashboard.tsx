@@ -16,35 +16,15 @@ import {
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import type { Transfer, UserStats } from '../services/api';
-
-// Declaración de tipos para View Transitions API
-declare global {
-  interface Document {
-    startViewTransition?: (callback: () => void) => {
-      finished: Promise<void>;
-      ready: Promise<void>;
-      updateCallbackDone: Promise<void>;
-    };
-  }
-}
+import type { User, StatCardProps } from '../types/types';
 
 // Interfaces
-interface User {
-  id: string;
-  run: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  balance: number;
-  overdraftLimit: number;
-}
-
 interface DashboardProps {
   user: User;
 }
 
 // Componente de tarjeta de estadística mejorada
-const StatCard = ({ icon: Icon, title, value, subtitle, trend, iconBgColor, iconColor, valueColor, onClick }) => (
+const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, subtitle, trend, iconBgColor, iconColor, valueColor, onClick }) => (
   <div 
     className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer group relative overflow-hidden"
     onClick={onClick}
@@ -98,11 +78,11 @@ const Dashboard = ({ user }: DashboardProps) => {
 
   // Función para manejar transiciones
   const handleTransition = (callback: () => void) => {
-    if (!document.startViewTransition) {
+    if (document.startViewTransition) {
+      document.startViewTransition(callback);
+    } else {
       callback();
-      return;
     }
-    document.startViewTransition(callback);
   };
 
   // FUNCIÓN CORREGIDA PARA CARGAR ESTADÍSTICAS
@@ -136,8 +116,7 @@ const Dashboard = ({ user }: DashboardProps) => {
         id: t.id,
         direction: t.direction, // Ahora usamos direction
         amount: t.amount,
-        description: t.description,
-        allKeys: Object.keys(t) // Ver todas las propiedades
+        description: t.description
       })));
       
       setRecentTransfers(response.data.transfers);
@@ -148,348 +127,213 @@ const Dashboard = ({ user }: DashboardProps) => {
     }
   }, []);
 
-  // Cargar datos al montar el componente
   useEffect(() => {
     loadUserStats();
     loadRecentActivity();
   }, [loadUserStats, loadRecentActivity]);
 
-  // Función para refrescar datos
-  const refreshData = () => {
-    loadUserStats();
-    loadRecentActivity();
+  const toggleBalance = () => {
+    handleTransition(() => setShowBalance(!showBalance));
   };
 
-  // Función para formatear moneda
+  const handleTransactionFilter = (filter: 'all' | 'sent' | 'received') => {
+    handleTransition(() => setTransactionFilter(filter));
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(Math.abs(amount));
+    }).format(amount);
   };
 
-  // Función para formatear fechas
-  const formatDate = (date: string) => {
-    const transferDate = new Date(date);
-    const today = new Date();
-    const diffTime = today.getTime() - transferDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Hoy';
-    if (diffDays === 1) return 'Ayer';
-    if (diffDays < 7) return `Hace ${diffDays} días`;
-    
-    return new Intl.DateTimeFormat('es-CL', {
-      day: '2-digit',
-      month: 'short'
-    }).format(transferDate);
-  };
-
-  // Función para obtener los colores del avatar
   const getAvatarColors = (name: string) => {
     const colors = [
-      { bg: 'bg-purple-100', text: 'text-purple-700' }, 
-      { bg: 'bg-blue-100', text: 'text-blue-700' }, 
-      { bg: 'bg-green-100', text: 'text-green-700' }, 
-      { bg: 'bg-yellow-100', text: 'text-yellow-700' }, 
-      { bg: 'bg-pink-100', text: 'text-pink-700' }
+      { bg: 'bg-blue-100', text: 'text-blue-700' },
+      { bg: 'bg-green-100', text: 'text-green-700' },
+      { bg: 'bg-purple-100', text: 'text-purple-700' },
+      { bg: 'bg-orange-100', text: 'text-orange-700' },
+      { bg: 'bg-pink-100', text: 'text-pink-700' },
+      { bg: 'bg-indigo-100', text: 'text-indigo-700' }
     ];
-    return colors[name.charCodeAt(0) % colors.length];
+    const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
   };
 
-  // Función para obtener las iniciales
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (name: string) => {
+    return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
+  };
 
-  // Función para obtener el color del badge de rol
-  const getRoleBadgeColor = (role: string) => ({ 
-    student: 'bg-blue-100 text-blue-700', 
-    teacher: 'bg-green-100 text-green-700', 
-    admin: 'bg-purple-100 text-purple-700' 
-  }[role] || 'bg-gray-100 text-gray-700');
+  const getTransferType = (transfer: Transfer): 'sent' | 'received' => {
+    return transfer.direction || transfer.type || 'sent';
+  };
 
-  // 🔧 PROCESAR TRANSFERENCIAS CON DATOS DE PRUEBA
-  const processedTransfers = recentTransfers.length > 0 ? recentTransfers : [];
-
-  // Agregar datos de prueba si solo hay transferencias enviadas
-  const mixedTransfers = (() => {
-    if (processedTransfers.length > 0 && processedTransfers.every(t => t.direction === 'sent')) {
-      console.log('⚠️ Solo hay transferencias enviadas, agregando datos de prueba...');
-      return [
-        ...processedTransfers.slice(0, 3),
-        {
-          id: 'demo-received-1',
-          direction: 'received' as const, // Usar direction en lugar de type
-          amount: 75000,
-          totalAmount: 75000,
-          description: 'Transferencia recibida (demo)',
-          status: 'completed' as const,
-          date: new Date().toISOString(),
-          isMultiple: false,
-          otherPerson: {
-            id: 'demo-user-1',
-            name: 'María González',
-            run: '12345678-9',
-            role: 'student'
-          },
-          recipients: [],
-          recipientCount: 0
-        },
-        {
-          id: 'demo-received-2',
-          direction: 'received' as const, // Usar direction en lugar de type
-          amount: 25000,
-          totalAmount: 25000,
-          description: 'Otra transferencia recibida (demo)',
-          status: 'completed' as const,
-          date: new Date(Date.now() - 86400000).toISOString(),
-          isMultiple: false,
-          otherPerson: {
-            id: 'demo-user-2',
-            name: 'Pedro Sánchez',
-            run: '98765432-1',
-            role: 'teacher'
-          },
-          recipients: [],
-          recipientCount: 0
-        }
-      ];
-    }
-    return processedTransfers;
-  })();
-
-  // Filtrar transferencias
-  const filteredTransfers = mixedTransfers.filter(transfer => {
+  const filteredTransfers = recentTransfers.filter(transfer => {
     if (transactionFilter === 'all') return true;
-    const matches = transfer.direction === transactionFilter; // Usar direction en lugar de type
-    console.log(`🔍 Filtro: ${transactionFilter}, Transfer: ${transfer.direction}, Match: ${matches}`);
-    return matches;
+    return getTransferType(transfer) === transactionFilter;
   });
 
-  // Calcular estadísticas de los últimos 7 días
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const recentIncome = mixedTransfers
-    .filter(t => t.direction === 'received' && new Date(t.date) >= sevenDaysAgo) // Usar direction
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const recentExpenses = mixedTransfers
-    .filter(t => t.direction === 'sent' && new Date(t.date) >= sevenDaysAgo) // Usar direction
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  // 🐛 DEBUG: Logs finales
-  console.log('🔍 DEBUG Final - Total:', mixedTransfers.length);
-  console.log('🔍 DEBUG Final - Filtradas:', filteredTransfers.length);
-  console.log('🔍 DEBUG Final - Received:', mixedTransfers.filter(t => t.direction === 'received').length); // Usar direction
-  console.log('🔍 DEBUG Final - Sent:', mixedTransfers.filter(t => t.direction === 'sent').length); // Usar direction
-
   return (
-    <div className="max-w-7xl mx-auto px-3 py-4">
-      {/* Header compacto */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-white/20 rounded">
-              <Home className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">Bienvenido, {user.firstName}</h1>
-              <p className="text-blue-200 text-xs">Tu resumen financiero de hoy</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-blue-200 text-xs mb-0.5">Última actualización</p>
-            <p className="text-sm font-bold">
-              {isLoadingStats || isLoadingTransfers ? 'Cargando...' : 'Hace 2 min'}
-            </p>
-          </div>
+    <div className="space-y-6">
+      {/* Encabezado */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Bienvenido, {user.firstName}</h1>
+          <p className="text-sm text-gray-500 mt-1">Resumen de tu cuenta</p>
         </div>
+        <button 
+          onClick={toggleBalance}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 flex items-center gap-2 text-xs font-medium"
+        >
+          {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showBalance ? 'Ocultar' : 'Mostrar'} saldo
+        </button>
       </div>
 
-      <div className="space-y-4">
-        {/* Tarjetas de estadísticas mejoradas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <StatCard 
-            icon={showBalance ? Eye : EyeOff}
-            title="Saldo Disponible"
-            value={isLoadingStats ? "Cargando..." : (showBalance ? formatCurrency(userStats?.user.balance || user.balance) : "••••••")}
-            subtitle="Cuenta corriente"
-            trend={5.2}
-            iconBgColor="bg-green-100"
-            iconColor="text-green-600"
-            onClick={() => handleTransition(() => setShowBalance(!showBalance))}
-          />
-          <StatCard 
-            icon={CreditCard}
-            title="Línea Sobregiro"
-            value={isLoadingStats ? "Cargando..." : formatCurrency(userStats?.user.overdraftLimit || user.overdraftLimit)}
-            subtitle="Sin uso"
-            iconBgColor="bg-blue-100"
-            iconColor="text-blue-600"
-            onClick={() => {}}
-          />
-          <StatCard 
-            icon={TrendingUp}
-            title="Ingresos 7d"
-            value={isLoadingTransfers ? "Cargando..." : formatCurrency(recentIncome)}
-            subtitle="Últimos 7 días"
-            trend={recentIncome > 0 ? 12.3 : 0}
-            iconBgColor="bg-emerald-100"
-            iconColor="text-emerald-600"
-            onClick={() => {}}
-          />
-          <StatCard 
-            icon={TrendingDown}
-            title="Gastos 7d"
-            value={isLoadingTransfers ? "Cargando..." : formatCurrency(recentExpenses)}
-            subtitle="Últimos 7 días"
-            trend={recentExpenses > 0 ? -8.1 : 0}
-            iconBgColor="bg-red-100"
-            iconColor="text-red-600"
-            onClick={() => {}}
-          />
+      {/* Tarjetas de estadísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          icon={CreditCard}
+          title="Saldo Disponible"
+          value={showBalance ? formatCurrency(user.balance) : '••••••'}
+          subtitle="Incluye sobregiro disponible"
+          trend={8.2}
+          iconBgColor="bg-blue-50"
+          iconColor="text-blue-600"
+          valueColor="text-blue-900"
+          onClick={() => console.log('Saldo click')}
+        />
+
+        <StatCard
+          icon={Home}
+          title="Sobregiro"
+          value={formatCurrency(user.overdraftLimit)}
+          subtitle="Límite aprobado"
+          iconBgColor="bg-orange-50"
+          iconColor="text-orange-600"
+          valueColor="text-orange-900"
+          trend={0}
+          onClick={() => console.log('Sobregiro click')}
+        />
+
+        <StatCard
+          icon={Send}
+          title="Transferencias Hoy"
+          value={userStats?.stats.transfersToday || 0}
+          subtitle="De un límite de 5"
+          trend={-15}
+          iconBgColor="bg-green-50"
+          iconColor="text-green-600"
+          valueColor="text-green-900"
+          onClick={() => console.log('Transferencias click')}
+        />
+
+        <StatCard
+          icon={Users}
+          title="Contactos"
+          value="24"
+          subtitle="En tu institución"
+          trend={12}
+          iconBgColor="bg-purple-50"
+          iconColor="text-purple-600"
+          valueColor="text-purple-900"
+          onClick={() => console.log('Contactos click')}
+        />
+      </div>
+
+      {/* Sección de actividad reciente */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Filtros de transacciones */}
+        <div className="flex gap-2 mb-4">
+          <button 
+            onClick={() => handleTransactionFilter('all')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              transactionFilter === 'all' 
+                ? 'bg-[#193cb8] text-white shadow-md' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Todas
+          </button>
+          <button 
+            onClick={() => handleTransactionFilter('sent')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              transactionFilter === 'sent' 
+                ? 'bg-[#193cb8] text-white shadow-md' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Enviadas
+          </button>
+          <button 
+            onClick={() => handleTransactionFilter('received')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              transactionFilter === 'received' 
+                ? 'bg-[#193cb8] text-white shadow-md' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Recibidas
+          </button>
+          <button 
+            onClick={loadRecentActivity}
+            disabled={isLoadingTransfers}
+            className="ml-auto px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${isLoadingTransfers ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
         </div>
 
-        {/* Transferencias recientes con diseño limpio */}
-        <div className="bg-white rounded-lg shadow border border-gray-100">
-          <div className="p-3 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-[#193cb8]" />
-                <h2 className="text-sm font-bold text-gray-800">Últimos Movimientos</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={refreshData}
-                  className="p-1 hover:bg-gray-100 rounded text-gray-500"
-                  disabled={isLoadingTransfers}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTransfers ? 'animate-spin' : ''}`} />
-                </button>
-                <a href="/transfers" className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium">
-                  Ver historial completo
-                </a>
-              </div>
-            </div>
-            
-            {/* Filtros de transacciones simplificados */}
-            <div className="flex gap-2">
-              {[
-                { key: 'all', label: 'Todos' },
-                { key: 'received', label: 'Recibidos' },
-                { key: 'sent', label: 'Enviados' }
-              ].map(filter => (
-                <button
-                  key={filter.key}
-                  onClick={() => handleTransition(() => setTransactionFilter(filter.key as any))}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                    transactionFilter === filter.key
-                      ? 'bg-[#193cb8] text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+        {/* Lista de transacciones */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+          style={{ viewTransitionName: 'transactions-list' }}
+        >
+          <div className="p-4 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900">Actividad Reciente</h2>
           </div>
           
-          <div className="divide-y divide-gray-100" style={{ viewTransitionName: 'transactions-list' }}>
+          <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
             {isLoadingTransfers ? (
-              <div className="p-4 text-center">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-gray-400" />
-                <p className="text-xs text-gray-500">Cargando movimientos...</p>
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                <p className="text-xs font-medium">Cargando transacciones...</p>
               </div>
             ) : filteredTransfers.length === 0 ? (
-              <div className="p-4 text-center">
-                <Send className="w-6 h-6 mx-auto mb-2 text-gray-300" />
-                <p className="text-xs text-gray-500 font-medium">No hay movimientos recientes</p>
-                <p className="text-xxs text-gray-400 mt-1">
-                  {transactionFilter === 'all' ? 'Realiza tu primera transferencia' : 
-                   transactionFilter === 'sent' ? 'No has enviado transferencias' : 
-                   'No has recibido transferencias'}
-                </p>
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Clock className="w-8 h-8 mb-2" />
+                <p className="text-xs font-medium">No hay transacciones recientes</p>
               </div>
             ) : (
               filteredTransfers.map(transfer => {
-                const isIncoming = transfer.direction === 'received'; // Usar direction
-                const otherPerson = transfer.otherPerson;
-                const colors = otherPerson ? getAvatarColors(otherPerson.name) : getAvatarColors('Múltiple');
-                
+                const isIncoming = getTransferType(transfer) === 'received';
+                const colors = getAvatarColors(transfer.otherPerson?.name || 'Desconocido');
+                const initials = getInitials(transfer.otherPerson?.name || 'Desconocido');
+
                 return (
-                  <div key={transfer.id} className="px-3 py-3 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {/* Icono de dirección */}
-                        <div className={`p-1.5 rounded-full ${
-                          isIncoming ? 'bg-green-100' : 'bg-red-100'
-                        }`}>
-                          {isIncoming ? (
-                            <ArrowDownLeft className="w-3.5 h-3.5 text-green-600" />
-                          ) : (
-                            <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
-                          )}
-                        </div>
-                        
-                        {/* Avatar y información */}
-                        <div className="flex items-center gap-2">
-                          {otherPerson ? (
-                            <div className={`w-8 h-8 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
-                              <span className={`text-xs font-bold ${colors.text}`}>
-                                {getInitials(otherPerson.name)}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center shadow-sm">
-                              <Users className="w-3.5 h-3.5 text-gray-400" />
-                            </div>
-                          )}
-                          
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-xs font-semibold text-gray-900">
-                                {otherPerson ? otherPerson.name : 'Transferencia múltiple'}
-                              </p>
-                              {transfer.isMultiple && (
-                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xxs rounded font-medium">
-                                  {transfer.recipientCount} personas
-                                </span>
-                              )}
-                              {transfer.id.includes('demo') && (
-                                <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xxs rounded font-medium">
-                                  DEMO
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xxs text-gray-500">
-                              <span>{formatDate(transfer.date)}</span>
-                              {otherPerson && (
-                                <>
-                                  <span>•</span>
-                                  <span className={`px-1 py-0.5 rounded text-xxs font-medium ${getRoleBadgeColor(otherPerson.role)}`}>
-                                    {otherPerson.role === 'student' ? 'Estudiante' : otherPerson.role === 'teacher' ? 'Docente' : 'Admin'}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Monto */}
-                      <div className="text-right">
-                        <p className={`text-sm font-bold ${
-                          isIncoming ? 'text-green-600' : 'text-red-600'
-                        }`}>
+                  <div key={transfer.id} className="p-3 hover:bg-gray-50 transition-colors cursor-pointer flex items-center gap-3">
+                    <div className={`w-10 h-10 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
+                      <span className={`text-sm font-bold ${colors.text}`}>{initials}</span>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {transfer.otherPerson?.name || 'Desconocido'}
+                        </p>
+                        <p className={`text-sm font-bold ${isIncoming ? 'text-green-600' : 'text-red-600'}`}>
                           {isIncoming ? '+' : '-'}{formatCurrency(transfer.amount)}
                         </p>
-                        {transfer.amount !== transfer.totalAmount && (
-                          <p className="text-xxs text-gray-500">
-                            Total: {formatCurrency(transfer.totalAmount)}
-                          </p>
-                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span className="truncate flex-1">{transfer.description}</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(transfer.date).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -497,7 +341,7 @@ const Dashboard = ({ user }: DashboardProps) => {
               })
             )}
             
-            {/* Enlace para ver más si hay transferencias */}
+            {/* Enlace para ver más si hay transacciones */}
             {!isLoadingTransfers && filteredTransfers.length > 0 && (
               <div className="p-3 text-center border-t border-gray-100">
                 <a 
@@ -514,7 +358,8 @@ const Dashboard = ({ user }: DashboardProps) => {
       </div>
 
       {/* Estilos CSS para View Transitions */}
-      <style jsx global>{`
+      <style>
+        {`
         /* View Transitions para estadísticas */
         ::view-transition-old([style*="stat-"]),
         ::view-transition-new([style*="stat-"]) {
@@ -647,7 +492,8 @@ const Dashboard = ({ user }: DashboardProps) => {
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
-      `}</style>
+      `}
+      </style>
     </div>
   );
 };

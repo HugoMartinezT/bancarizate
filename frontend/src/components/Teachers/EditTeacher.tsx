@@ -116,7 +116,8 @@ const EditTeacher = () => {
       const response = await apiService.getActiveInstitutions();
       
       if (response.status === 'success') {
-        const institutionOptions = apiService.formatInstitutionsForSelect(response.data);
+        // ✅ CORREGIDO: Pasar respuesta completa en lugar de response.data
+        const institutionOptions = apiService.formatInstitutionsForSelect(response);
         setInstitutions(institutionOptions);
         console.log('✅ Instituciones cargadas:', institutionOptions.length);
       }
@@ -141,7 +142,8 @@ const EditTeacher = () => {
       const response = await apiService.getCoursesByInstitutionId(institutionId);
       
       if (response.status === 'success') {
-        const courseOptions = apiService.formatCoursesForSelect(response.data);
+        // ✅ CORREGIDO: Pasar respuesta completa en lugar de response.data
+        const courseOptions = apiService.formatCoursesForSelect(response);
         setCourses(courseOptions);
         console.log('✅ Cursos cargados:', courseOptions.length);
       }

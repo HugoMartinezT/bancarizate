@@ -1,17 +1,6 @@
 import { useState } from 'react';
 import { User, Lock, Bell, Shield, Globe, Smartphone, Eye, EyeOff, Save, AlertCircle, XCircle, Sparkles } from 'lucide-react';
 
-// Declaración de tipos para View Transitions API
-declare global {
-  interface Document {
-    startViewTransition?: (callback: () => void) => {
-      finished: Promise<void>;
-      ready: Promise<void>;
-      updateCallbackDone: Promise<void>;
-    };
-  }
-}
-
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications' | 'preferences'>('profile');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -121,14 +110,13 @@ const Settings = () => {
 
   // Función para manejar transiciones suaves entre tabs
   const handleTabChange = (newTab: 'profile' | 'security' | 'notifications' | 'preferences') => {
-    if (!document.startViewTransition) {
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        setActiveTab(newTab);
+      });
+    } else {
       setActiveTab(newTab);
-      return;
     }
-
-    document.startViewTransition(() => {
-      setActiveTab(newTab);
-    });
   };
 
   const handleSave = () => {
@@ -145,31 +133,36 @@ const Settings = () => {
       return;
     }
 
-    if (!document.startViewTransition) {
+    if (document.startViewTransition) {
+      document.startViewTransition(() => {
+        setSaveStatus('saving');
+        setErrors({});
+      });
+    } else {
       setSaveStatus('saving');
       setErrors({});
-      
-      setTimeout(() => {
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 3000);
-      }, 1000);
-      return;
     }
-
-    document.startViewTransition(() => {
-      setSaveStatus('saving');
-      setErrors({});
-    });
     
     setTimeout(() => {
-      document.startViewTransition(() => {
+      if (document.startViewTransition) {
+        document.startViewTransition(() => {
+          setSaveStatus('saved');
+          setTimeout(() => {
+            if (document.startViewTransition) {
+              document.startViewTransition(() => {
+                setSaveStatus('idle');
+              });
+            } else {
+              setSaveStatus('idle');
+            }
+          }, 3000);
+        });
+      } else {
         setSaveStatus('saved');
         setTimeout(() => {
-          document.startViewTransition(() => {
-            setSaveStatus('idle');
-          });
+          setSaveStatus('idle');
         }, 3000);
-      });
+      }
     }, 1000);
   };
 
@@ -181,127 +174,81 @@ const Settings = () => {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-3 py-4">
-      {/* Header compacto */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-white/20 rounded">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">Configuración</h1>
-              <p className="text-blue-200 text-xs">Gestiona tu cuenta y preferencias</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-blue-200 text-xs mb-0.5">Estado</p>
-            <p className="text-base font-bold">Activo</p>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Configuraciones</h1>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id as typeof activeTab)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            style={{ viewTransitionName: `tab-${tab.id}` }}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tabs compactos */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 mb-4 overflow-hidden">
-        <div className="flex border-b border-gray-100">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id as any)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold transition-colors border-b-2 ${
-                  activeTab === tab.id
-                    ? 'text-[#193cb8] border-[#193cb8] bg-blue-50'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-                }`}
-                style={{ viewTransitionName: `tab-${tab.id}` }}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Status de guardado */}
-      {saveStatus === 'saved' && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800 text-xs shadow-sm">
-          <Sparkles className="w-3.5 h-3.5" />
-          <p>Configuración guardada exitosamente</p>
-        </div>
-      )}
-
-      {/* Contenido según tab activa */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 p-4" style={{ viewTransitionName: 'tab-content' }}>
+      {/* Contenido de tabs */}
+      <div 
+        className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+        style={{ viewTransitionName: `${activeTab}-content` }}
+      >
         {activeTab === 'profile' && (
-          <div style={{ viewTransitionName: 'profile-content' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <User className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800">Información Personal</h2>
-            </div>
-
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-900">Información Personal</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Correo Electrónico
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
                 <input
-                  type="email"
                   name="email"
+                  type="email"
                   value={profileData.email}
                   onChange={handleProfileChange}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm ${
-                    errors.email 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
+                  className={`w-full px-3 py-2.5 border rounded-lg shadow-sm transition-all ${
+                    errors.email ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-blue-300'
                   }`}
                 />
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <XCircle className="w-3 h-3" />
-                    {errors.email}
+                    <XCircle className="w-3 h-3" /> {errors.email}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Teléfono
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Teléfono</label>
                 <input
-                  type="tel"
                   name="phone"
+                  type="tel"
                   value={profileData.phone}
                   onChange={handleProfileChange}
-                  placeholder="+56 9 1234 5678"
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm ${
-                    errors.phone 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
+                  className={`w-full px-3 py-2.5 border rounded-lg shadow-sm transition-all ${
+                    errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-blue-300'
                   }`}
                 />
                 {errors.phone && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <XCircle className="w-3 h-3" />
-                    {errors.phone}
+                    <XCircle className="w-3 h-3" /> {errors.phone}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Dirección
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Dirección</label>
                 <input
-                  type="text"
                   name="address"
+                  type="text"
                   value={profileData.address}
                   onChange={handleProfileChange}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
                 />
               </div>
             </div>
@@ -309,122 +256,172 @@ const Settings = () => {
         )}
 
         {activeTab === 'security' && (
-          <div style={{ viewTransitionName: 'security-content' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <Lock className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800">Seguridad de la Cuenta</h2>
-            </div>
-
-            <div className="space-y-6">
-              {/* Cambiar Contraseña */}
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-900">Seguridad</h2>
+            <div className="space-y-4">
               <div>
-                <h3 className="text-xs font-bold text-gray-700 mb-3">Cambiar Contraseña</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Contraseña Actual
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPassword ? 'text' : 'password'}
-                        name="currentPassword"
-                        value={passwordData.currentPassword}
-                        onChange={handlePasswordChange}
-                        className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm ${
-                          errors.currentPassword 
-                            ? 'border-red-500 bg-red-50' 
-                            : 'border-gray-200 focus:border-blue-300'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.currentPassword && (
-                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <XCircle className="w-3 h-3" />
-                        {errors.currentPassword}
-                      </p>
-                    )}
-                  </div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Contraseña Actual</label>
+                <div className="relative">
+                  <input
+                    name="currentPassword"
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={passwordData.currentPassword}
+                    onChange={handlePasswordChange}
+                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm transition-all pr-10 ${
+                      errors.currentPassword ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-blue-300'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.currentPassword && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" /> {errors.currentPassword}
+                  </p>
+                )}
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Nueva Contraseña
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        name="newPassword"
-                        value={passwordData.newPassword}
-                        onChange={handlePasswordChange}
-                        className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm ${
-                          errors.newPassword 
-                            ? 'border-red-500 bg-red-50' 
-                            : 'border-gray-200 focus:border-blue-300'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.newPassword && (
-                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <XCircle className="w-3 h-3" />
-                        {errors.newPassword}
-                      </p>
-                    )}
-                  </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Nueva Contraseña</label>
+                <div className="relative">
+                  <input
+                    name="newPassword"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={passwordData.newPassword}
+                    onChange={handlePasswordChange}
+                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm transition-all pr-10 ${
+                      errors.newPassword ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-blue-300'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.newPassword && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" /> {errors.newPassword}
+                  </p>
+                )}
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Confirmar Nueva Contraseña
-                    </label>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Confirmar Nueva Contraseña</label>
+                <input
+                  name="confirmPassword"
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                  className={`w-full px-3 py-2.5 border rounded-lg shadow-sm transition-all ${
+                    errors.confirmPassword ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-blue-300'
+                  }`}
+                />
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" /> {errors.confirmPassword}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-900">Notificaciones</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-blue-600" /> SMS
+                </h3>
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Transferencias
                     <input
-                      type="password"
-                      name="confirmPassword"
-                      value={passwordData.confirmPassword}
-                      onChange={handlePasswordChange}
-                      className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm ${
-                        errors.confirmPassword 
-                          ? 'border-red-500 bg-red-50' 
-                          : 'border-gray-200 focus:border-blue-300'
-                      }`}
+                      type="checkbox"
+                      checked={notifications.sms.transfers}
+                      onChange={() => handleNotificationChange('sms', 'transfers')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    {errors.confirmPassword && (
-                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                        <XCircle className="w-3 h-3" />
-                        {errors.confirmPassword}
-                      </p>
-                    )}
-                  </div>
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Inicios de sesión
+                    <input
+                      type="checkbox"
+                      checked={notifications.sms.login}
+                      onChange={() => handleNotificationChange('sms', 'login')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Actualizaciones
+                    <input
+                      type="checkbox"
+                      checked={notifications.sms.updates}
+                      onChange={() => handleNotificationChange('sms', 'updates')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Marketing
+                    <input
+                      type="checkbox"
+                      checked={notifications.sms.marketing}
+                      onChange={() => handleNotificationChange('sms', 'marketing')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
                 </div>
               </div>
 
-              {/* Autenticación de Dos Factores */}
-              <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-xs font-bold text-gray-700 mb-3">Autenticación de Dos Factores</h3>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900">Autenticación por SMS</p>
-                      <p className="text-[10px] text-gray-500">Recibe un código en tu teléfono</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
-                    <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#193cb8]"></div>
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-green-600" /> Email
+                </h3>
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Transferencias
+                    <input
+                      type="checkbox"
+                      checked={notifications.email.transfers}
+                      onChange={() => handleNotificationChange('email', 'transfers')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Inicios de sesión
+                    <input
+                      type="checkbox"
+                      checked={notifications.email.login}
+                      onChange={() => handleNotificationChange('email', 'login')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Actualizaciones
+                    <input
+                      type="checkbox"
+                      checked={notifications.email.updates}
+                      onChange={() => handleNotificationChange('email', 'updates')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between text-xs font-medium text-gray-700">
+                    Marketing
+                    <input
+                      type="checkbox"
+                      checked={notifications.email.marketing}
+                      onChange={() => handleNotificationChange('email', 'marketing')}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
                   </label>
                 </div>
               </div>
@@ -432,75 +429,10 @@ const Settings = () => {
           </div>
         )}
 
-        {activeTab === 'notifications' && (
-          <div style={{ viewTransitionName: 'notifications-content' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <Bell className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800">Preferencias de Notificación</h2>
-            </div>
-            
-            <div className="space-y-6">
-              {/* Notificaciones por Email */}
-              <div>
-                <h3 className="text-xs font-bold text-gray-700 mb-3">Notificaciones por Email</h3>
-                <div className="space-y-3">
-                  {[
-                    { key: 'transfers', label: 'Transferencias realizadas' },
-                    { key: 'login', label: 'Inicios de sesión' },
-                    { key: 'updates', label: 'Actualizaciones del sistema' },
-                    { key: 'marketing', label: 'Ofertas y promociones' }
-                  ].map(({ key, label }) => (
-                    <label key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                      <span className="text-xs text-gray-700">{label}</span>
-                      <input
-                        type="checkbox"
-                        checked={notifications.email[key as keyof typeof notifications.email]}
-                        onChange={() => handleNotificationChange('email', key)}
-                        className="w-3.5 h-3.5 text-[#193cb8] rounded focus:ring-[#193cb8]"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notificaciones por SMS */}
-              <div>
-                <h3 className="text-xs font-bold text-gray-700 mb-3">Notificaciones por SMS</h3>
-                <div className="space-y-3">
-                  {[
-                    { key: 'transfers', label: 'Transferencias realizadas' },
-                    { key: 'login', label: 'Inicios de sesión' },
-                    { key: 'updates', label: 'Actualizaciones del sistema' },
-                    { key: 'marketing', label: 'Ofertas y promociones' }
-                  ].map(({ key, label }) => (
-                    <label key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                      <span className="text-xs text-gray-700">{label}</span>
-                      <input
-                        type="checkbox"
-                        checked={notifications.sms[key as keyof typeof notifications.sms]}
-                        onChange={() => handleNotificationChange('sms', key)}
-                        className="w-3.5 h-3.5 text-[#193cb8] rounded focus:ring-[#193cb8]"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'preferences' && (
-          <div style={{ viewTransitionName: 'preferences-content' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <Globe className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800">Preferencias Generales</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-900">Preferencias</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
                   Idioma
@@ -509,7 +441,7 @@ const Settings = () => {
                   name="language"
                   value={preferences.language}
                   onChange={handlePreferenceChange}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
                 >
                   <option value="es">Español</option>
                   <option value="en">English</option>
@@ -519,16 +451,16 @@ const Settings = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Moneda Predeterminada
+                  Moneda
                 </label>
                 <select
                   name="currency"
                   value={preferences.currency}
                   onChange={handlePreferenceChange}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
                 >
                   <option value="CLP">Peso Chileno (CLP)</option>
-                  <option value="USD">Dólar (USD)</option>
+                  <option value="USD">Dólar Estadounidense (USD)</option>
                   <option value="EUR">Euro (EUR)</option>
                 </select>
               </div>
@@ -541,7 +473,7 @@ const Settings = () => {
                   name="theme"
                   value={preferences.theme}
                   onChange={handlePreferenceChange}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
                 >
                   <option value="light">Claro</option>
                   <option value="dark">Oscuro</option>
@@ -557,7 +489,7 @@ const Settings = () => {
                   name="timezone"
                   value={preferences.timezone}
                   onChange={handlePreferenceChange}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:border-blue-300"
                 >
                   <option value="America/Santiago">Santiago, Chile</option>
                   <option value="America/Buenos_Aires">Buenos Aires, Argentina</option>
@@ -597,7 +529,8 @@ const Settings = () => {
       </div>
 
       {/* Estilos CSS para View Transitions */}
-      <style jsx global>{`
+      <style>
+        {`
         /* View Transitions para el contenido de tabs */
         ::view-transition-old(tab-content),
         ::view-transition-new(tab-content) {
@@ -704,7 +637,8 @@ const Settings = () => {
         [style*="view-transition-name"] {
           contain: layout style paint;
         }
-      `}</style>
+      `}
+      </style>
     </div>
   );
 };

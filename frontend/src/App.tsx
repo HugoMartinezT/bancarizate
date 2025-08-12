@@ -6,25 +6,14 @@ import Students from './pages/Students';
 import Teachers from './pages/Teachers';
 import Transfers from './pages/Transfers';
 import Statistics from './pages/Statistics';
-import Activity from './pages/Activity';
+import ActivityComponent from './pages/Activity';
 import Settings from './pages/Settings';
 // ✅ NUEVA IMPORTACIÓN: Panel Administrativo
 import Admin from './pages/Admin';
 import DashboardLayout from './components/Layout/DashboardLayout';
 import LoadingScreen from './components/Auth/LoadingScreen';
 import { apiService } from './services/api';
-
-// Definir el tipo User directamente aquí
-interface User {
-  id: string;
-  run: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  balance: number;
-  overdraftLimit: number;
-  role: string;
-}
+import { User } from './types/types';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -147,7 +136,6 @@ function App() {
       {showLoadingScreen && (
         <LoadingScreen 
           onComplete={handleLoadingComplete} 
-          skipAnimation={!loginCompleted}
         />
       )}
       
@@ -242,7 +230,7 @@ function App() {
           element={
             user ? (
               <DashboardLayout user={user} onLogout={handleLogout}>
-                <Activity />
+                <ActivityComponent />
               </DashboardLayout>
             ) : (
               <Navigate to="/login" />

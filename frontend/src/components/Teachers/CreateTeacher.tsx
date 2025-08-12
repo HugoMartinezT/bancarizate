@@ -83,7 +83,7 @@ const CreateTeacher = () => {
     }
   }, [formData.institutionId]);
 
-  // ✅ FUNCIÓN: Cargar instituciones activas (idéntica a Student)
+  // ✅ FUNCIÓN: Cargar instituciones activas (CORREGIDA)
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
@@ -92,7 +92,8 @@ const CreateTeacher = () => {
       const response = await apiService.getActiveInstitutions();
       
       if (response.status === 'success') {
-        const institutionOptions = apiService.formatInstitutionsForSelect(response.data);
+        // ✅ CORREGIDO: Pasar response completa, no response.data
+        const institutionOptions = apiService.formatInstitutionsForSelect(response);
         setInstitutions(institutionOptions);
         console.log('✅ Instituciones cargadas:', institutionOptions.length);
       }
@@ -107,7 +108,7 @@ const CreateTeacher = () => {
     }
   };
 
-  // ✅ FUNCIÓN: Cargar cursos por institución (idéntica a Student)
+  // ✅ FUNCIÓN: Cargar cursos por institución (CORREGIDA)
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
@@ -117,7 +118,8 @@ const CreateTeacher = () => {
       const response = await apiService.getCoursesByInstitutionId(institutionId);
       
       if (response.status === 'success') {
-        const courseOptions = apiService.formatCoursesForSelect(response.data);
+        // ✅ CORREGIDO: Pasar response completa, no response.data
+        const courseOptions = apiService.formatCoursesForSelect(response);
         setCourses(courseOptions);
         console.log('✅ Cursos cargados:', courseOptions.length);
       }
