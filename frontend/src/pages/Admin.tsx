@@ -135,256 +135,67 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
         setError(null);
 
         // Obtener usuario actual
-        const currentUser = propUser || apiService.getCurrentUser();
-        
-        if (!currentUser) {
-          setError('No hay sesión activa');
-          return;
-        }
-
-        if (currentUser.role !== 'admin') {
-          setError('No tienes permisos de administrador para acceder a esta sección');
-          return;
-        }
-
+        const currentUser = apiService.getCurrentUser();
         setUser(currentUser);
-        
-        // Cargar estadísticas reales
-        await loadStats();
-        
-      } catch (error: any) {
-        console.error('❌ Error verificando acceso admin:', error);
-        setError('Error al verificar permisos de administrador');
+
+        if (!currentUser || currentUser.role !== 'admin') {
+          setError('Acceso denegado. Solo administradores pueden acceder a esta sección.');
+          setTimeout(() => navigate('/'), 3000);
+          return;
+        }
+
+        // Cargar stats
+        const [institutionStats, courseStats] = await Promise.all([
+          apiService.getInstitutionStats(),
+          apiService.getCourseStats()
+        ]);
+
+        setStats({
+          institutions: institutionStats.data.total,
+          courses: courseStats.data.total,
+          // Agrega más stats si es necesario
+        });
+      } catch (err: any) {
+        setError(err.message || 'Error al verificar permisos');
       } finally {
         setLoading(false);
       }
     };
 
     checkAuth();
-  }, [propUser]);
+  }, [navigate]);
 
-  // Cargar estadísticas del dashboard (CORREGIDA)
-  const loadStats = async () => {
-    try {
-      // Intentar cargar estadísticas reales con fallback
-      const statsPromises = await Promise.allSettled([
-        // Usar funciones que existen o crear fallbacks
-        apiService.getActiveInstitutions?.() || Promise.resolve({ data: [] }),
-        apiService.getCoursesByInstitutionId?.('all') || Promise.resolve({ data: [] }),
-        apiService.getCurrentUser() ? Promise.resolve({ data: { total: 1 } }) : Promise.resolve({ data: { total: 0 } })
-      ]);
+  if (loading) return <div>Cargando...</div>;
+  if (error) return <div>Error: {error}</div>;
 
-      // Procesar resultados con fallbacks
-      let institutionsCount = '10'; // Valor por defecto
-      let coursesCount = '25';      // Valor por defecto
-      let usersCount = '156';       // Valor por defecto
-
-      // Intentar obtener valores reales si las APIs funcionan
-      if (statsPromises[0].status === 'fulfilled') {
-        const institutionsResult = statsPromises[0].value;
-        if (Array.isArray(institutionsResult)) {
-          institutionsCount = institutionsResult.length.toString();
-        } else if (institutionsResult.data && Array.isArray(institutionsResult.data)) {
-          institutionsCount = institutionsResult.data.length.toString();
-        } else if (institutionsResult.data && institutionsResult.data.total) {
-          institutionsCount = institutionsResult.data.total.toString();
-        }
-      }
-
-      if (statsPromises[1].status === 'fulfilled') {
-        const coursesResult = statsPromises[1].value;
-        if (Array.isArray(coursesResult)) {
-          coursesCount = coursesResult.length.toString();
-        } else if (coursesResult.data && Array.isArray(coursesResult.data)) {
-          coursesCount = coursesResult.data.length.toString();
-        } else if (coursesResult.data && coursesResult.data.total) {
-          coursesCount = coursesResult.data.total.toString();
-        }
-      }
-
-      const newStats = {
-        institutions: institutionsCount,
-        courses: coursesCount,
-        users: usersCount,
-        configs: '8',  // Configuraciones del sistema
-        backups: '3'   // Backups disponibles
-      };
-
-      setStats(newStats);
-
-    } catch (error) {
-      console.error('Error cargando estadísticas:', error);
-      // Usar valores por defecto en caso de error
-      setStats({
-        institutions: '10',
-        courses: '25',
-        users: '156',
-        configs: '8',
-        backups: '3'
-      });
-    }
-  };
-
-  // Manejar navegación a módulos
-  const handleModuleClick = (moduleId: string) => {
-    navigate(`/admin/${moduleId}`);
-  };
-
-  // Renderizar vista principal (dashboard de módulos)
-  const renderDashboard = () => {
-    if (loading) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Verificando permisos de administrador...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-white flex items-center justify-center">
-          <div className="text-center max-w-md mx-auto p-6">
-            <div className="p-4 bg-red-100 rounded-full w-fit mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+  const renderDashboard = () => (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Panel de Administración</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {adminModules.map(module => (
+          <div key={module.id} className="bg-white p-4 rounded-lg shadow border border-gray-100">
+            <div className="flex items-center gap-3 mb-2">
+              <module.icon className={`w-5 h-5 text-${module.color}-600`} />
+              <h2 className="text-lg font-bold">{module.title}</h2>
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mb-2">Acceso Denegado</h1>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <p className="text-sm text-gray-500 mb-4">{module.description}</p>
+            {module.stats && (
+              <div className="bg-gray-50 p-2 rounded text-center">
+                <div className="text-lg font-bold text-{module.color}-600">{module.stats.value}</div>
+                <div className="text-xs text-gray-500">{module.stats.label}</div>
+              </div>
+            )}
             <button
-              onClick={() => navigate('/dashboard')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => navigate(`/admin/${module.id}`)}
+              className="w-full mt-4 bg-blue-600 text-white py-2 rounded"
             >
-              Volver al Dashboard
+              Acceder
             </button>
           </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="max-w-7xl mx-auto px-3 py-4">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-4 mb-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Panel de Administración</h1>
-                <p className="text-blue-200 text-sm">
-                  Bienvenido, {user?.firstName} {user?.lastName} - Administrador del Sistema
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-blue-200 text-sm mb-1">RUN</p>
-              <p className="text-lg font-bold">{user?.run}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Mensaje de bienvenida */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <h2 className="text-sm font-bold text-blue-900 mb-1">
-                Acceso de Administrador Confirmado
-              </h2>
-              <p className="text-xs text-blue-700">
-                Tienes acceso completo a todas las funcionalidades administrativas. 
-                Selecciona un módulo para comenzar a gestionar el sistema.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Grid de módulos administrativos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-          {adminModules.map((module) => {
-            const Icon = module.icon;
-            const colorClasses = {
-              blue: 'border-blue-300 hover:border-blue-400 bg-blue-100 hover:bg-blue-200 text-blue-600',
-              green: 'border-green-300 hover:border-green-400 bg-green-100 hover:bg-green-200 text-green-600',
-              purple: 'border-purple-300 hover:border-purple-400 bg-purple-100 hover:bg-purple-200 text-purple-600',
-              orange: 'border-orange-300 hover:border-orange-400 bg-orange-100 hover:bg-orange-200 text-orange-600',
-              red: 'border-red-300 hover:border-red-400 bg-red-100 hover:bg-red-200 text-red-600'
-            };
-            
-            return (
-              <div
-                key={module.id}
-                onClick={() => handleModuleClick(module.id)}
-                className="bg-white border-2 border-gray-200 rounded-lg p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`p-3 rounded-lg transition-colors ${colorClasses[module.color as keyof typeof colorClasses]}`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-bold text-${module.color}-600`}>
-                      {module.stats?.value}
-                    </p>
-                    <p className="text-xs text-gray-500">{module.stats?.label}</p>
-                  </div>
-                </div>
-                
-                <h3 className="text-base font-bold text-gray-900 mb-1">
-                  {module.title}
-                </h3>
-                <p className="text-xs text-gray-600 mb-3">
-                  {module.description}
-                </p>
-                
-                <div className="flex items-center justify-between">
-                  <span className={`px-2 py-1 bg-${module.color}-50 text-${module.color}-700 text-xs font-medium rounded-full`}>
-                    Admin
-                  </span>
-                  <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
-                    Click para acceder →
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Estadísticas rápidas */}
-        <div className="bg-white rounded-lg shadow border border-gray-100 p-4">
-          <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-gray-600" />
-            Resumen del Sistema
-          </h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="text-center">
-              <div className="text-lg font-bold text-blue-600">{stats.institutions}</div>
-              <div className="text-xs text-gray-500">Instituciones</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-green-600">{stats.courses}</div>
-              <div className="text-xs text-gray-500">Cursos</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-purple-600">{stats.users}</div>
-              <div className="text-xs text-gray-500">Usuarios</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-orange-600">{stats.configs}</div>
-              <div className="text-xs text-gray-500">Configuraciones</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-red-600">{stats.backups}</div>
-              <div className="text-xs text-gray-500">Backups</div>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
-    );
-  };
+    </div>
+  );
 
   // Componente placeholder para módulos no implementados aún
   const ModulePlaceholder = ({ title, description }: { title: string; description: string }) => (
