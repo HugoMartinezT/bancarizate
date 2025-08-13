@@ -2,7 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle, User, Calendar, DollarSign, Search, X, UserCircle, Star, School, TrendingUp, Shield, Sparkles, Wallet, AlertCircle, Users, Calculator, Divide, Loader2, RefreshCw, Filter, ChevronLeft, ChevronRight, SortAsc, SortDesc, Check } from 'lucide-react';
 import { apiService } from "../services/api";
 import type { User as ApiUser, Transfer, UserStats } from '../services/api';
-import type { SelectedRecipient } from '../types/types';
+
+// Definición local de SelectedRecipient si no existe en types/types
+interface SelectedRecipient extends ApiUser {
+  name: string;
+  displayRole: string;
+  amount?: number;
+  favorite?: boolean;
+}
 
 const Transfers = () => {
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
@@ -270,7 +277,12 @@ const Transfers = () => {
   const getDisplayRole = (role: string) => ({ student: 'Estudiante', teacher: 'Docente', admin: 'Administrador' }[role] || role);
   
   // Componente para renderizar la lista de usuarios en el modal
-  const UserListItem = ({ user, isSelected, onToggleSelection, onToggleFavorite }: any) => {
+  const UserListItem = ({ user, isSelected, onToggleSelection, onToggleFavorite }: {
+    user: ApiUser;
+    isSelected: boolean;
+    onToggleSelection: (user: ApiUser) => void;
+    onToggleFavorite: (userId: string) => void;
+  }) => {
     const name = `${user.firstName} ${user.lastName}`;
     const displayRole = getDisplayRole(user.role);
     const colors = getAvatarColors(name);
