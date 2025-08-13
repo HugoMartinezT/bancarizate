@@ -18,16 +18,7 @@ import { apiService } from '../services/api';
 import type { Transfer, UserStats } from '../services/api';
 import type { User } from '../types/types';
 
-// Declaración de tipos para View Transitions API
-declare global {
-  interface Document {
-    startViewTransition?: (callback: () => void) => {
-      finished: Promise<void>;
-      ready: Promise<void>;
-      updateCallbackDone: Promise<void>;
-    };
-  }
-}
+// Nota: View Transitions API declaration removed to avoid TypeScript conflicts
 
 // Interfaces
 interface DashboardProps {
@@ -111,11 +102,11 @@ const Dashboard = ({ user }: DashboardProps) => {
 
   // Función para manejar transiciones
   const handleTransition = (callback: () => void) => {
-    if (!document.startViewTransition) {
+    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+      (document as any).startViewTransition(callback);
+    } else {
       callback();
-      return;
     }
-    document.startViewTransition(callback);
   };
 
   // FUNCIÓN CORREGIDA PARA CARGAR ESTADÍSTICAS
@@ -184,8 +175,8 @@ const Dashboard = ({ user }: DashboardProps) => {
   };
 
   // Función para formatear fechas
-  const formatDate = (date: string) => {
-    const transferDate = new Date(date);
+  const formatDate = (date: string | Date) => {
+    const transferDate = typeof date === 'string' ? new Date(date) : date;
     const today = new Date();
     const diffTime = today.getTime() - transferDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -527,7 +518,8 @@ const Dashboard = ({ user }: DashboardProps) => {
       </div>
 
       {/* Estilos CSS para View Transitions */}
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{
+        __html: `
         /* View Transitions para estadísticas */
         ::view-transition-old([style*="stat-"]),
         ::view-transition-new([style*="stat-"]) {
@@ -660,7 +652,7 @@ const Dashboard = ({ user }: DashboardProps) => {
         .overflow-y-auto::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
-      `}</style>
+      `}} />
     </div>
   );
 };
