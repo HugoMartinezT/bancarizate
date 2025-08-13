@@ -3,7 +3,7 @@ import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle, User, C
 import { apiService } from "../services/api";
 import type { User as ApiUser, Transfer, UserStats } from '../services/api';
 
-// Definición local de SelectedRecipient si no existe en types/types
+// Definición local de SelectedRecipient
 interface SelectedRecipient extends ApiUser {
   name: string;
   displayRole: string;
@@ -264,6 +264,7 @@ const Transfers = () => {
     setPagination(prev => ({ ...prev, page: newPage }));
   };
 
+  // Helper functions
   const formatCurrency = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
   const formatDate = (date: string | Date) => new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(typeof date === 'string' ? new Date(date) : date);
   const getStatusIcon = (status: Transfer['status']) => ({ completed: <CheckCircle className="w-3.5 h-3.5 text-green-500" />, pending: <Clock className="w-3.5 h-3.5 text-yellow-500" />, failed: <XCircle className="w-3.5 h-3.5 text-red-500" /> }[status]);
@@ -882,7 +883,7 @@ const Transfers = () => {
                                   <div className="flex items-center gap-1">
                                     <p className="text-xs text-gray-500">{otherPerson.run}</p>
                                     <span className={`px-1.5 py-[1px] rounded text-[10px] font-normal ${getRoleBadgeColor(otherPerson.role)}`}>
-                                      {otherPerson.displayRole}
+                                      {getDisplayRole(otherPerson.role)}
                                     </span>
                                   </div>
                                 </div>
