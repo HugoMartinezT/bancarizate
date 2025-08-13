@@ -249,7 +249,7 @@ class ApiService {
     institution?: string;
     course?: string;
     sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
+    sortOrder: 'asc' | 'desc';
   }): Promise<StudentsResponse> {
     const queryParams = new URLSearchParams();
     if (params) {
@@ -306,7 +306,7 @@ class ApiService {
     institution?: string;
     course?: string;
     sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
+    sortOrder: 'asc' | 'desc';
   }): Promise<TeachersResponse> {
     const queryParams = new URLSearchParams();
     if (params) {
@@ -369,7 +369,8 @@ class ApiService {
         }
       });
     }
-    return await this.request(`/admin/users?${queryParams.toString()}`);
+    // ✅ CORRECCIÓN PRINCIPAL: Cambiado a /transfers/users para coincidir con el backend
+    return await this.request(`/transfers/users?${queryParams.toString()}`);
   }
 
   async getInstitutions(params?: {
@@ -403,157 +404,31 @@ class ApiService {
         label: inst.name
       }));
     }
-    
-    // Si es una respuesta con paginación
-    if (response && 'data' in response && response.data.institutions) {
-      return response.data.institutions.map(inst => ({
-        value: inst.id,
-        label: inst.name
-      }));
-    }
-    
-    return [];
+    // Si es la respuesta con data
+    return response.data.institutions.map(inst => ({
+      value: inst.id,
+      label: inst.name
+    }));
   }
 
-  async getInstitutionNameById(id: string): Promise<string> {
-    try {
-      const response = await this.request(`/admin/institutions/${id}`);
-      return response.data.institution.name;
-    } catch (error) {
-      return 'Institución no encontrada';
-    }
-  }
-
-  async getInstitutionStats(): Promise<{ data: { total: number } }> {
-    return await this.request('/admin/institutions/stats');
-  }
-
-  async createInstitution(data: Partial<Institution>): Promise<any> {
-    return await this.request('/admin/institutions', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateInstitution(id: string, data: Partial<Institution>): Promise<any> {
-    return await this.request(`/admin/institutions/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteInstitution(id: string): Promise<any> {
-    return await this.request(`/admin/institutions/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async getCourses(params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    institution?: string;
-    institutionId?: string;
-    level?: string;
-    active?: string;
-  }): Promise<CoursesResponse> {
+  async getCourses(institutionId?: string): Promise<CoursesResponse> {
     const queryParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, value.toString());
-        }
-      });
-    }
+    if (institutionId) queryParams.append('institution', institutionId);
     return await this.request(`/admin/courses?${queryParams.toString()}`);
   }
-
-  async getCoursesByInstitutionId(institutionId: string): Promise<CoursesResponse> {
-    return await this.getCourses({ institutionId, active: 'true' });
-  }
-
-  // ✅ CORREGIDO: Formatear cursos para select - maneja respuesta con paginación
-  formatCoursesForSelect(response: CoursesResponse | Course[]): Array<{value: string, label: string}> {
-    // Si es un array directo de cursos
-    if (Array.isArray(response)) {
-      return response.map(course => ({
-        value: course.id,
-        label: course.name
-      }));
-    }
-    
-    // Si es una respuesta con paginación
-    if (response && 'data' in response && response.data.courses) {
-      return response.data.courses.map(course => ({
-        value: course.id,
-        label: course.name
-      }));
-    }
-    
-    return [];
-  }
-
-  async getCourseNameById(courseId: string, institutionId?: string): Promise<string> {
-    try {
-      const response = await this.request(`/admin/courses/${courseId}`);
-      return response.data.course.name;
-    } catch (error) {
-      return 'Curso no encontrado';
-    }
-  }
-
-  async getCourseStats(): Promise<{ data: { total: number } }> {
-    return await this.request('/admin/courses/stats');
-  }
-
-  async createCourse(data: Partial<Course>): Promise<any> {
-    return await this.request('/admin/courses', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateCourse(id: string, data: Partial<Course>): Promise<any> {
-    return await this.request(`/admin/courses/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteCourse(id: string): Promise<any> {
-    return await this.request(`/admin/courses/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // ==========================================
-  // CONFIGURACIÓN DEL SISTEMA
-  // ==========================================
 
   async getSystemConfig(): Promise<SystemConfigResponse> {
     return await this.request('/admin/config');
   }
 
-  async getSystemConfigurations(params?: any): Promise<SystemConfigResponse> {
-    return await this.getSystemConfig();
-  }
-
-  async updateConfig(id: string, value: string): Promise<any> {
-    return await this.request(`/admin/config/${id}`, {
-      method: 'PUT',
+  async updateConfig(key: string, value: any): Promise<any> {
+    return await this.request(`/admin/config/${key}`, {
+      method: 'PATCH',
       body: JSON.stringify({ value }),
     });
   }
 
-  // ✅ CORREGIDO: updateMultipleConfigurations ahora acepta 'id' en lugar de 'key'
-  async updateMultipleConfigurations(updates: Array<{id: string, value: string}>): Promise<any> {
-    return await this.request('/admin/config/bulk-update', {
-      method: 'PUT',
-      body: JSON.stringify({ updates }),
-    });
-  }
-
-  async getConfigurationHistory(configKey: string, params?: any): Promise<any> {
+  async getConfigHistory(configKey: string, params?: { page?: number; limit?: number }): Promise<any> {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
