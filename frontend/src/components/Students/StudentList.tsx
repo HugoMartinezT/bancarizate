@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Clock, UserPlus, Download, School, User, CheckCircle, XCircle, Sparkles, Eye, Edit, Trash2, Printer, Loader, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
@@ -109,170 +109,323 @@ const StudentList = () => {
     graduated: 'Graduado'
   }[status]);
 
-  const PaginationComponent = () => (
-    <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600 print:hidden">
-      <button 
-        onClick={() => handlePageChange(pagination.page - 1)}
-        disabled={pagination.page === 1}
-        className="flex items-center gap-1 hover:text-gray-900 disabled:opacity-50"
-      >
-        <ChevronLeft className="w-4 h-4" />
-        Anterior
-      </button>
-      <span>Página {pagination.page} de {pagination.totalPages}</span>
-      <button 
-        onClick={() => handlePageChange(pagination.page + 1)}
-        disabled={pagination.page === pagination.totalPages}
-        className="flex items-center gap-1 hover:text-gray-900 disabled:opacity-50"
-      >
-        Siguiente
-        <ChevronRight className="w-4 h-4" />
-      </button>
-    </div>
-  );
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('es-CL', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(date);
+  };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Estudiantes</h1>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => navigate('/students/create')}
-            className="btn-secondary flex items-center gap-2 print:hidden"
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const getAvatarColors = (name: string) => {
+    const colors = [
+      { bg: 'bg-purple-100', text: 'text-purple-700' },
+      { bg: 'bg-blue-100', text: 'text-blue-700' },
+      { bg: 'bg-green-100', text: 'text-green-700' },
+      { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+      { bg: 'bg-pink-100', text: 'text-pink-700' },
+      { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    ];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+
+  const exportToCSV = () => {
+    if (students.length === 0) return;
+    
+    const headers = ['RUN', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Nacimiento', 'Institución', 'Curso', 'Género', 'Estado'];
+    const rows = students.map(s => [
+      s.run,
+      s.firstName,
+      s.lastName,
+      s.email,
+      s.phone || '',
+      formatDate(s.birthDate),
+      s.institution,
+      s.course,
+      s.gender,
+      getStatusLabel(s.status)
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `estudiantes_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToPDF = () => {
+    window.print();
+  };
+
+  // Componente de paginación mejorado
+  const PaginationComponent = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    const pages = [];
+    const startPage = Math.max(1, pagination.page - 2);
+    const endPage = Math.min(pagination.totalPages, pagination.page + 2);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 print:hidden">
+        <div className="text-xs text-gray-500">
+          Mostrando {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} estudiantes
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePageChange(pagination.page - 1)}
+            disabled={pagination.page === 1}
+            className="px-3 py-1 text-xs bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
           >
-            <UserPlus className="w-4 h-4" />
-            Nuevo Estudiante
+            ← Anterior
           </button>
-          <button 
-            onClick={() => window.print()}
-            className="btn-secondary flex items-center gap-2"
+          
+          {pages.map(page => (
+            <button
+              key={page}
+              onClick={() => handlePageChange(page)}
+              className={`px-3 py-1 text-xs rounded ${
+                page === pagination.page 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => handlePageChange(pagination.page + 1)}
+            disabled={pagination.page === pagination.totalPages}
+            className="px-3 py-1 text-xs bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
           >
-            <Printer className="w-4 h-4" />
-            Imprimir
+            Siguiente →
           </button>
         </div>
       </div>
+    );
+  };
 
-      {/* Filtros y Búsqueda */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 p-4 space-y-4 print:hidden">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar por nombre o RUN..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-300"
-            />
+  return (
+    <div className="mx-auto px-3 py-4">
+      {/* Header con diseño gradiente */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md print:hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              <School className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold">Estudiantes</h1>
+              <p className="text-blue-200 text-xs">Gestiona los estudiantes del sistema</p>
+            </div>
           </div>
+          <div className="text-right">
+            <p className="text-blue-200 text-xs mb-0.5">Total estudiantes</p>
+            <p className="text-base font-bold">{loading ? '...' : pagination.total}</p>
+          </div>
+        </div>
+      </div>
 
+      {/* Filtros y acciones mejorados */}
+      <div className="bg-white rounded-lg shadow-sm mb-4 print:hidden">
+        <div className="flex flex-col sm:flex-row gap-3 p-3">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, RUN o email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs shadow-sm focus:border-blue-300"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-300 min-w-[150px]"
+            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs shadow-sm focus:border-blue-300"
+            disabled={loading}
           >
             <option value="all">Todos los estados</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
             <option value="graduated">Graduados</option>
           </select>
+          
+          <button 
+            onClick={exportToCSV} 
+            disabled={students.length === 0 || loading}
+            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 text-xs shadow-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel
+          </button>
+          
+          <button 
+            onClick={exportToPDF} 
+            disabled={students.length === 0 || loading}
+            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 text-xs shadow-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            PDF
+          </button>
+          
+          <button 
+            onClick={() => navigate('/students/create')}
+            className="px-3 py-2 bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white rounded-lg flex items-center gap-1 text-xs font-bold shadow-md hover:opacity-90"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Nuevo
+          </button>
         </div>
       </div>
 
-      {/* Estado de Error */}
+      {/* Error State */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 print:hidden">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-red-800">Error al cargar estudiantes</p>
-              <p className="text-xs text-red-600 mt-1">{error}</p>
-              <button
-                onClick={() => loadStudents()}
-                className="mt-2 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium"
-              >
-                Reintentar
-              </button>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800">Error al cargar estudiantes</h3>
+              <p className="text-sm text-red-600 mt-1">{error}</p>
             </div>
+            <button
+              onClick={() => loadStudents(pagination.page, searchTerm, filterStatus)}
+              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium"
+            >
+              Reintentar
+            </button>
           </div>
         </div>
       )}
 
-      {/* Tabla de Estudiantes */}
+      {/* Lista de estudiantes con diseño mejorado */}
       <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="p-3 border-b border-gray-100 print:hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
+                <Clock className="w-3.5 h-3.5 text-white" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Lista de Estudiantes</h2>
+              {(searchTerm || filterStatus !== 'all') && !loading && (
+                <span className="text-xs text-gray-500">
+                  - {searchTerm && `"${searchTerm}"`} {filterStatus !== 'all' && `(${getStatusLabel(filterStatus as any)})`}
+                </span>
+              )}
+            </div>
+            {loading && (
+              <div className="flex items-center gap-2 text-blue-600">
+                <Loader className="w-4 h-4 animate-spin" />
+                <span className="text-xs">Cargando...</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full table-auto">
+            <thead className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nombre</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">RUN</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Institución</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Curso</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider print:hidden">Acciones</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Estudiante</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">RUN</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Establecimiento</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Curso</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Nacimiento</th>
+                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Género</th>
+                <th className="px-4 py-2 text-center text-xs font-bold uppercase">Estado</th>
+                <th className="px-4 py-2 text-center text-xs font-bold uppercase print:hidden">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {students.map(student => (
-                <tr key={student.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">{student.firstName} {student.lastName}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600">{student.run}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <School className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-sm text-gray-600">{student.institution}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600">{student.course}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      student.status === 'active' ? 'bg-green-100 text-green-700' :
-                      student.status === 'inactive' ? 'bg-red-100 text-red-700' : 
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {getStatusIcon(student.status)}
-                      <span>{getStatusLabel(student.status)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-center print:hidden min-w-[150px]">
-                    <div className="flex items-center justify-center gap-2">
-                      <button 
-                        onClick={() => navigate(`/students/${student.id}`)}
-                        className="p-1 hover:bg-gray-100 rounded text-gray-600"
-                        title="Ver detalles"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => navigate(`/students/edit/${student.id}`)}
-                        className="p-1 hover:bg-gray-100 rounded text-blue-600"
-                        title="Editar"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (confirm(`¿Estás seguro de eliminar a ${student.firstName} ${student.lastName}?`)) {
-                            console.log('Eliminar estudiante:', student.id);
-                            // TODO: Implementar eliminación real
-                            // apiService.deleteStudent(student.id).then(() => loadStudents());
-                          }
-                        }}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-gray-100">
+              {students.map((student) => {
+                const colors = getAvatarColors(`${student.firstName} ${student.lastName}`);
+                
+                return (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2 min-w-[200px]">
+                        <div className={`w-7 h-7 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
+                          <span className={`text-xs font-bold ${colors.text}`}>
+                            {getInitials(student.firstName, student.lastName)}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-900">{student.firstName} {student.lastName}</p>
+                          <p className="text-[10px] text-gray-500">{student.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[120px]">{student.run}</td>
+                    <td className="px-4 py-2 text-xs text-gray-700 min-w-[200px]">{student.institution}</td>
+                    <td className="px-4 py-2 text-xs text-gray-700 min-w-[180px]">{student.course}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[120px]">{formatDate(student.birthDate)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[100px]">{student.gender}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center min-w-[120px]">
+                      <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium shadow-sm ${
+                        student.status === 'active' ? 'bg-green-100 text-green-700' : 
+                        student.status === 'inactive' ? 'bg-red-100 text-red-700' : 
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {getStatusIcon(student.status)}
+                        <span>{getStatusLabel(student.status)}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center print:hidden min-w-[150px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => navigate(`/students/${student.id}`)}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                          title="Ver detalles"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/students/edit/${student.id}`)}
+                          className="p-1 hover:bg-gray-100 rounded text-blue-600"
+                          title="Editar"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (confirm(`¿Estás seguro de eliminar a ${student.firstName} ${student.lastName}?`)) {
+                              console.log('Eliminar estudiante:', student.id);
+                              // TODO: Implementar eliminación real
+                              // apiService.deleteStudent(student.id).then(() => loadStudents());
+                            }
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded text-red-600"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -308,7 +461,7 @@ const StudentList = () => {
           </div>
         )}
 
-        {/* Paginación */}
+        {/* Paginación mejorada */}
         <PaginationComponent />
       </div>
     </div>
