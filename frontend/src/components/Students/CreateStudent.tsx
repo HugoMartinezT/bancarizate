@@ -111,6 +111,7 @@ const CreateStudent = () => {
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
+      setCourses([]); // Limpiar cursos anteriores
       console.log('📚 Cargando cursos para institución:', institutionId);
       
       const response = await apiService.getCoursesByInstitutionId(institutionId);
@@ -124,7 +125,7 @@ const CreateStudent = () => {
       console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ 
         ...prev, 
-        courseId: 'Error al cargar cursos disponibles' 
+        courseId: 'Error al cargar cursos para esta institución' 
       }));
     } finally {
       setIsLoadingCourses(false);
@@ -133,28 +134,90 @@ const CreateStudent = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setErrors(prev => ({ ...prev, [name]: '' }));
+    
+    if (name === 'run') {
+      const formatted = formatRUTOnInput(value);
+      setFormData(prev => ({ ...prev, [name]: formatted }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+    
+    // Limpiar error del campo cuando el usuario empiece a escribir
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
-  const validate = () => {
+  const validate = (): Record<string, string> => {
     const newErrors: Record<string, string> = {};
 
-    if (!validateRUT(formData.run)) newErrors.run = 'RUN inválido';
-    if (!formData.firstName.trim()) newErrors.firstName = 'Nombre requerido';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Apellido requerido';
-    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Email inválido';
-    if (formData.phone && !/^(\+56)?9\d{8}$/.test(formData.phone.replace(/\s/g, ''))) newErrors.phone = 'Teléfono inválido';
-    if (!formData.birthDate) newErrors.birthDate = 'Fecha de nacimiento requerida';
-    if (!formData.institutionId) newErrors.institutionId = 'Institución requerida';
-    if (!formData.courseId) newErrors.courseId = 'Curso requerido';
-    if (!formData.gender) newErrors.gender = 'Género requerido';
+    // Validar RUN
+    if (!formData.run.trim()) {
+      newErrors.run = 'El RUN es requerido';
+    } else if (!validateRUT(formData.run)) {
+      newErrors.run = 'El RUN no es válido';
+    }
+
+    // Validar nombres
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'El nombre es requerido';
+    } else if (formData.firstName.length < 2) {
+      newErrors.firstName = 'El nombre debe tener al menos 2 caracteres';
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'El apellido es requerido';
+    } else if (formData.lastName.length < 2) {
+      newErrors.lastName = 'El apellido debe tener al menos 2 caracteres';
+    }
+    
+    // Validar email
+    if (!formData.email.trim()) {
+      newErrors.email = 'El email es requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'El email no es válido';
+    }
+
+    // Validar teléfono
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'El teléfono es requerido';
+    } else {
+      const cleanPhone = formData.phone.replace(/\s/g, '');
+      if (!/^(\+56)?9\d{8}$/.test(cleanPhone)) {
+        newErrors.phone = 'El teléfono debe ser válido (+56 9 XXXX XXXX)';
+      }
+    }
+
+    // Validar fecha de nacimiento
+    if (!formData.birthDate) {
+      newErrors.birthDate = 'La fecha de nacimiento es requerida';
+    } else {
+      const birthDate = new Date(formData.birthDate);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      
+      if (age < 15 || age > 70) {
+        newErrors.birthDate = 'La edad debe estar entre 15 y 70 años';
+      }
+    }
+
+    // CAMBIO: Validar institución y curso por ID
+    if (!formData.institutionId) newErrors.institutionId = 'Debe seleccionar un establecimiento educacional';
+    if (!formData.courseId) newErrors.courseId = 'Debe seleccionar un curso';
+    if (!formData.gender.trim()) newErrors.gender = 'El género es requerido';
 
     return newErrors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Limpiar estados anteriores
+    setErrors({});
+    setSuccess(false);
+    setCreatedStudent(null);
+    
+    // Validar formulario
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -162,322 +225,500 @@ const CreateStudent = () => {
     }
 
     setIsLoading(true);
-    setSuccess(false);
-    setCreatedStudent(null);
 
     try {
-      const response: CreateStudentResponse = await apiService.createStudent({
-        ...formData,
-        run: formData.run.replace(/[\.-]/g, '') // Enviar RUN limpio
-      });
+      console.log('📤 Enviando datos del estudiante:', formData);
+      
+      // CAMBIO: Obtener nombres para el backend (que aún espera nombres en lugar de IDs)
+      const institutionName = await apiService.getInstitutionNameById(formData.institutionId);
+      const courseName = await apiService.getCourseNameById(formData.courseId, formData.institutionId);
+      
+      // Preparar datos para enviar al backend
+      const studentData = {
+        run: formData.run,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        birthDate: formData.birthDate,
+        institution: institutionName,  // Backend aún espera nombre
+        course: courseName,           // Backend aún espera nombre
+        gender: formData.gender,
+        status: formData.status,
+        initialBalance: 0,
+        overdraftLimit: 0
+      };
 
+      const response: CreateStudentResponse = await apiService.createStudent(studentData);
+      
+      console.log('✅ Respuesta del servidor:', response);
+      
       if (response.status === 'success') {
         setSuccess(true);
         setCreatedStudent(response.data.student);
+        
+        // Limpiar formulario después de 5 segundos
+        setTimeout(() => {
+          setFormData({
+            run: '',
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            birthDate: '',
+            institutionId: '',
+            courseId: '',
+            gender: '',
+            status: 'active'
+          });
+          setSuccess(false);
+          setCreatedStudent(null);
+        }, 5000);
       }
+
     } catch (error: any) {
-      console.error('Error creando estudiante:', error);
-      setErrors({ general: error.message || 'Error al crear estudiante' });
+      console.error('❌ Error creando estudiante:', error);
+      
+      // Manejar diferentes tipos de errores
+      if (error.message) {
+        if (error.message.includes('RUN')) {
+          setErrors({ run: 'Ya existe un usuario con este RUN' });
+        } else if (error.message.includes('email')) {
+          setErrors({ email: 'Ya existe un usuario con este email' });
+        } else if (error.message.includes('autenticación') || error.message.includes('401')) {
+          setErrors({ general: 'No tiene permisos para crear estudiantes. Inicie sesión como administrador.' });
+        } else if (error.message.includes('validación') || error.message.includes('400')) {
+          setErrors({ general: 'Los datos ingresados no son válidos. Revise todos los campos.' });
+        } else {
+          setErrors({ general: error.message });
+        }
+      } else {
+        setErrors({ general: 'Error al crear el estudiante. Intente nuevamente.' });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCancel = () => {
-    // Reset form or navigate back
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = '/dashboard';
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow border border-gray-200 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Crear Nuevo Estudiante</h1>
+    <div className="max-w-5xl mx-auto px-3 py-4">
+      {/* Header compacto */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold">Crear Estudiante</h1>
+              <p className="text-blue-200 text-xs">Registra un nuevo estudiante en el sistema</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-blue-200 text-xs mb-0.5">Estado</p>
+            <p className="text-base font-bold">
+              {isLoading ? 'Procesando...' : success ? 'Completado' : 'Nuevo Registro'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow border border-gray-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
+            <School className="w-3.5 h-3.5 text-white" />
+          </div>
+          <h2 className="text-sm font-bold text-gray-800">Información del Estudiante</h2>
+        </div>
+
+        {/* MENSAJE: Estado de carga de instituciones */}
+        {isLoadingInstitutions && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-xs">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <p>Cargando instituciones educacionales...</p>
+          </div>
+        )}
+
+        {/* Mensaje de error general */}
+        {errors.general && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800 text-xs shadow-sm">
+            <XCircle className="w-3.5 h-3.5" />
+            <p>{errors.general}</p>
+          </div>
+        )}
+
+        {/* Mensaje de éxito */}
+        {success && createdStudent && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800 text-xs shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-4 h-4" />
+              <p className="font-bold">¡Estudiante creado exitosamente!</p>
+            </div>
+            <div className="ml-6 space-y-1">
+              <p><span className="font-semibold">Nombre:</span> {createdStudent.firstName} {createdStudent.lastName}</p>
+              <p><span className="font-semibold">RUN:</span> {createdStudent.run}</p>
+              <p><span className="font-semibold">Email:</span> {createdStudent.email}</p>
+              <p><span className="font-semibold">Contraseña temporal:</span> <code className="bg-green-100 px-2 py-1 rounded">{createdStudent.tempPassword}</code></p>
+              <p className="text-green-600 mt-2">💡 <em>Guarde la contraseña temporal para proporcionársela al estudiante</em></p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* RUN */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              RUN
-            </label>
-            <input
-              name="run"
-              value={formData.run}
-              onChange={(e) => {
-                const formatted = formatRUTOnInput(e.target.value);
-                setFormData(prev => ({ ...prev, run: formatted }));
-                setErrors(prev => ({ ...prev, run: '' }));
-              }}
-              placeholder="Ej: 12.345.678-9"
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.run 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.run && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.run}
-              </p>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* RUN */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                RUN *
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  name="run"
+                  type="text"
+                  value={formData.run}
+                  onChange={handleChange}
+                  placeholder="12345678-9"
+                  disabled={isLoading}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.run 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+              </div>
+              {errors.run && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.run}
+                </p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Email *
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="estudiante@email.com"
+                  disabled={isLoading}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.email 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+              </div>
+              {errors.email && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Nombre */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Nombre *
+              </label>
+              <input
+                name="firstName"
+                type="text"
+                value={formData.firstName}
+                onChange={handleChange}
+                placeholder="Juan"
+                disabled={isLoading}
+                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                  errors.firstName 
+                    ? 'border-red-500 bg-red-50' 
+                    : 'border-gray-200 focus:border-blue-300'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              />
+              {errors.firstName && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.firstName}
+                </p>
+              )}
+            </div>
+
+            {/* Apellido */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Apellido *
+              </label>
+              <input
+                name="lastName"
+                type="text"
+                value={formData.lastName}
+                onChange={handleChange}
+                placeholder="Pérez"
+                disabled={isLoading}
+                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                  errors.lastName 
+                    ? 'border-red-500 bg-red-50' 
+                    : 'border-gray-200 focus:border-blue-300'
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              />
+              {errors.lastName && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.lastName}
+                </p>
+              )}
+            </div>
+
+            {/* Teléfono */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Teléfono *
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="+56 9 1234 5678"
+                  disabled={isLoading}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.phone 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+              </div>
+              {errors.phone && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.phone}
+                </p>
+              )}
+            </div>
+
+            {/* Fecha de Nacimiento */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Fecha de Nacimiento *
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  name="birthDate"
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.birthDate 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+              </div>
+              {errors.birthDate && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.birthDate}
+                </p>
+              )}
+            </div>
+
+            {/* CAMBIO: Establecimiento Educacional como dropdown */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Establecimiento Educacional *
+              </label>
+              <div className="relative">
+                <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <select
+                  name="institutionId"
+                  value={formData.institutionId}
+                  onChange={handleChange}
+                  disabled={isLoading || isLoadingInstitutions}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.institutionId 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading || isLoadingInstitutions ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">
+                    {isLoadingInstitutions ? 'Cargando instituciones...' : 'Seleccionar establecimiento'}
+                  </option>
+                  {institutions.map(institution => (
+                    <option key={institution.value} value={institution.value}>
+                      {institution.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {errors.institutionId && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.institutionId}
+                </p>
+              )}
+            </div>
+
+            {/* Género */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Género *
+              </label>
+              <div className="relative">
+                <Heart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.gender 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">Seleccionar género</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              {errors.gender && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.gender}
+                </p>
+              )}
+            </div>
+
+            {/* CAMBIO: Curso como dropdown dependiente */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Curso *
+              </label>
+              <div className="relative">
+                <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <select
+                  name="courseId"
+                  value={formData.courseId}
+                  onChange={handleChange}
+                  disabled={isLoading || isLoadingCourses || !formData.institutionId}
+                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.courseId 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isLoading || isLoadingCourses || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">
+                    {!formData.institutionId 
+                      ? 'Primero seleccione un establecimiento'
+                      : isLoadingCourses 
+                      ? 'Cargando cursos...'
+                      : courses.length === 0
+                      ? 'No hay cursos disponibles'
+                      : 'Seleccionar curso'
+                    }
+                  </option>
+                  {courses.map(course => (
+                    <option key={course.value} value={course.value}>
+                      {course.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {errors.courseId && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  {errors.courseId}
+                </p>
+              )}
+              {/* Indicador de carga de cursos */}
+              {isLoadingCourses && (
+                <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Cargando cursos...
+                </p>
+              )}
+            </div>
+
+            {/* Estado */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Estado
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                disabled={isLoading}
+                className={`w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+                <option value="graduated">Graduado</option>
+              </select>
+            </div>
           </div>
 
-          {/* Nombre */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Nombre
-            </label>
-            <input
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              placeholder="Nombre del estudiante"
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.firstName 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.firstName && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.firstName}
-              </p>
-            )}
-          </div>
-
-          {/* Apellido */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Apellido
-            </label>
-            <input
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              placeholder="Apellido del estudiante"
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.lastName 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.lastName && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.lastName}
-              </p>
-            )}
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="email@ejemplo.com"
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.email 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.email}
-              </p>
-            )}
-          </div>
-
-          {/* Teléfono */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Teléfono (opcional)
-            </label>
-            <input
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="+56912345678"
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.phone 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.phone && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.phone}
-              </p>
-            )}
-          </div>
-
-          {/* Fecha de Nacimiento */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Fecha de Nacimiento
-            </label>
-            <input
-              name="birthDate"
-              type="date"
-              value={formData.birthDate}
-              onChange={handleChange}
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.birthDate 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            />
-            {errors.birthDate && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.birthDate}
-              </p>
-            )}
-          </div>
-
-          {/* Género */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Género
-            </label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.gender 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <option value="">Seleccionar género</option>
-              <option value="male">Masculino</option>
-              <option value="female">Femenino</option>
-              <option value="other">Otro</option>
-            </select>
-            {errors.gender && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.gender}
-              </p>
-            )}
-          </div>
-
-          {/* Institución */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Institución
-            </label>
-            <select
-              name="institutionId"
-              value={formData.institutionId}
-              onChange={handleChange}
-              disabled={isLoading || isLoadingInstitutions}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.institutionId 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading || isLoadingInstitutions ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <option value="">
-                {isLoadingInstitutions 
-                  ? 'Cargando instituciones...' 
-                  : 'Seleccionar institución'}
-              </option>
-              {institutions.map(inst => (
-                <option key={inst.value} value={inst.value}>
-                  {inst.label}
-                </option>
-              ))}
-            </select>
-            {errors.institutionId && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.institutionId}
-              </p>
-            )}
-          </div>
-
-          {/* Curso */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Curso
-            </label>
-            <select
-              name="courseId"
-              value={formData.courseId}
-              onChange={handleChange}
-              disabled={isLoading || isLoadingCourses || !formData.institutionId}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                errors.courseId 
-                  ? 'border-red-500 bg-red-50' 
-                  : 'border-gray-200 focus:border-blue-300'
-              } ${isLoading || isLoadingCourses || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <option value="">
-                {isLoadingCourses 
-                  ? 'Cargando cursos...'
-                  : courses.length === 0
-                  ? 'No hay cursos disponibles'
-                  : 'Seleccionar curso'
-                }
-              </option>
-              {courses.map(course => (
-                <option key={course.value} value={course.value}>
-                  {course.label}
-                </option>
-              ))}
-            </select>
-            {errors.courseId && (
-              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                {errors.courseId}
-              </p>
-            )}
-            {/* Indicador de carga de cursos */}
-            {isLoadingCourses && (
-              <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Cargando cursos...
-              </p>
-            )}
-          </div>
-
-          {/* Estado */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Estado
-            </label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              disabled={isLoading}
-              className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+          <div className="flex gap-3 pt-2">
+            <button 
+              type="submit" 
+              disabled={isLoading || success || isLoadingInstitutions}
+              className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-1.5 text-sm font-bold transition-all shadow-md ${
+                isLoading || success || isLoadingInstitutions
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white hover:opacity-90'
               }`}
             >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-              <option value="graduated">Graduado</option>
-            </select>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creando...
+                </>
+              ) : success ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Estudiante Creado
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Crear Estudiante
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isLoading}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors ${
+                isLoading 
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                  : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
+              }`}
+            >
+              Cancelar
+            </button>
           </div>
         </form>
       </div>
