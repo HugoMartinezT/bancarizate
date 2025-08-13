@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Clock, UserPlus, Download, School, User, CheckCircle, XCircle, Sparkles, Eye, Edit, Trash2, Printer, Loader, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Clock, UserPlus, Download, School, User, CheckCircle, XCircle, Sparkles, Eye, Edit, Trash2, Printer, Loader, AlertCircle, ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import type { Student } from '../../types/types';

@@ -83,6 +83,7 @@ const EditStudent = () => {
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null); // ✅ AGREGADO: estado para errores generales
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -151,11 +152,11 @@ const EditStudent = () => {
     }
   };
 
-  // Cargar estudiante
+  // ✅ CORREGIDO: Cargar estudiante con manejo de errores
   const loadStudent = async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setError(null); // ✅ CORREGIDO: Ahora existe setError
       
       console.log('🔍 Cargando estudiante...', { id });
       
@@ -172,7 +173,7 @@ const EditStudent = () => {
       }
     } catch (error: any) {
       console.error('Error cargando estudiante:', error);
-      setError(error.message || 'Error al cargar estudiante');
+      setError(error.message || 'Error al cargar estudiante'); // ✅ CORREGIDO: Ahora existe setError
     } finally {
       setIsLoading(false);
     }
@@ -182,10 +183,13 @@ const EditStudent = () => {
     loadStudent();
   }, [id]);
 
+  // ✅ MEJORADO: handleChange con limpieza de error general
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setErrors(prev => ({ ...prev, [name]: '' }));
+    // ✅ OPCIONAL: Limpiar error general también
+    if (error) setError(null);
   };
 
   const validate = () => {
@@ -260,8 +264,9 @@ const EditStudent = () => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
 
+  // ✅ CORREGIDO: Renderizado condicional con error/setError existentes
   if (isLoading) return <div>Cargando...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (error) return <div>Error: {error}</div>; // ✅ CORREGIDO: Ahora existe error
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
@@ -285,6 +290,14 @@ const EditStudent = () => {
             Finanzas
           </button>
         </div>
+
+        {/* Mostrar mensaje de éxito */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-green-700 text-sm">
+            <CheckCircle className="w-4 h-4" />
+            {success}
+          </div>
+        )}
 
         {activeTab === 'info' && (
           <form onSubmit={handleSubmit} className="space-y-4">

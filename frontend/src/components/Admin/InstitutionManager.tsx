@@ -168,15 +168,15 @@ const InstitutionManager = () => {
     }
   };
 
-  // Editar institución
+  // ✅ CORREGIDO: Editar institución con valores por defecto para campos opcionales
   const handleEdit = (institution: Institution) => {
     setFormData({
       name: institution.name,
       type: institution.type as any,
-      address: institution.address,
-      phone: institution.phone,
-      email: institution.email,
-      website: institution.website,
+      address: institution.address || '', // ✅ CORREGIDO: Valor por defecto
+      phone: institution.phone || '',     // ✅ CORREGIDO: Valor por defecto
+      email: institution.email || '',     // ✅ CORREGIDO: Valor por defecto
+      website: institution.website || '', // ✅ CORREGIDO: Valor por defecto
       isActive: institution.isActive
     });
     setEditingId(institution.id);

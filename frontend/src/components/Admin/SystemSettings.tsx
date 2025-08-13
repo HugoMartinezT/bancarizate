@@ -27,6 +27,16 @@ const SystemSettings = () => {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // ✅ AGREGADO: Función helper para generar labels dinámicos
+  const generateLabel = (configKey: string): string => {
+    return configKey
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   // Mapeo de categorías a iconos y labels
   const categoryInfo = {
     transfers: { icon: DollarSign, label: 'Transferencias', color: 'green' },
@@ -109,7 +119,7 @@ const SystemSettings = () => {
       [key]: {
         key,
         value: validatedValue,
-        originalValue: config.value
+        originalValue: config.configValue // ✅ CORREGIDO: configValue en lugar de value
       }
     }));
   };
@@ -189,10 +199,10 @@ const SystemSettings = () => {
     return value;
   };
 
-  // Filtrar configuraciones
+  // ✅ CORREGIDO: Filtrar configuraciones usando isEditable
   const filteredConfigs = configurations.filter(config => {
     if (selectedCategory !== 'all' && config.category !== selectedCategory) return false;
-    if (showOnlyEditable && !config.editable) return false;
+    if (showOnlyEditable && !config.isEditable) return false; // ✅ CORREGIDO: isEditable
     return true;
   });
 
@@ -283,7 +293,7 @@ const SystemSettings = () => {
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <p className="text-xs text-gray-500">Editables</p>
-              <p className="font-semibold text-blue-600">{configurations.filter(c => c.editable).length}</p>
+              <p className="font-semibold text-blue-600">{configurations.filter(c => c.isEditable).length}</p> {/* ✅ CORREGIDO */}
             </div>
             <div className="text-center p-3 bg-gray-50 rounded">
               <p className="text-xs text-gray-500">Cambios Pendientes</p>
@@ -339,7 +349,7 @@ const SystemSettings = () => {
                 const categoryMeta = categoryInfo[config.category as keyof typeof categoryInfo];
                 const IconComponent = categoryMeta?.icon || Settings;
                 const hasChanges = pendingChanges[config.configKey];
-                const displayValue = hasChanges ? hasChanges.value : config.value;
+                const displayValue = hasChanges ? hasChanges.value : config.configValue; // ✅ CORREGIDO: configValue
                 
                 return (
                   <tr key={config.configKey} className={`hover:bg-gray-50 transition-colors ${hasChanges ? 'bg-yellow-50' : ''}`}>
@@ -351,7 +361,7 @@ const SystemSettings = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">{config.label}</span>
+                        <span className="text-sm font-medium text-gray-900">{generateLabel(config.configKey)}</span> {/* ✅ CORREGIDO: label generado */}
                         <span className="text-xs text-gray-500 font-mono">{config.configKey}</span>
                         {hasChanges && (
                           <span className="text-xs text-orange-600 font-medium">⚠ Cambio pendiente</span>
@@ -359,7 +369,7 @@ const SystemSettings = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {config.editable ? (
+                      {config.isEditable ? ( // ✅ CORREGIDO: isEditable
                         <div className="flex flex-col">
                           {config.dataType === 'boolean' ? (
                             <select
@@ -391,7 +401,7 @@ const SystemSettings = () => {
                           {hasChanges && (
                             <div className="mt-1 text-xs">
                               <span className="text-gray-500">Original: </span>
-                              <span className="text-red-600">{formatDisplayValue(config, config.value)}</span>
+                              <span className="text-red-600">{formatDisplayValue(config, config.configValue)}</span> {/* ✅ CORREGIDO */}
                               <span className="text-gray-500"> → </span>
                               <span className="text-green-600">{formatDisplayValue(config, displayValue)}</span>
                             </div>
@@ -399,7 +409,7 @@ const SystemSettings = () => {
                         </div>
                       ) : (
                         <span className="text-sm text-gray-700">
-                          {formatDisplayValue(config, config.value)}
+                          {formatDisplayValue(config, config.configValue)} {/* ✅ CORREGIDO */}
                         </span>
                       )}
                     </td>
