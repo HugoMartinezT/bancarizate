@@ -89,13 +89,23 @@ const CreateStudent = () => {
       setIsLoadingInstitutions(true);
       console.log('🏫 Cargando instituciones...');
       
-      const response = await apiService.getActiveInstitutions();
+      // Instituciones predefinidas comunes en Chile
+      const institutionOptions: InstitutionOption[] = [
+        { value: 'universidad-chile', label: 'Universidad de Chile' },
+        { value: 'universidad-catolica', label: 'Pontificia Universidad Católica de Chile' },
+        { value: 'universidad-santiago', label: 'Universidad de Santiago de Chile' },
+        { value: 'universidad-concepcion', label: 'Universidad de Concepción' },
+        { value: 'universidad-valparaiso', label: 'Universidad de Valparaíso' },
+        { value: 'duoc-uc', label: 'Duoc UC' },
+        { value: 'inacap', label: 'INACAP' },
+        { value: 'ipchile', label: 'IP Chile' },
+        { value: 'colegio-san-patricio', label: 'Colegio San Patricio' },
+        { value: 'liceo-manuel-barros-borgono', label: 'Liceo Manuel Barros Borgoño' }
+      ];
       
-      if (response.status === 'success') {
-        const institutionOptions = apiService.formatInstitutionsForSelect(response);
-        setInstitutions(institutionOptions);
-        console.log('✅ Instituciones cargadas:', institutionOptions.length);
-      }
+      setInstitutions(institutionOptions);
+      console.log('✅ Instituciones cargadas:', institutionOptions.length);
+      
     } catch (error: any) {
       console.error('❌ Error cargando instituciones:', error);
       setErrors(prev => ({ 
@@ -114,13 +124,46 @@ const CreateStudent = () => {
       setCourses([]); // Limpiar cursos anteriores
       console.log('📚 Cargando cursos para institución:', institutionId);
       
-      const response = await apiService.getCoursesByInstitutionId(institutionId);
+      // Cursos por tipo de institución
+      let courseOptions: CourseOption[] = [];
       
-      if (response.status === 'success') {
-        const courseOptions = apiService.formatCoursesForSelect(response);
-        setCourses(courseOptions);
-        console.log('✅ Cursos cargados:', courseOptions.length);
+      if (institutionId.includes('universidad')) {
+        courseOptions = [
+          { value: 'ingenieria-informatica', label: 'Ingeniería Informática' },
+          { value: 'ingenieria-civil', label: 'Ingeniería Civil' },
+          { value: 'medicina', label: 'Medicina' },
+          { value: 'derecho', label: 'Derecho' },
+          { value: 'psicologia', label: 'Psicología' },
+          { value: 'administracion-empresas', label: 'Administración de Empresas' },
+          { value: 'arquitectura', label: 'Arquitectura' },
+          { value: 'educacion-basica', label: 'Educación Básica' }
+        ];
+      } else if (institutionId.includes('duoc') || institutionId.includes('inacap') || institutionId.includes('ip')) {
+        courseOptions = [
+          { value: 'analista-programador', label: 'Analista Programador' },
+          { value: 'tecnico-electronica', label: 'Técnico en Electrónica' },
+          { value: 'administracion-rrhh', label: 'Administración de Recursos Humanos' },
+          { value: 'contabilidad-finanzas', label: 'Contabilidad y Finanzas' },
+          { value: 'diseno-grafico', label: 'Diseño Gráfico' },
+          { value: 'gastronomia', label: 'Gastronomía' },
+          { value: 'turismo', label: 'Turismo' },
+          { value: 'marketing', label: 'Marketing' }
+        ];
+      } else {
+        // Colegios/Liceos
+        courseOptions = [
+          { value: '1-medio', label: '1° Medio' },
+          { value: '2-medio', label: '2° Medio' },
+          { value: '3-medio', label: '3° Medio' },
+          { value: '4-medio', label: '4° Medio' },
+          { value: '7-basico', label: '7° Básico' },
+          { value: '8-basico', label: '8° Básico' }
+        ];
       }
+      
+      setCourses(courseOptions);
+      console.log('✅ Cursos cargados:', courseOptions.length);
+      
     } catch (error: any) {
       console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ 
@@ -229,20 +272,23 @@ const CreateStudent = () => {
     try {
       console.log('📤 Enviando datos del estudiante:', formData);
       
-      // CAMBIO: Obtener nombres para el backend (que aún espera nombres en lugar de IDs)
-      const institutionName = await apiService.getInstitutionNameById(formData.institutionId);
-      const courseName = await apiService.getCourseNameById(formData.courseId, formData.institutionId);
+      // Obtener nombres de las opciones seleccionadas
+      const selectedInstitution = institutions.find(inst => inst.value === formData.institutionId);
+      const selectedCourse = courses.find(course => course.value === formData.courseId);
+      
+      const institutionName = selectedInstitution?.label || formData.institutionId;
+      const courseName = selectedCourse?.label || formData.courseId;
       
       // Preparar datos para enviar al backend
       const studentData = {
-        run: formData.run,
+        run: formData.run.replace(/[\.-]/g, ''), // Enviar RUN limpio
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
         birthDate: formData.birthDate,
-        institution: institutionName,  // Backend aún espera nombre
-        course: courseName,           // Backend aún espera nombre
+        institution: institutionName,
+        course: courseName,
         gender: formData.gender,
         status: formData.status,
         initialBalance: 0,
@@ -541,7 +587,7 @@ const CreateStudent = () => {
               )}
             </div>
 
-            {/* CAMBIO: Establecimiento Educacional como dropdown */}
+            {/* Establecimiento Educacional como dropdown */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Establecimiento Educacional *
@@ -609,7 +655,7 @@ const CreateStudent = () => {
               )}
             </div>
 
-            {/* CAMBIO: Curso como dropdown dependiente */}
+            {/* Curso como dropdown dependiente */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Curso *
