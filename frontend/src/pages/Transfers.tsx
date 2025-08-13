@@ -849,7 +849,8 @@ const Transfers = () => {
                     {transfers.map((transfer) => {
                       const isIncoming = transfer.direction === 'received';
                       const otherPerson = transfer.otherPerson;
-                      const otherPersonName = otherPerson ? (otherPerson.name || `${otherPerson.firstName || ''} ${otherPerson.lastName || ''}`.trim()) : 'Unknown';
+                      // El backend ya devuelve otherPerson.name formateado
+                      const otherPersonName = otherPerson?.name || 'Unknown';
                       const colors = getAvatarColors(otherPersonName);
                       return (
                         <tr key={transfer.id} className="hover:bg-gray-50">
