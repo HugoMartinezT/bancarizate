@@ -241,7 +241,7 @@ class ApiService {
   // MÉTODOS DE ESTUDIANTES
   // ==========================================
 
-  async getStudents(params?: {
+  async getStudents(params: {
     page?: number;
     limit?: number;
     search?: string;
@@ -254,7 +254,6 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        // ✅ CORREGIDO: Validar que value no sea null/undefined
         if (value !== undefined && value !== null) {
           queryParams.append(key, value.toString());
         }
@@ -298,7 +297,7 @@ class ApiService {
   // MÉTODOS DE DOCENTES
   // ==========================================
 
-  async getTeachers(params?: {
+  async getTeachers(params: {
     page?: number;
     limit?: number;
     search?: string;
@@ -311,7 +310,6 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        // ✅ CORREGIDO: Validar que value no sea null/undefined
         if (value !== undefined && value !== null) {
           queryParams.append(key, value.toString());
         }
@@ -363,13 +361,11 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        // ✅ CORREGIDO: Validar que value no sea null/undefined
         if (value !== undefined && value !== null) {
           queryParams.append(key, value.toString());
         }
       });
     }
-    // ✅ CORRECCIÓN PRINCIPAL: Cambiado a /transfers/users para coincidir con el backend
     return await this.request(`/transfers/users?${queryParams.toString()}`);
   }
 
@@ -395,26 +391,125 @@ class ApiService {
     return await this.getInstitutions({ active: 'true' });
   }
 
-  // ✅ CORREGIDO: Formatear instituciones para select - maneja respuesta con paginación
+  async createInstitution(data: Partial<Institution>): Promise<any> {
+    return await this.request('/admin/institutions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateInstitution(id: string, data: Partial<Institution>): Promise<any> {
+    return await this.request(`/admin/institutions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInstitution(id: string): Promise<any> {
+    return await this.request(`/admin/institutions/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Formatear instituciones para select
   formatInstitutionsForSelect(response: InstitutionsResponse | Institution[]): Array<{value: string, label: string}> {
-    // Si es un array directo de instituciones
     if (Array.isArray(response)) {
       return response.map(inst => ({
         value: inst.id,
         label: inst.name
       }));
     }
-    // Si es la respuesta con data
     return response.data.institutions.map(inst => ({
       value: inst.id,
       label: inst.name
     }));
   }
 
-  async getCourses(institutionId?: string): Promise<CoursesResponse> {
+  async getCourses(params?: {
+    institution?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    level?: string;
+    active?: string;
+  }): Promise<CoursesResponse> {
     const queryParams = new URLSearchParams();
-    if (institutionId) queryParams.append('institution', institutionId);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
     return await this.request(`/admin/courses?${queryParams.toString()}`);
+  }
+
+  // Método para cursos por institución (usando params)
+  async getCoursesByInstitutionId(institutionId: string): Promise<CoursesResponse> {
+    return await this.getCourses({ institution: institutionId });
+  }
+
+  async createCourse(data: Partial<Course>): Promise<any> {
+    return await this.request('/admin/courses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCourse(id: string, data: Partial<Course>): Promise<any> {
+    return await this.request(`/admin/courses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCourse(id: string): Promise<any> {
+    return await this.request(`/admin/courses/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Formatear cursos para select
+  formatCoursesForSelect(response: CoursesResponse | Course[]): Array<{value: string, label: string}> {
+    if (Array.isArray(response)) {
+      return response.map(course => ({
+        value: course.id,
+        label: course.name
+      }));
+    }
+    return response.data.courses.map(course => ({
+      value: course.id,
+      label: course.name
+    }));
+  }
+
+  // Helpers para nombres
+  async getInstitutionNameById(id: string): Promise<string> {
+    const response = await this.getInstitutions();
+    const institution = response.data.institutions.find(inst => inst.id === id);
+    return institution ? institution.name : 'Desconocido';
+  }
+
+  async getCourseNameById(id: string): Promise<string> {
+    const response = await this.getCourses();
+    const course = response.data.courses.find(c => c.id === id);
+    return course ? course.name : 'Desconocido';
+  }
+
+  // Configuraciones del sistema
+  async getSystemConfigurations(): Promise<SystemConfigResponse> {
+    return await this.getSystemConfig();  // Alias para getSystemConfig
+  }
+
+  async updateMultipleConfigurations(updates: { key: string, value: any }[]): Promise<any> {
+    return await this.request('/admin/config/multiple', {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async getConfigurationHistory(configKey: string, params?: { page?: number; limit?: number }): Promise<any> {
+    return await this.getConfigHistory(configKey, params);  // Alias para getConfigHistory
   }
 
   async getSystemConfig(): Promise<SystemConfigResponse> {
@@ -438,6 +533,14 @@ class ApiService {
       });
     }
     return await this.request(`/admin/config/${configKey}/history?${queryParams.toString()}`);
+  }
+
+  async getInstitutionStats(): Promise<any> {
+    return await this.request('/admin/institutions/stats');
+  }
+
+  async getCourseStats(): Promise<any> {
+    return await this.request('/admin/courses/stats');
   }
 
   // ==========================================
@@ -524,24 +627,20 @@ class ApiService {
     });
   }
 
-  // ✅ CORREGIDO: Tipo de retorno corregido para executeMassUpload
   async executeMassUpload(type: 'student' | 'teacher', validData: any[]): Promise<{ data: MassUploadResult }> {
     const response = await this.request('/admin/mass-upload/execute', {
       method: 'POST',
       body: JSON.stringify({ type, validData }),
     });
     
-    // Si la respuesta ya tiene la estructura correcta
     if (response.data && response.data.summary) {
       return { data: response.data };
     }
     
-    // Si la respuesta ES el MassUploadResult directamente
     if (response.summary) {
       return { data: response };
     }
     
-    // Por defecto, asumir que la respuesta completa es el resultado
     return response;
   }
 
@@ -657,17 +756,11 @@ class ApiService {
   // MÉTODOS AUXILIARES
   // ==========================================
 
-  /**
-   * Capitalizar primera letra de una palabra
-   */
   private capitalizeFirst(str: string): string {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   }
 
-  /**
-   * Método helper para obtener usuario actual desde localStorage
-   */
   getCurrentUser() {
     try {
       const userStr = localStorage.getItem('user');
@@ -678,44 +771,27 @@ class ApiService {
     }
   }
 
-  /**
-   * Método helper para verificar si el usuario está autenticado
-   */
   isAuthenticated(): boolean {
     return !!localStorage.getItem('token');
   }
 
-  /**
-   * Verificar si el usuario es admin
-   */
   isAdmin(): boolean {
     const user = this.getCurrentUser();
     return user?.role === 'admin';
   }
 
-  /**
-   * Método helper para obtener el rol del usuario actual
-   */
   getCurrentUserRole(): string | null {
     const user = this.getCurrentUser();
     return user?.role || null;
   }
 
-  /**
-   * Método helper para formatear nombres completos
-   */
   formatFullName(firstName: string, lastName: string): string {
     return `${firstName} ${lastName}`.trim();
   }
 
-  /**
-   * Método helper para formatear RUN chileno
-   */
   formatRUN(run: string): string {
     if (!run) return '';
-    // Remover puntos y guiones existentes
     const cleanRUN = run.replace(/[\.\-]/g, '');
-    // Formatear: XX.XXX.XXX-X
     if (cleanRUN.length >= 8) {
       const body = cleanRUN.slice(0, -1);
       const dv = cleanRUN.slice(-1);
@@ -724,26 +800,17 @@ class ApiService {
     return run;
   }
 
-  /**
-   * Método helper para validar email
-   */
   isValidEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   }
 
-  /**
-   * Método helper para validar teléfono chileno
-   */
   isValidChileanPhone(phone: string): boolean {
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
     const phoneRegex = /^(\+56)?9\d{8}$/;
     return phoneRegex.test(cleanPhone);
   }
 
-  /**
-   * Método helper para formatear montos
-   */
   formatCurrency(amount: number): string {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',

@@ -440,7 +440,7 @@ const Transfers = () => {
           ) : transfers.length > 0 ? (
             transfers.map(transfer => (
               <div key={transfer.id} className="border p-2 rounded mb-2">
-                {transfer.amount} a {transfer.recipient?.name || 'Múltiple'}
+                {transfer.amount} a {transfer.recipients?.[0]?.name || 'Múltiple'}
               </div>
             ))
           ) : (
