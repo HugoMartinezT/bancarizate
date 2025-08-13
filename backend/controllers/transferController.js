@@ -1,15 +1,274 @@
-// controllers/transferController.js - VERSIÓN CON FILTRO POR CURSO Y ESTABLECIMIENTO
+// controllers/transferController.js - VERSIÓN CORREGIDA PARA DEBUGGING
 
 const { supabase } = require('../config/supabase');
 const { v4: uuidv4 } = require('uuid');
 
 // ========================================================================
+// FUNCIÓN PRINCIPAL: getAllUsers - CORREGIDA CON DEBUG
+// ========================================================================
+
+const getAllUsers = async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+    const { search = '', role = 'all', institution = 'all', limit = 100 } = req.query;
+
+    console.log(`🔍 [getAllUsers] Iniciando carga de usuarios`);
+    console.log(`👤 Usuario actual: ${req.user.first_name} ${req.user.last_name} (${currentUserRole})`);
+    console.log(`🔎 Parámetros: search="${search}", role="${role}", limit=${limit}`);
+
+    // ===============================================
+    // PASO 1: OBTENER INFORMACIÓN DEL USUARIO ACTUAL
+    // ===============================================
+    
+    let userInstitution = null;
+    let userCourse = null;
+    let availableUserIds = [];
+    let restrictionApplied = false;
+
+    if (currentUserRole === 'student') {
+      console.log(`📚 Procesando filtros para estudiante...`);
+      
+      // Obtener información del estudiante actual
+      const { data: currentStudent, error: studentError } = await supabase
+        .from('students')
+        .select('institution, course')
+        .eq('user_id', currentUserId)
+        .single();
+
+      if (studentError || !currentStudent) {
+        console.error('❌ Error obteniendo información del estudiante:', studentError);
+        // NO BLOQUEAR - Permitir ver a todos los usuarios como fallback
+        console.log('⚠️ Continuando sin restricciones como fallback');
+      } else {
+        userInstitution = currentStudent.institution;
+        userCourse = currentStudent.course;
+        restrictionApplied = true;
+
+        console.log(`🏫 Institución del estudiante: ${userInstitution}`);
+        console.log(`📖 Curso del estudiante: ${userCourse}`);
+
+        // Buscar compañeros de clase (mismo establecimiento Y curso)
+        const { data: sameClassStudents, error: classError } = await supabase
+          .from('students')
+          .select('user_id')
+          .eq('institution', userInstitution)
+          .eq('course', userCourse)
+          .neq('user_id', currentUserId);
+
+        if (!classError && sameClassStudents) {
+          const studentIds = sameClassStudents.map(s => s.user_id);
+          availableUserIds.push(...studentIds);
+          console.log(`👥 Compañeros de clase encontrados: ${studentIds.length}`);
+        }
+
+        // Buscar profesores del mismo establecimiento que enseñen el curso
+        const { data: sameInstitutionTeachers, error: teacherError } = await supabase
+          .from('teachers')
+          .select('user_id, courses')
+          .eq('institution', userInstitution);
+
+        if (!teacherError && sameInstitutionTeachers) {
+          const relevantTeachers = sameInstitutionTeachers.filter(teacher => {
+            return teacher.courses && teacher.courses.includes(userCourse);
+          });
+
+          const teacherIds = relevantTeachers.map(t => t.user_id);
+          availableUserIds.push(...teacherIds);
+          console.log(`👨‍🏫 Profesores del curso encontrados: ${teacherIds.length}`);
+        }
+
+        // Incluir todos los administradores
+        const { data: admins, error: adminError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'admin')
+          .eq('is_active', true);
+
+        if (!adminError && admins) {
+          const adminIds = admins.map(a => a.id);
+          availableUserIds.push(...adminIds);
+          console.log(`👑 Administradores incluidos: ${adminIds.length}`);
+        }
+
+        console.log(`✅ Total usuarios disponibles para estudiante: ${availableUserIds.length}`);
+        
+        // Si no hay usuarios, desactivar restricción
+        if (availableUserIds.length === 0) {
+          console.log('⚠️ No se encontraron usuarios con restricción - removiendo filtros');
+          restrictionApplied = false;
+        }
+      }
+    } else {
+      console.log(`🔓 Usuario ${currentUserRole} - Sin restricciones de acceso`);
+    }
+
+    // ===============================================
+    // PASO 2: CONSULTA PRINCIPAL CON DEBUG
+    // ===============================================
+
+    console.log(`📊 Construyendo consulta principal...`);
+
+    let query = supabase
+      .from('users')
+      .select(`
+        id, 
+        run, 
+        first_name, 
+        last_name, 
+        email, 
+        role, 
+        is_active,
+        students(institution, course),
+        teachers(institution, courses)
+      `)
+      .eq('is_active', true)
+      .neq('id', currentUserId);
+
+    // Aplicar filtro de usuarios disponibles SOLO si hay restricción efectiva
+    if (restrictionApplied && availableUserIds.length > 0) {
+      console.log(`🔒 Aplicando filtro de restricción: ${availableUserIds.length} IDs permitidos`);
+      query = query.in('id', availableUserIds);
+    }
+
+    // Aplicar otros filtros
+    if (search) {
+      console.log(`🔍 Aplicando filtro de búsqueda: "${search}"`);
+      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,run.ilike.%${search}%,email.ilike.%${search}%`);
+    }
+
+    if (role !== 'all') {
+      console.log(`👔 Aplicando filtro de rol: "${role}"`);
+      query = query.eq('role', role);
+    }
+
+    // Aplicar límite
+    query = query.limit(parseInt(limit));
+    query = query.order('first_name', { ascending: true });
+
+    console.log(`⏳ Ejecutando consulta en Supabase...`);
+
+    const { data: users, error } = await query;
+
+    if (error) {
+      console.error('❌ Error en consulta de usuarios:', error);
+      throw error;
+    }
+
+    console.log(`📈 Usuarios encontrados en BD: ${users?.length || 0}`);
+
+    // ===============================================
+    // PASO 3: FORMATEO Y RESPUESTA
+    // ===============================================
+
+    const formattedUsers = (users || []).map(user => {
+      let institutionInfo = '';
+      let courseInfo = '';
+
+      if (user.role === 'student' && user.students?.length > 0) {
+        institutionInfo = user.students[0].institution;
+        courseInfo = user.students[0].course;
+      } else if (user.role === 'teacher' && user.teachers?.length > 0) {
+        institutionInfo = user.teachers[0].institution;
+        courseInfo = user.teachers[0].courses?.join(', ') || '';
+      }
+
+      return {
+        id: user.id,
+        run: user.run,
+        name: `${user.first_name} ${user.last_name}`, // ✅ CAMPO PRINCIPAL
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: user.role,
+        institution: institutionInfo,
+        course: courseInfo,
+        displayRole: {
+          'student': 'Estudiante',
+          'teacher': 'Docente', 
+          'admin': 'Administrador'
+        }[user.role] || user.role
+      };
+    });
+
+    // Filtro adicional de institución (si se especifica)
+    let filteredUsers = formattedUsers;
+    if (institution !== 'all') {
+      filteredUsers = formattedUsers.filter(user => 
+        user.institution.toLowerCase().includes(institution.toLowerCase())
+      );
+    }
+
+    // ===============================================
+    // PASO 4: ESTADÍSTICAS Y RESPUESTA FINAL
+    // ===============================================
+
+    const stats = {
+      total: filteredUsers.length,
+      students: filteredUsers.filter(u => u.role === 'student').length,
+      teachers: filteredUsers.filter(u => u.role === 'teacher').length,
+      admins: filteredUsers.filter(u => u.role === 'admin').length,
+      institutions: [...new Set(filteredUsers.map(u => u.institution).filter(Boolean))]
+    };
+
+    console.log(`📊 Estadísticas finales:`);
+    console.log(`   Total: ${stats.total}`);
+    console.log(`   Estudiantes: ${stats.students}`);
+    console.log(`   Profesores: ${stats.teachers}`);
+    console.log(`   Administradores: ${stats.admins}`);
+
+    const response = {
+      status: 'success',
+      data: {
+        users: filteredUsers,
+        stats: stats,
+        filters: { 
+          search, 
+          role, 
+          institution, 
+          limit: parseInt(limit) 
+        }
+      }
+    };
+
+    // Agregar información de restricción si aplica
+    if (restrictionApplied) {
+      response.data.restriction = {
+        applied: true,
+        reason: 'student_course_filter',
+        institution: userInstitution,
+        course: userCourse,
+        message: `Mostrando solo compañeros de ${userCourse} en ${userInstitution}`,
+        availableCount: availableUserIds.length
+      };
+      console.log(`🔒 Restricción aplicada: ${userInstitution} - ${userCourse}`);
+    }
+
+    console.log(`✅ [getAllUsers] Completado exitosamente - ${filteredUsers.length} usuarios devueltos`);
+    
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ [getAllUsers] Error crítico:', error);
+    console.error('🔍 Stack trace:', error.stack);
+    
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Error al obtener lista de usuarios disponibles para transferencia',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del servidor',
+      debug: process.env.NODE_ENV === 'development' ? {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      } : undefined
+    });
+  }
+};
+
+// ========================================================================
 // FUNCIÓN DE HISTORIAL CON FILTROS AVANZADOS Y PAGINACIÓN
 // ========================================================================
 
-/**
- * Función formateadora mejorada con traducciones
- */
 const formatTransferForUser = (transfer, currentUserId) => {
   const isSent = transfer.from_user_id === currentUserId;
   const direction = isSent ? 'sent' : 'received';
@@ -20,7 +279,6 @@ const formatTransferForUser = (transfer, currentUserId) => {
     userAmount = myRecipientInfo ? parseFloat(myRecipientInfo.amount) : 0;
   }
 
-  // Función para traducir roles
   const translateRole = (role) => {
     const translations = {
       'student': 'Estudiante',
@@ -89,10 +347,6 @@ const getTransferHistory = async (req, res) => {
     let allTransfers = [];
     let totalCount = 0;
 
-    // ========================================================================
-    // CONSULTAS SEPARADAS CON FILTROS AVANZADOS
-    // ========================================================================
-
     const buildDateFilter = (query) => {
       if (dateFrom) {
         query = query.gte('created_at', `${dateFrom}T00:00:00.000Z`);
@@ -111,7 +365,6 @@ const getTransferHistory = async (req, res) => {
     };
 
     if (type === 'sent') {
-      // Solo transferencias enviadas
       let query = supabase
         .from('transfers')
         .select(`
@@ -124,7 +377,6 @@ const getTransferHistory = async (req, res) => {
 
       query = buildDateFilter(query);
       query = buildStatusFilter(query);
-      
       query = query.order('created_at', { ascending: sortOrder === 'asc' });
 
       const { data: sentTransfers, error: sentError, count } = await query;
@@ -134,9 +386,6 @@ const getTransferHistory = async (req, res) => {
       totalCount = count || 0;
 
     } else if (type === 'received') {
-      // Transferencias recibidas: consultas separadas para single y multiple
-      
-      // 1. Transferencias individuales recibidas
       let singleQuery = supabase
         .from('transfers')
         .select(`
@@ -155,7 +404,6 @@ const getTransferHistory = async (req, res) => {
       const { data: singleReceived, error: singleError } = await singleQuery;
       if (singleError) throw singleError;
 
-      // 2. Transferencias múltiples recibidas
       let multipleQuery = supabase
         .from('transfers')
         .select(`
@@ -174,7 +422,6 @@ const getTransferHistory = async (req, res) => {
       const { data: multipleReceived, error: multipleError } = await multipleQuery;
       if (multipleError) throw multipleError;
 
-      // Combinar y ordenar
       const combinedReceived = [
         ...(singleReceived || []),
         ...(multipleReceived || [])
@@ -184,9 +431,6 @@ const getTransferHistory = async (req, res) => {
       totalCount = combinedReceived.length;
 
     } else {
-      // Todas las transferencias
-      
-      // 1. Transferencias enviadas
       let sentQuery = supabase
         .from('transfers')
         .select(`
@@ -203,7 +447,6 @@ const getTransferHistory = async (req, res) => {
       const { data: sentTransfers, error: sentError } = await sentQuery;
       if (sentError) throw sentError;
 
-      // 2. Transferencias individuales recibidas
       let singleQuery = supabase
         .from('transfers')
         .select(`
@@ -221,7 +464,6 @@ const getTransferHistory = async (req, res) => {
       const { data: singleReceived, error: singleError } = await singleQuery;
       if (singleError) throw singleError;
 
-      // 3. Transferencias múltiples recibidas
       let multipleQuery = supabase
         .from('transfers')
         .select(`
@@ -239,14 +481,12 @@ const getTransferHistory = async (req, res) => {
       const { data: multipleReceived, error: multipleError } = await multipleQuery;
       if (multipleError) throw multipleError;
 
-      // Combinar todas las transferencias
       const allCombined = [
         ...(sentTransfers || []),
         ...(singleReceived || []),
         ...(multipleReceived || [])
       ];
 
-      // Eliminar duplicados por ID
       const uniqueTransfers = allCombined
         .filter((transfer, index, self) => 
           index === self.findIndex(t => t.id === transfer.id)
@@ -256,16 +496,10 @@ const getTransferHistory = async (req, res) => {
       totalCount = uniqueTransfers.length;
     }
 
-    // ========================================================================
-    // APLICAR FILTROS POST-CONSULTA
-    // ========================================================================
-
-    // Formatear transferencias primero
     let formattedTransfers = allTransfers.map(transfer => 
       formatTransferForUser(transfer, userId)
     );
 
-    // Filtrar por nombre de usuario
     if (search) {
       const searchLower = search.toLowerCase();
       formattedTransfers = formattedTransfers.filter(transfer => {
@@ -277,7 +511,6 @@ const getTransferHistory = async (req, res) => {
       });
     }
 
-    // Filtrar por rol
     if (role !== 'all') {
       formattedTransfers = formattedTransfers.filter(transfer => {
         if (transfer.otherPerson) {
@@ -287,10 +520,8 @@ const getTransferHistory = async (req, res) => {
       });
     }
 
-    // Actualizar total después de filtros
     const filteredTotal = formattedTransfers.length;
 
-    // Ordenar
     formattedTransfers.sort((a, b) => {
       let aValue, bValue;
       
@@ -319,11 +550,9 @@ const getTransferHistory = async (req, res) => {
       }
     });
 
-    // Aplicar paginación
     const paginatedTransfers = formattedTransfers.slice(offset, offset + parseInt(limit));
 
     console.log(`✅ Historial cargado: ${paginatedTransfers.length}/${filteredTotal} transferencias (${type})`);
-    console.log(`📊 Filtros aplicados: búsqueda="${search}", rol="${role}", fecha="${dateFrom}-${dateTo}"`);
 
     res.status(200).json({
       status: 'success',
@@ -366,7 +595,7 @@ const getTransferHistory = async (req, res) => {
 };
 
 // ========================================================================
-// NUEVA FUNCIÓN PARA MOVIMIENTOS RECIENTES (DASHBOARD)
+// ACTIVIDAD RECIENTE PARA DASHBOARD
 // ========================================================================
 
 const getRecentActivity = async (req, res) => {
@@ -374,10 +603,8 @@ const getRecentActivity = async (req, res) => {
     const userId = req.user.id;
     const { limit = 10 } = req.query;
 
-    // Consulta similar pero solo las más recientes
     let allTransfers = [];
 
-    // 1. Transferencias enviadas
     const { data: sentTransfers, error: sentError } = await supabase
       .from('transfers')
       .select(`
@@ -393,7 +620,6 @@ const getRecentActivity = async (req, res) => {
 
     if (sentError) throw sentError;
 
-    // 2. Transferencias individuales recibidas
     const { data: singleReceived, error: singleError } = await supabase
       .from('transfers')
       .select(`
@@ -410,7 +636,6 @@ const getRecentActivity = async (req, res) => {
 
     if (singleError) throw singleError;
 
-    // 3. Transferencias múltiples recibidas
     const { data: multipleReceived, error: multipleError } = await supabase
       .from('transfers')
       .select(`
@@ -427,14 +652,12 @@ const getRecentActivity = async (req, res) => {
 
     if (multipleError) throw multipleError;
 
-    // Combinar todas las transferencias
     const allCombined = [
       ...(sentTransfers || []),
       ...(singleReceived || []),
       ...(multipleReceived || [])
     ];
 
-    // Eliminar duplicados y ordenar por fecha
     const uniqueTransfers = allCombined
       .filter((transfer, index, self) => 
         index === self.findIndex(t => t.id === transfer.id)
@@ -442,7 +665,6 @@ const getRecentActivity = async (req, res) => {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, parseInt(limit));
 
-    // Formatear transferencias
     const formattedTransfers = uniqueTransfers.map(transfer => 
       formatTransferForUser(transfer, userId)
     );
@@ -472,7 +694,7 @@ const getRecentActivity = async (req, res) => {
 };
 
 // ========================================================================
-// CREAR TRANSFERENCIA - VERSIÓN CORREGIDA CON LOGGING DE DESTINATARIOS
+// CREAR TRANSFERENCIA
 // ========================================================================
 
 const createTransfer = async (req, res) => {
@@ -552,11 +774,7 @@ const createTransfer = async (req, res) => {
       }
       await supabase.from('transfers').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', transferId);
       
-      // ========================================================================
-      // 🔧 CORRECCIÓN: LOGGING MEJORADO CON INFORMACIÓN DE DESTINATARIOS
-      // ========================================================================
-      
-      // Registrar actividad para el remitente (transfer_sent)
+      // Logging mejorado
       await supabase.from('activity_logs').insert({ 
         user_id: fromUserId, 
         action: 'transfer_sent', 
@@ -565,12 +783,10 @@ const createTransfer = async (req, res) => {
         metadata: { 
           amount: totalAmount,
           description: description,
-          // ✅ NUEVO: Información completa de destinatarios
           recipient: recipients.length === 1 ? `${recipients[0].first_name} ${recipients[0].last_name}` : null,
           recipientName: recipients.length === 1 ? `${recipients[0].first_name} ${recipients[0].last_name}` : null,
           recipientRun: recipients.length === 1 ? recipients[0].run : null,
           recipientCount: recipients.length,
-          // Para transferencias múltiples:
           recipients: recipients.map(r => ({
             name: `${r.first_name} ${r.last_name}`,
             run: r.run,
@@ -584,7 +800,6 @@ const createTransfer = async (req, res) => {
         user_agent: req.get('user-agent') 
       });
 
-      // ✅ NUEVO: También registrar actividad para cada destinatario (transfer_received)
       for (const recipient of recipients) {
         const recipientAmount = recipientDetails.find(rd => rd.id === recipient.id).amount;
         await supabase.from('activity_logs').insert({
@@ -606,7 +821,6 @@ const createTransfer = async (req, res) => {
       }
 
       console.log(`✅ Transferencia completada: ${totalAmount} a ${recipients.length} destinatarios`);
-      console.log(`📊 Actividades registradas: 1 transfer_sent + ${recipients.length} transfer_received`);
       
       res.status(201).json({ 
         status: 'success', 
@@ -637,269 +851,7 @@ const createTransfer = async (req, res) => {
 };
 
 // ========================================================================
-// 🎯 FUNCIÓN MODIFICADA: getAllUsers - CON FILTRO POR CURSO Y ESTABLECIMIENTO
-// ========================================================================
-
-const getAllUsers = async (req, res) => {
-  try {
-    const currentUserId = req.user.id;
-    const currentUserRole = req.user.role;
-    const { search = '', role = 'all', institution = 'all', limit = 100 } = req.query;
-
-    console.log(`🔍 Buscando usuarios para transferencia - Usuario actual: ${req.user.first_name} ${req.user.last_name} (${currentUserRole})`);
-
-    // ===============================================
-    // 🎯 NUEVA LÓGICA: FILTRO POR CURSO PARA ESTUDIANTES
-    // ===============================================
-    
-    let userInstitution = null;
-    let userCourse = null;
-    let availableUserIds = [];
-
-    if (currentUserRole === 'student') {
-      // 1. Obtener información del estudiante actual
-      const { data: currentStudent, error: studentError } = await supabase
-        .from('students')
-        .select('institution, course')
-        .eq('user_id', currentUserId)
-        .single();
-
-      if (studentError || !currentStudent) {
-        console.error('❌ Error obteniendo información del estudiante:', studentError);
-        return res.status(400).json({ 
-          status: 'error', 
-          message: 'No se pudo obtener la información del estudiante actual' 
-        });
-      }
-
-      userInstitution = currentStudent.institution;
-      userCourse = currentStudent.course;
-
-      console.log(`📚 Estudiante actual: ${userInstitution} - ${userCourse}`);
-
-      // 2. Buscar estudiantes del mismo establecimiento Y curso
-      const { data: sameClassStudents, error: classError } = await supabase
-        .from('students')
-        .select('user_id')
-        .eq('institution', userInstitution)
-        .eq('course', userCourse)
-        .neq('user_id', currentUserId); // Excluir al usuario actual
-
-      if (classError) {
-        console.error('❌ Error buscando compañeros de clase:', classError);
-      } else {
-        const studentIds = sameClassStudents?.map(s => s.user_id) || [];
-        availableUserIds.push(...studentIds);
-        console.log(`👥 Compañeros de clase encontrados: ${studentIds.length}`);
-      }
-
-      // 3. Buscar profesores del mismo establecimiento QUE enseñen el curso actual
-      const { data: sameInstitutionTeachers, error: teacherError } = await supabase
-        .from('teachers')
-        .select('user_id, courses')
-        .eq('institution', userInstitution);
-
-      if (teacherError) {
-        console.error('❌ Error buscando profesores:', teacherError);
-      } else {
-        // Filtrar profesores que enseñen el curso actual
-        const relevantTeachers = sameInstitutionTeachers?.filter(teacher => {
-          // teacher.courses es un array, verificar si incluye el curso actual
-          return teacher.courses && teacher.courses.includes(userCourse);
-        }) || [];
-
-        const teacherIds = relevantTeachers.map(t => t.user_id);
-        availableUserIds.push(...teacherIds);
-        console.log(`👨‍🏫 Profesores del curso encontrados: ${teacherIds.length}`);
-      }
-
-      // 4. Buscar administradores del mismo establecimiento (opcional)
-      // Para mayor flexibilidad, también incluir admins
-      const { data: admins, error: adminError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'admin')
-        .eq('is_active', true);
-
-      if (!adminError && admins) {
-        const adminIds = admins.map(a => a.id);
-        availableUserIds.push(...adminIds);
-        console.log(`👑 Administradores incluidos: ${adminIds.length}`);
-      }
-
-      console.log(`✅ Total de usuarios disponibles para el estudiante: ${availableUserIds.length}`);
-
-      // Si no hay usuarios disponibles, devolver lista vacía
-      if (availableUserIds.length === 0) {
-        return res.status(200).json({
-          status: 'success',
-          data: {
-            users: [],
-            stats: {
-              total: 0,
-              students: 0,
-              teachers: 0,
-              admins: 0,
-              institutions: []
-            },
-            filters: { search, role, institution, limit: parseInt(limit) },
-            restriction: {
-              applied: true,
-              reason: 'student_course_filter',
-              institution: userInstitution,
-              course: userCourse,
-              message: `Solo puedes transferir a compañeros de ${userCourse} en ${userInstitution}`
-            }
-          }
-        });
-      }
-    }
-
-    // ===============================================
-    // CONSULTA PRINCIPAL CON FILTROS
-    // ===============================================
-
-    let query = supabase
-      .from('users')
-      .select(`
-        id, 
-        run, 
-        first_name, 
-        last_name, 
-        email, 
-        role, 
-        is_active,
-        students(institution, course),
-        teachers(institution, courses)
-      `)
-      .eq('is_active', true)
-      .neq('id', currentUserId)
-      .limit(parseInt(limit));
-
-    // ✅ APLICAR FILTRO DE USUARIOS DISPONIBLES PARA ESTUDIANTES
-    if (currentUserRole === 'student' && availableUserIds.length > 0) {
-      query = query.in('id', availableUserIds);
-    }
-
-    // Aplicar filtros adicionales
-    if (search) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,run.ilike.%${search}%,email.ilike.%${search}%`);
-    }
-
-    if (role !== 'all') {
-      query = query.eq('role', role);
-    }
-
-    // Ordenar por nombre
-    query = query.order('first_name', { ascending: true });
-
-    const { data: users, error } = await query;
-
-    if (error) {
-      console.error('❌ Error en consulta de usuarios:', error);
-      throw error;
-    }
-
-    // ===============================================
-    // FORMATEO DE RESULTADOS
-    // ===============================================
-
-    const formattedUsers = users.map(user => {
-      let institutionInfo = '';
-      let courseInfo = '';
-
-      if (user.role === 'student' && user.students?.length > 0) {
-        institutionInfo = user.students[0].institution;
-        courseInfo = user.students[0].course;
-      } else if (user.role === 'teacher' && user.teachers?.length > 0) {
-        institutionInfo = user.teachers[0].institution;
-        courseInfo = user.teachers[0].courses?.join(', ') || '';
-      }
-
-      return {
-        id: user.id,
-        run: user.run,
-        name: `${user.first_name} ${user.last_name}`,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        email: user.email,
-        role: user.role,
-        institution: institutionInfo,
-        course: courseInfo,
-        displayRole: {
-          'student': 'Estudiante',
-          'teacher': 'Docente',
-          'admin': 'Administrador'
-        }[user.role] || user.role
-      };
-    });
-
-    // Aplicar filtro de institución si se especifica
-    let filteredUsers = formattedUsers;
-    if (institution !== 'all') {
-      filteredUsers = formattedUsers.filter(user => 
-        user.institution.toLowerCase().includes(institution.toLowerCase())
-      );
-    }
-
-    // Calcular estadísticas
-    const stats = {
-      total: filteredUsers.length,
-      students: filteredUsers.filter(u => u.role === 'student').length,
-      teachers: filteredUsers.filter(u => u.role === 'teacher').length,
-      admins: filteredUsers.filter(u => u.role === 'admin').length,
-      institutions: [...new Set(filteredUsers.map(u => u.institution).filter(Boolean))]
-    };
-
-    // ===============================================
-    // RESPUESTA FINAL
-    // ===============================================
-
-    const response = {
-      status: 'success',
-      data: {
-        users: filteredUsers,
-        stats: stats,
-        filters: { 
-          search, 
-          role, 
-          institution, 
-          limit: parseInt(limit) 
-        }
-      }
-    };
-
-    // Agregar información de restricción para estudiantes
-    if (currentUserRole === 'student') {
-      response.data.restriction = {
-        applied: true,
-        reason: 'student_course_filter',
-        institution: userInstitution,
-        course: userCourse,
-        message: `Mostrando solo compañeros de ${userCourse} en ${userInstitution}`
-      };
-    }
-
-    console.log(`✅ Usuarios encontrados: ${filteredUsers.length} (${stats.students} estudiantes, ${stats.teachers} profesores, ${stats.admins} admins)`);
-    
-    if (currentUserRole === 'student') {
-      console.log(`🔒 Filtro aplicado: Solo ${userInstitution} - ${userCourse}`);
-    }
-
-    res.status(200).json(response);
-
-  } catch (error) {
-    console.error('❌ Error obteniendo usuarios para transferencia:', error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Error al obtener lista de usuarios disponibles para transferencia',
-      details: error.message 
-    });
-  }
-};
-
-// ========================================================================
-// MANTENER TODAS LAS DEMÁS FUNCIONES IGUAL
+// FUNCIONES AUXILIARES
 // ========================================================================
 
 const getUserStats = async (req, res) => {
@@ -940,7 +892,7 @@ const getClassmates = async (req, res) => {
   return getAllUsers(req, res);
 };
 
-// Exportamos todas las funciones del controlador
+// Exportar todas las funciones
 module.exports = {
   createTransfer,
   getAllUsers,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Save, RefreshCw, AlertCircle, CheckCircle, XCircle, Loader2, DollarSign, Users, Shield, Globe, Eye, History, X } from 'lucide-react';
+import { Settings, Save, RefreshCw, AlertCircle, CheckCircle, XCircle, Loader2, DollarSign, Users, Shield, Globe, Eye, History, X, Clock } from 'lucide-react';
 import { apiService, SystemConfig, SystemConfigResponse } from '../../services/api';
 
 interface ConfigUpdate {
@@ -32,7 +32,9 @@ const SystemSettings = () => {
     transfers: { icon: DollarSign, label: 'Transferencias', color: 'green' },
     users: { icon: Users, label: 'Usuarios', color: 'blue' },
     security: { icon: Shield, label: 'Seguridad', color: 'red' },
-    general: { icon: Globe, label: 'General', color: 'gray' }
+    general: { icon: Globe, label: 'General', color: 'gray' },
+    system: { icon: Settings, label: 'Sistema', color: 'purple' },
+    notifications: { icon: AlertCircle, label: 'Notificaciones', color: 'yellow' }
   };
 
   // Cargar configuraciones
@@ -43,9 +45,7 @@ const SystemSettings = () => {
       
       console.log('⚙️ Cargando configuraciones del sistema...');
       
-      const response: SystemConfigResponse = await apiService.getSystemConfigurations({
-        editable: showOnlyEditable ? 'true' : 'all'
-      });
+      const response: SystemConfigResponse = await apiService.getSystemConfig();
       
       console.log('✅ Configuraciones cargadas:', response.data);
       
@@ -55,7 +55,14 @@ const SystemSettings = () => {
       
     } catch (error: any) {
       console.error('❌ Error cargando configuraciones:', error);
-      setError(error.message || 'Error al cargar configuraciones');
+      
+      if (error.message.includes('403') || error.message.includes('autorizado')) {
+        setError('No tienes permisos para gestionar configuraciones del sistema. Solo administradores pueden acceder.');
+      } else if (error.message.includes('401')) {
+        setError('Tu sesión ha expirado. Recarga la página e inicia sesión nuevamente.');
+      } else {
+        setError(error.message || 'Error al cargar configuraciones');
+      }
     } finally {
       setLoading(false);
     }
@@ -64,7 +71,7 @@ const SystemSettings = () => {
   // Cargar configuraciones al montar
   useEffect(() => {
     loadConfigurations();
-  }, [showOnlyEditable]);
+  }, []);
 
   // Manejar cambio de valor
   const handleValueChange = (config: SystemConfig, newValue: any) => {
@@ -81,7 +88,6 @@ const SystemSettings = () => {
         return;
       }
       
-      // ✅ CORREGIDO: Validar rango con verificación de null/undefined
       if (config.minValue !== null && config.minValue !== undefined && validatedValue < config.minValue) {
         setError(`El valor debe ser mayor o igual a ${config.minValue}`);
         return;
@@ -94,472 +100,441 @@ const SystemSettings = () => {
     } else if (config.dataType === 'boolean') {
       validatedValue = newValue === 'true' || newValue === true;
     }
-    
-    setError(null);
-    
-    // Agregar a cambios pendientes
+
+    // Limpiar error anterior
+    if (error) setError(null);
+
     setPendingChanges(prev => ({
       ...prev,
       [key]: {
         key,
         value: validatedValue,
-        originalValue: config.configValue
+        originalValue: config.value
       }
     }));
   };
 
-  // Remover cambio pendiente
-  const removePendingChange = (key: string) => {
-    setPendingChanges(prev => {
-      const newChanges = { ...prev };
-      delete newChanges[key];
-      return newChanges;
-    });
-  };
-
   // Guardar cambios
   const handleSaveChanges = async () => {
-    const changesArray = Object.values(pendingChanges);
-    
-    if (changesArray.length === 0) {
-      setError('No hay cambios para guardar');
-      return;
-    }
+    const updates = Object.values(pendingChanges);
+    if (updates.length === 0) return;
+
+    setIsSaving(true);
+    setSuccess(null);
+    setError(null);
 
     try {
-      setIsSaving(true);
-      setError(null);
+      console.log('💾 Guardando configuraciones:', updates);
       
-      console.log(`💾 Guardando ${changesArray.length} configuraciones...`);
-      
-      // ✅ CORREGIDO: Mapear correctamente con 'id' en lugar de 'key'
-      const response = await apiService.updateMultipleConfigurations(
-        changesArray.map(change => ({
-          id: change.key,  // ✅ Cambiado de 'key' a 'id'
-          value: change.value.toString()  // Convertir a string
-        }))
-      );
-      
-      console.log('✅ Configuraciones guardadas:', response);
-      
-      setSuccess(`${changesArray.length} configuraciones actualizadas exitosamente`);
-      setPendingChanges({});
-      
-      // Recargar configuraciones
-      loadConfigurations();
-      
-      setTimeout(() => setSuccess(null), 3000);
-      
+      const response = await apiService.updateMultipleConfigurations(updates);
+      if (response.status === 'success') {
+        setSuccess('Configuraciones actualizadas exitosamente');
+        setPendingChanges({});
+        loadConfigurations();
+        setTimeout(() => setSuccess(null), 3000);
+      }
     } catch (error: any) {
-      console.error('❌ Error guardando configuraciones:', error);
+      console.error('Error guardando configuraciones:', error);
       setError(error.message || 'Error al guardar configuraciones');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Cargar historial de configuración
-  const loadConfigHistory = async (configKey: string) => {
+  // Descartar cambios
+  const handleDiscardChanges = () => {
+    setPendingChanges({});
+    setError(null);
+  };
+
+  // Cargar historial
+  const loadHistory = async (configKey: string) => {
+    setLoadingHistory(true);
+    setHistoryData([]);
+
     try {
-      setLoadingHistory(true);
-      
-      const response = await apiService.getConfigurationHistory(configKey, {
-        page: 1,
-        limit: 10
-      });
-      
+      console.log('📋 Cargando historial para:', configKey);
+      const response = await apiService.getConfigHistory(configKey);
       setHistoryData(response.data.history);
-      
     } catch (error: any) {
-      console.error('❌ Error cargando historial:', error);
+      console.error('Error cargando historial:', error);
+      setError('Error al cargar historial de cambios');
     } finally {
       setLoadingHistory(false);
     }
   };
 
-  // Mostrar historial
-  const handleShowHistory = (configKey: string) => {
-    setShowHistory(configKey);
-    loadConfigHistory(configKey);
-  };
-
-  // Renderizar campo de configuración
-  const renderConfigField = (config: SystemConfig) => {
-    const pendingChange = pendingChanges[config.configKey];
-    const currentValue = pendingChange ? pendingChange.value : config.configValue;
-    const hasChanges = !!pendingChange;
-
-    return (
-      <div key={config.id} className={`p-4 rounded-lg border transition-all ${
-        hasChanges 
-          ? 'border-orange-200 bg-orange-50' 
-          : 'border-gray-200 bg-white'
-      }`}>
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-bold text-gray-900">{config.configKey}</h3>
-              {hasChanges && (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <span className="text-xs text-orange-600 font-medium">Modificado</span>
-                </div>
-              )}
-            </div>
-            {config.description && (
-              <p className="text-xs text-gray-600 mb-2">{config.description}</p>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => handleShowHistory(config.configKey)}
-              className="p-1 text-gray-400 hover:text-gray-600 rounded"
-              title="Ver historial"
-            >
-              <History className="w-3.5 h-3.5" />
-            </button>
-            
-            {hasChanges && (
-              <button
-                onClick={() => removePendingChange(config.configKey)}
-                className="p-1 text-orange-500 hover:text-orange-700 rounded"
-                title="Descartar cambio"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          {/* Campo de valor */}
-          <div className="md:col-span-2">
-            {config.dataType === 'boolean' ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={currentValue === 'true' || currentValue === true}
-                  onChange={(e) => handleValueChange(config, e.target.checked)}
-                  disabled={!config.isEditable || isSaving}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label className="text-sm text-gray-700">
-                  {currentValue === 'true' || currentValue === true ? 'Activado' : 'Desactivado'}
-                </label>
-              </div>
-            ) : (
-              <input
-                type={config.dataType === 'number' ? 'number' : 'text'}
-                value={currentValue}
-                onChange={(e) => handleValueChange(config, e.target.value)}
-                disabled={!config.isEditable || isSaving}
-                min={config.minValue !== null && config.minValue !== undefined ? config.minValue : undefined}
-                max={config.maxValue !== null && config.maxValue !== undefined ? config.maxValue : undefined}
-                className={`w-full px-3 py-2 text-sm border rounded-lg transition-colors ${
-                  !config.isEditable 
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
-                    : hasChanges
-                      ? 'border-orange-300 bg-orange-50'
-                      : 'border-gray-200 focus:border-blue-300'
-                }`}
-              />
-            )}
-            
-            {/* Información de rango */}
-            {config.dataType === 'number' && (config.minValue !== null || config.maxValue !== null) && (
-              <p className="text-xs text-gray-500 mt-1">
-                Rango: {config.minValue !== null && config.minValue !== undefined ? config.minValue : 'Sin mínimo'} - {config.maxValue !== null && config.maxValue !== undefined ? config.maxValue : 'Sin máximo'}
-              </p>
-            )}
-          </div>
-
-          {/* Metadatos */}
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-2 mb-1">
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                config.isEditable 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-gray-100 text-gray-600'
-              }`}>
-                {config.isEditable ? 'Editable' : 'Solo lectura'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">Tipo: {config.dataType}</p>
-            {hasChanges && (
-              <p className="text-xs text-orange-600 font-medium mt-1">
-                Anterior: {pendingChange.originalValue}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Formatear fecha para historial
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('es-CL', {
+  // Formatear fecha
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleString('es-CL', {
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    }).format(date);
+    });
   };
 
-  const filteredConfigs = selectedCategory === 'all' 
-    ? configurations 
-    : configurations.filter(config => config.category === selectedCategory);
+  // Formatear valor para mostrar
+  const formatDisplayValue = (config: SystemConfig, value: any) => {
+    if (config.dataType === 'boolean') {
+      return value ? 'Habilitado' : 'Deshabilitado';
+    }
+    if (config.dataType === 'number' && config.configKey.includes('amount')) {
+      return new Intl.NumberFormat('es-CL', { 
+        style: 'currency', 
+        currency: 'CLP' 
+      }).format(value);
+    }
+    return value;
+  };
 
-  const pendingChangesCount = Object.keys(pendingChanges).length;
+  // Filtrar configuraciones
+  const filteredConfigs = configurations.filter(config => {
+    if (selectedCategory !== 'all' && config.category !== selectedCategory) return false;
+    if (showOnlyEditable && !config.editable) return false;
+    return true;
+  });
 
-  return (
-    <div className="max-w-6xl mx-auto px-3 py-4">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-white/20 rounded">
-              <Settings className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">Configuraciones del Sistema</h1>
-              <p className="text-blue-200 text-xs">Administra los parámetros configurables del sistema</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-blue-200 text-xs mb-0.5">Configuraciones</p>
-            <p className="text-base font-bold">{filteredConfigs.length}</p>
-          </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-600">Cargando configuraciones del sistema...</p>
         </div>
       </div>
+    );
+  }
 
-      {/* Mensaje de éxito */}
-      {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800 text-xs shadow-sm">
-          <CheckCircle className="w-4 h-4" />
-          <p>{success}</p>
-        </div>
-      )}
-
-      {/* Mensaje de error */}
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800 text-xs shadow-sm">
-          <AlertCircle className="w-4 h-4" />
-          <div className="flex-1">
-            <p>{error}</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Configuraciones del Sistema</h1>
+            <p className="text-sm text-gray-500 mt-1">Ajusta parámetros y límites globales</p>
           </div>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-600 hover:text-red-800"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Controles */}
-      <div className="bg-white rounded-lg shadow-sm mb-4">
-        <div className="flex flex-col sm:flex-row gap-3 p-3">
-          
-          {/* Filtro por categoría */}
-          <div className="flex-1">
-            <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2">
+            {Object.keys(pendingChanges).length > 0 && (
               <button
-                onClick={() => setSelectedCategory('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  selectedCategory === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                onClick={handleDiscardChanges}
+                disabled={isSaving}
+                className="px-3 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
               >
-                Todas ({configurations.length})
+                Descartar Cambios
               </button>
-              
-              {categories.map(category => {
-                const info = categoryInfo[category as keyof typeof categoryInfo];
-                const Icon = info?.icon || Globe;
-                const count = groupedConfigs[category]?.length || 0;
-                
-                return (
-                  <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      selectedCategory === category
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    {info?.label || category} ({count})
-                  </button>
-                );
-              })}
-            </div>
+            )}
+            <button
+              onClick={handleSaveChanges}
+              disabled={isSaving || Object.keys(pendingChanges).length === 0}
+              className={`bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white px-4 py-2.5 rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-bold ${
+                isSaving || Object.keys(pendingChanges).length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? 'Guardando...' : `Guardar Cambios (${Object.keys(pendingChanges).length})`}
+            </button>
           </div>
+        </div>
 
-          {/* Controles adicionales */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-xs text-gray-600">
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow border border-gray-200 mb-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors"
+            >
+              <option value="all">Todas las categorías</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>
+                  {categoryInfo[cat as keyof typeof categoryInfo]?.label || cat}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={showOnlyEditable}
                 onChange={(e) => setShowOnlyEditable(e.target.checked)}
-                className="w-3.5 h-3.5 text-blue-600"
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
               />
-              Solo editables
-            </label>
-            
+              <label className="text-sm text-gray-700">Mostrar solo editables</label>
+            </div>
+
             <button
               onClick={loadConfigurations}
               disabled={loading}
-              className="p-2 text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100"
-              title="Recargar"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Recargar
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* Panel de cambios pendientes */}
-      {pendingChangesCount > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium text-orange-800">
-                {pendingChangesCount} cambio{pendingChangesCount > 1 ? 's' : ''} pendiente{pendingChangesCount > 1 ? 's' : ''}
-              </span>
+          {/* Estadísticas rápidas */}
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Total Configuraciones</p>
+              <p className="font-semibold text-gray-900">{configurations.length}</p>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPendingChanges({})}
-                disabled={isSaving}
-                className="px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50"
-              >
-                Descartar Todo
-              </button>
-              <button
-                onClick={handleSaveChanges}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Guardando...
-                  </>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Editables</p>
+              <p className="font-semibold text-blue-600">{configurations.filter(c => c.editable).length}</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Cambios Pendientes</p>
+              <p className="font-semibold text-orange-600">{Object.keys(pendingChanges).length}</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Categorías</p>
+              <p className="font-semibold text-purple-600">{categories.length}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Mensaje de éxito */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-green-700 text-sm">
+            <CheckCircle className="w-4 h-4" />
+            {success}
+          </div>
+        )}
+
+        {/* Mensaje de error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        {/* Tabla de configuraciones */}
+        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Categoría
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Configuración
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Valor Actual
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Descripción
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredConfigs.map(config => {
+                const categoryMeta = categoryInfo[config.category as keyof typeof categoryInfo];
+                const IconComponent = categoryMeta?.icon || Settings;
+                const hasChanges = pendingChanges[config.configKey];
+                const displayValue = hasChanges ? hasChanges.value : config.value;
+                
+                return (
+                  <tr key={config.configKey} className={`hover:bg-gray-50 transition-colors ${hasChanges ? 'bg-yellow-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-${categoryMeta?.color || 'gray'}-100 text-${categoryMeta?.color || 'gray'}-800`}>
+                        <IconComponent className="w-3 h-3 mr-1" />
+                        {categoryMeta?.label || config.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">{config.label}</span>
+                        <span className="text-xs text-gray-500 font-mono">{config.configKey}</span>
+                        {hasChanges && (
+                          <span className="text-xs text-orange-600 font-medium">⚠ Cambio pendiente</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {config.editable ? (
+                        <div className="flex flex-col">
+                          {config.dataType === 'boolean' ? (
+                            <select
+                              value={displayValue?.toString() || 'false'}
+                              onChange={(e) => handleValueChange(config, e.target.value === 'true')}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            >
+                              <option value="false">Deshabilitado</option>
+                              <option value="true">Habilitado</option>
+                            </select>
+                          ) : config.dataType === 'number' ? (
+                            <input
+                              type="number"
+                              value={displayValue || ''}
+                              onChange={(e) => handleValueChange(config, e.target.value)}
+                              min={config.minValue || undefined}
+                              max={config.maxValue || undefined}
+                              step={config.configKey.includes('amount') ? '1000' : '1'}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={displayValue || ''}
+                              onChange={(e) => handleValueChange(config, e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            />
+                          )}
+                          {hasChanges && (
+                            <div className="mt-1 text-xs">
+                              <span className="text-gray-500">Original: </span>
+                              <span className="text-red-600">{formatDisplayValue(config, config.value)}</span>
+                              <span className="text-gray-500"> → </span>
+                              <span className="text-green-600">{formatDisplayValue(config, displayValue)}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-700">
+                          {formatDisplayValue(config, config.value)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
+                      <div className="truncate" title={config.description}>
+                        {config.description}
+                      </div>
+                      {(config.minValue !== null || config.maxValue !== null) && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Rango: {config.minValue || '∞'} - {config.maxValue || '∞'}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setShowHistory(config.configKey);
+                            loadHistory(config.configKey);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
+                          title="Ver historial"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                        {hasChanges && (
+                          <button
+                            onClick={() => {
+                              const newChanges = { ...pendingChanges };
+                              delete newChanges[config.configKey];
+                              setPendingChanges(newChanges);
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded text-red-600 transition-colors"
+                            title="Descartar cambio"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {filteredConfigs.length === 0 && (
+            <div className="text-center py-8">
+              <Settings className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No hay configuraciones que mostrar</p>
+            </div>
+          )}
+        </div>
+
+        {/* Modal de historial */}
+        {showHistory && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+              {/* Header del modal */}
+              <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-white/20 rounded">
+                      <History className="w-4 h-4 text-white" />
+                    </div>
+                    <h2 className="text-lg font-bold">Historial de Cambios</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(null)}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-blue-200 text-sm mt-1">Configuración: {showHistory}</p>
+              </div>
+
+              {/* Contenido del historial */}
+              <div className="p-4 max-h-96 overflow-y-auto">
+                {loadingHistory ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 text-blue-600 mx-auto mb-2 animate-spin" />
+                    <p className="text-sm text-gray-500">Cargando historial...</p>
+                  </div>
+                ) : historyData.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Eye className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No hay cambios registrados</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Los cambios aparecerán aquí una vez que se modifique esta configuración
+                    </p>
+                  </div>
                 ) : (
-                  <>
-                    <Save className="w-3.5 h-3.5" />
-                    Guardar Cambios
-                  </>
+                  <div className="space-y-3">
+                    {historyData.map((entry, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {entry.users?.first_name} {entry.users?.last_name}
+                          </span>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            {formatDate(entry.created_at)}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600 mb-2">
+                          RUN: {entry.users?.run}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Valor anterior:</span>
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-mono">
+                                {entry.metadata?.oldValue}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Valor nuevo:</span>
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-mono">
+                                {entry.metadata?.newValue}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lista de configuraciones */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
-            <p className="text-sm text-gray-500">Cargando configuraciones...</p>
-          </div>
-        ) : filteredConfigs.length === 0 ? (
-          <div className="p-8 text-center">
-            <Settings className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-medium mb-1">
-              No hay configuraciones disponibles
-            </p>
-            <p className="text-xs text-gray-400">
-              {selectedCategory === 'all' 
-                ? 'No se encontraron configuraciones en el sistema' 
-                : `No hay configuraciones en la categoría seleccionada`}
-            </p>
-          </div>
-        ) : (
-          <div className="p-4 space-y-4">
-            {filteredConfigs.map(config => renderConfigField(config))}
           </div>
         )}
       </div>
-
-      {/* Modal de historial */}
-      {showHistory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            {/* Header del modal */}
-            <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg p-3 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-white/20 rounded">
-                    <History className="w-4 h-4 text-white" />
-                  </div>
-                  <h2 className="text-base font-bold">Historial de Cambios</h2>
-                </div>
-                <button
-                  onClick={() => setShowHistory(null)}
-                  className="p-1 hover:bg-white/20 rounded transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-blue-200 text-xs mt-1">Configuración: {showHistory}</p>
-            </div>
-
-            {/* Contenido del historial */}
-            <div className="p-4 max-h-96 overflow-y-auto">
-              {loadingHistory ? (
-                <div className="text-center py-8">
-                  <Loader2 className="w-6 h-6 text-blue-600 mx-auto mb-2 animate-spin" />
-                  <p className="text-sm text-gray-500">Cargando historial...</p>
-                </div>
-              ) : historyData.length === 0 ? (
-                <div className="text-center py-8">
-                  <Eye className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No hay cambios registrados</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {historyData.map((entry, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-900">
-                          {entry.users?.first_name} {entry.users?.last_name} ({entry.users?.run})
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(entry.created_at)}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-500">Valor anterior:</span>
-                          <span className="ml-1 font-mono bg-red-50 text-red-700 px-1 rounded">
-                            {entry.metadata?.oldValue}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Valor nuevo:</span>
-                          <span className="ml-1 font-mono bg-green-50 text-green-700 px-1 rounded">
-                            {entry.metadata?.newValue}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

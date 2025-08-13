@@ -37,7 +37,8 @@ const TeacherList = () => {
         page,
         limit: pagination.limit,
         search: search || undefined,
-        status: status === 'all' ? undefined : status
+        status: status === 'all' ? undefined : status,
+        sortOrder: 'desc'  // Agregado para resolver TS2345
       });
       
       console.log('✅ Docentes cargados:', response.data);
@@ -98,337 +99,177 @@ const TeacherList = () => {
     switch (status) {
       case 'active': return <CheckCircle className="w-3.5 h-3.5 text-green-500" />;
       case 'inactive': return <XCircle className="w-3.5 h-3.5 text-red-500" />;
-      case 'retired': return <Sparkles className="w-3.5 h-3.5 text-blue-500" />;
+      case 'retired': return <Clock className="w-3.5 h-3.5 text-gray-500" />;
+      default: return null;
     }
   };
 
   const getStatusLabel = (status: Teacher['status']) => {
-    const statusLabels: Record<Teacher['status'], string> = {
-      active: 'Activo',
-      inactive: 'Inactivo',
-      retired: 'Jubilado'
-    };
-    return statusLabels[status];
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('es-CL', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    }).format(date);
-  };
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
-
-  const getAvatarColors = (name: string) => {
-    const colors = [
-      { bg: 'bg-purple-100', text: 'text-purple-700' },
-      { bg: 'bg-blue-100', text: 'text-blue-700' },
-      { bg: 'bg-green-100', text: 'text-green-700' },
-      { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-      { bg: 'bg-pink-100', text: 'text-pink-700' },
-      { bg: 'bg-indigo-100', text: 'text-indigo-700' },
-    ];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const exportToCSV = () => {
-    if (teachers.length === 0) return;
-    
-    const headers = ['RUN', 'Nombre', 'Apellido', 'Email', 'Teléfono', 'Nacimiento', 'Institución', 'Cursos', 'Género', 'Estado'];
-    const rows = teachers.map(t => [
-      t.run,
-      t.firstName,
-      t.lastName,
-      t.email,
-      t.phone || '',
-      formatDate(t.birthDate),
-      t.institution,
-      (t.courses && t.courses.length > 0) ? t.courses.join(', ') : 'Sin cursos',
-      t.gender,
-      getStatusLabel(t.status)
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `docentes_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportToPDF = () => {
-    window.print();
-  };
-
-  // Componente de paginación mejorado
-  const PaginationComponent = () => {
-    if (pagination.totalPages <= 1) return null;
-
-    const pages = [];
-    const startPage = Math.max(1, pagination.page - 2);
-    const endPage = Math.min(pagination.totalPages, pagination.page + 2);
-
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
+    switch (status) {
+      case 'active': return 'Activo';
+      case 'inactive': return 'Inactivo';
+      case 'retired': return 'Retirado';
+      default: return status;
     }
-
-    return (
-      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 print:hidden">
-        <div className="text-xs text-gray-500">
-          Mostrando {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} docentes
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => handlePageChange(pagination.page - 1)}
-            disabled={pagination.page === 1}
-            className="px-3 py-1 text-xs bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
-          >
-            ← Anterior
-          </button>
-          
-          {pages.map(page => (
-            <button
-              key={page}
-              onClick={() => handlePageChange(page)}
-              className={`px-3 py-1 text-xs rounded ${
-                page === pagination.page 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-            >
-              {page}
-            </button>
-          ))}
-          
-          <button
-            onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={pagination.page === pagination.totalPages}
-            className="px-3 py-1 text-xs bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
-          >
-            Siguiente →
-          </button>
-        </div>
-      </div>
-    );
   };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const PaginationComponent = () => (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 print:hidden">
+      <div className="text-xs text-gray-500">
+        Mostrando {(pagination.page - 1) * pagination.limit + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} docentes
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => handlePageChange(pagination.page - 1)}
+          disabled={pagination.page === 1}
+          className="p-1 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-xs text-gray-700">
+          Página {pagination.page} de {pagination.totalPages}
+        </span>
+        <button
+          onClick={() => handlePageChange(pagination.page + 1)}
+          disabled={pagination.page === pagination.totalPages}
+          className="p-1 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-50"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="mx-auto px-3 py-4">
-      {/* Header con diseño gradiente */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md print:hidden">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-white/20 rounded">
-              <School className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">Docentes</h1>
-              <p className="text-blue-200 text-xs">Gestiona los docentes del sistema</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Lista de Docentes</h1>
+            <p className="text-sm text-gray-500 mt-1">Gestiona docentes en el sistema</p>
           </div>
-          <div className="text-right">
-            <p className="text-blue-200 text-xs mb-0.5">Total docentes</p>
-            <p className="text-base font-bold">{loading ? '...' : pagination.total}</p>
-          </div>
+          <button
+            onClick={() => navigate('/teachers/create')}
+            className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white px-4 py-2.5 rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-bold"
+          >
+            <UserPlus className="w-4 h-4" />
+            Nuevo Docente
+          </button>
         </div>
-      </div>
 
-      {/* Filtros y acciones mejorados */}
-      <div className="bg-white rounded-lg shadow-sm mb-4 print:hidden">
-        <div className="flex flex-col sm:flex-row gap-3 p-3">
-          <div className="flex-1">
+        {/* Filtros y Búsqueda */}
+        <div className="bg-white rounded-lg shadow border border-gray-100 mb-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Búsqueda */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, RUN o email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs shadow-sm focus:border-blue-300"
-                disabled={loading}
+                placeholder="Buscar por nombre, RUN o email..."
+                className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors"
               />
             </div>
-          </div>
-          
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs shadow-sm focus:border-blue-300"
-            disabled={loading}
-          >
-            <option value="all">Todos los estados</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-            <option value="retired">Jubilados</option>
-          </select>
-          
-          <button 
-            onClick={exportToCSV} 
-            disabled={teachers.length === 0 || loading}
-            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 text-xs shadow-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Excel
-          </button>
-          
-          <button 
-            onClick={exportToPDF} 
-            disabled={teachers.length === 0 || loading}
-            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 text-xs shadow-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            PDF
-          </button>
-          
-          <button 
-            onClick={() => navigate('/teachers/create')}
-            className="px-3 py-2 bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white rounded-lg flex items-center gap-1 text-xs font-bold shadow-md hover:opacity-90"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            Nuevo
-          </button>
-        </div>
-      </div>
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-red-800">Error al cargar docentes</h3>
-              <p className="text-sm text-red-600 mt-1">{error}</p>
-            </div>
-            <button
-              onClick={() => loadTeachers(pagination.page, searchTerm, filterStatus)}
-              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium"
+            {/* Filtro por estado */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors"
             >
-              Reintentar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Lista de docentes con diseño mejorado */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
-        <div className="p-3 border-b border-gray-100 print:hidden">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <Clock className="w-3.5 h-3.5 text-white" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800">Lista de Docentes</h2>
-              {(searchTerm || filterStatus !== 'all') && !loading && (
-                <span className="text-xs text-gray-500">
-                  - {searchTerm && `"${searchTerm}"`} {filterStatus !== 'all' && `(${getStatusLabel(filterStatus as any)})`}
-                </span>
-              )}
-            </div>
-            {loading && (
-              <div className="flex items-center gap-2 text-blue-600">
-                <Loader className="w-4 h-4 animate-spin" />
-                <span className="text-xs">Cargando...</span>
-              </div>
-            )}
+              <option value="all">Todos los estados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+              <option value="retired">Retirados</option>
+            </select>
           </div>
         </div>
 
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full table-auto">
-            <thead className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white">
+        {/* Mensaje de error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        {/* Tabla de docentes */}
+        <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Docente</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">RUN</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Establecimiento</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Cursos</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Nacimiento</th>
-                <th className="px-4 py-2 text-left text-xs font-bold uppercase">Género</th>
-                <th className="px-4 py-2 text-center text-xs font-bold uppercase">Estado</th>
-                <th className="px-4 py-2 text-center text-xs font-bold uppercase print:hidden">Acciones</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Docente</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Institución</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cursos</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Creado</th>
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {teachers.map((teacher) => {
-                const colors = getAvatarColors(`${teacher.firstName} ${teacher.lastName}`);
-                
-                return (
-                  <tr key={teacher.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2 min-w-[200px]">
-                        <div className={`w-7 h-7 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
-                          <span className={`text-xs font-bold ${colors.text}`}>
-                            {getInitials(teacher.firstName, teacher.lastName)}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-900">{teacher.firstName} {teacher.lastName}</p>
-                          <p className="text-[10px] text-gray-500">{teacher.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[120px]">{teacher.run}</td>
-                    <td className="px-4 py-2 text-xs text-gray-700 min-w-[200px]">{teacher.institution}</td>
-                    <td className="px-4 py-2 text-xs text-gray-700 min-w-[180px]">
-                      {teacher.courses && teacher.courses.length > 0 ? teacher.courses.join(', ') : 'Sin cursos asignados'}
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[120px]">{formatDate(teacher.birthDate)}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 min-w-[100px]">{teacher.gender}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-center min-w-[120px]">
-                      <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium shadow-sm ${
-                        teacher.status === 'active' ? 'bg-green-100 text-green-700' : 
-                        teacher.status === 'inactive' ? 'bg-red-100 text-red-700' : 
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {getStatusIcon(teacher.status)}
-                        <span>{getStatusLabel(teacher.status)}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap text-center print:hidden min-w-[150px]">
-                      <div className="flex items-center justify-center gap-2">
-                        <button 
-                          onClick={() => navigate(`/teachers/${teacher.id}`)}
-                          className="p-1 hover:bg-gray-100 rounded text-gray-600"
-                          title="Ver detalles"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => navigate(`/teachers/edit/${teacher.id}`)}
-                          className="p-1 hover:bg-gray-100 rounded text-blue-600"
-                          title="Editar"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            if (confirm(`¿Estás seguro de eliminar a ${teacher.firstName} ${teacher.lastName}?`)) {
-                              console.log('Eliminar docente:', teacher.id);
-                              // TODO: Implementar eliminación real
-                            }
-                          }}
-                          className="p-1 hover:bg-gray-100 rounded text-red-600"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+            <tbody className="divide-y divide-gray-200">
+              {teachers.map(teacher => (
+                <tr key={teacher.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-2">
+                    <div className="flex flex-col">
+                      <span className="font-medium text-gray-900 text-sm">{teacher.firstName} {teacher.lastName}</span>
+                      <span className="text-xs text-gray-500">{teacher.run}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-700">{teacher.institution}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700">{teacher.courses.join(', ')}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700">{formatDate(teacher.createdAt)}</td>
+                  <td className="px-4 py-2 text-center">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                      teacher.status === 'active' ? 'bg-green-100 text-green-800' : 
+                      teacher.status === 'inactive' ? 'bg-red-100 text-red-800' : 
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {getStatusIcon(teacher.status)}
+                      {getStatusLabel(teacher.status)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-center print:hidden min-w-[150px]">
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => navigate(`/teachers/${teacher.id}`)}
+                        className="p-1 hover:bg-gray-100 rounded text-gray-600"
+                        title="Ver detalles"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/teachers/edit/${teacher.id}`)}
+                        className="p-1 hover:bg-gray-100 rounded text-blue-600"
+                        title="Editar"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`¿Estás seguro de eliminar a ${teacher.firstName} ${teacher.lastName}?`)) {
+                            console.log('Eliminar docente:', teacher.id);
+                            // TODO: Implementar eliminación real
+                          }
+                        }}
+                        className="p-1 hover:bg-gray-100 rounded text-red-600"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
