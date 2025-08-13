@@ -79,7 +79,6 @@ const Transfers = () => {
         role: roleFilter,
         limit: 100
       });
-      console.log('Usuarios cargados:', response.data.users); // Debug temporal
       setUsers(response.data.users);
     } catch (error: any) {
       console.error('Error cargando usuarios:', error);
@@ -125,10 +124,8 @@ const Transfers = () => {
   }, [activeTab, loadTransferHistory, loadUsers]);
 
   useEffect(() => {
-    console.log('useEffect disparado - activeTab:', activeTab, 'showRecipientModal:', showRecipientModal); // Debug
     const delayedLoad = setTimeout(() => {
         if(activeTab === 'new' || showRecipientModal) {
-            console.log('Cargando usuarios...'); // Debug
             loadUsers();
         }
     }, 300);
@@ -155,8 +152,8 @@ const Transfers = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    // Manejar tanto user.name como firstName + lastName
-    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    // Usar firstName + lastName ya que no existe user.name en el tipo
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const matchesSearch = searchTerm === '' || 
       userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.run.includes(searchTerm) ||
@@ -164,16 +161,14 @@ const Transfers = () => {
     return matchesSearch;
   });
 
-  console.log('Debug - users:', users.length, 'filteredUsers:', filteredUsers.length); // Debug temporal
-
   const favoriteUsers = filteredUsers.filter(u => favorites.has(u.id));
   const otherUsers = filteredUsers.filter(u => !favorites.has(u.id));
 
   const isRecipientSelected = (user: ApiUser) => selectedRecipients.some(r => r.id === user.id);
 
   const toggleRecipientSelection = (user: ApiUser) => {
-    // Manejar tanto user.name como firstName + lastName
-    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    // Usar firstName + lastName ya que no existe user.name en el tipo
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
     
     if (transferMode === 'single') {
@@ -291,8 +286,8 @@ const Transfers = () => {
     onToggleSelection: (user: ApiUser) => void;
     onToggleFavorite: (userId: string) => void;
   }) => {
-    // Manejar tanto user.name como firstName + lastName
-    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    // Usar firstName + lastName ya que no existe user.name en el tipo
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
     const colors = getAvatarColors(userName);
     return (
@@ -414,7 +409,6 @@ const Transfers = () => {
                   </label>
                   <button 
                     onClick={() => {
-                      console.log('Abriendo modal de destinatarios'); // Debug
                       setShowRecipientModal(true);
                       // Forzar carga inmediata de usuarios
                       loadUsers();
@@ -855,7 +849,8 @@ const Transfers = () => {
                     {transfers.map((transfer) => {
                       const isIncoming = transfer.direction === 'received';
                       const otherPerson = transfer.otherPerson;
-                      const colors = otherPerson ? getAvatarColors(otherPerson.name) : getAvatarColors('Unknown');
+                      const otherPersonName = otherPerson ? (otherPerson.name || `${otherPerson.firstName || ''} ${otherPerson.lastName || ''}`.trim()) : 'Unknown';
+                      const colors = getAvatarColors(otherPersonName);
                       return (
                         <tr key={transfer.id} className="hover:bg-gray-50">
                           <td className="px-4 py-2 whitespace-nowrap">
@@ -889,10 +884,10 @@ const Transfers = () => {
                             {otherPerson ? (
                               <div className="flex items-center gap-2">
                                 <div className={`w-7 h-7 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
-                                  <span className={`text-xs font-bold ${colors.text}`}>{getInitials(otherPerson.name)}</span>
+                                  <span className={`text-xs font-bold ${colors.text}`}>{getInitials(otherPersonName)}</span>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-gray-900">{otherPerson.name}</p>
+                                  <p className="text-xs font-semibold text-gray-900">{otherPersonName}</p>
                                   <div className="flex items-center gap-1">
                                     <p className="text-xs text-gray-500">{otherPerson.run}</p>
                                     <span className={`px-1.5 py-[1px] rounded text-[10px] font-normal ${getRoleBadgeColor(otherPerson.role)}`}>
@@ -1012,9 +1007,6 @@ const Transfers = () => {
                         </div>
                     ) : (
                         <>
-                            <div className="p-2">
-                                <p className="text-xs text-gray-500">Debug: {users.length} usuarios total, {filteredUsers.length} filtrados</p>
-                            </div>
                             {favoriteUsers.length > 0 && (
                                 <div className="pt-2">
                                     <h4 className="px-4 py-2 text-xs font-bold text-yellow-600 uppercase tracking-wider flex items-center gap-2"><Star className="w-4 h-4"/> Favoritos</h4>
