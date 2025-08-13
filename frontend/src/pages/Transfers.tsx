@@ -79,6 +79,7 @@ const Transfers = () => {
         role: roleFilter,
         limit: 100
       });
+      console.log('Usuarios cargados:', response.data.users); // Debug temporal
       setUsers(response.data.users);
     } catch (error: any) {
       console.error('Error cargando usuarios:', error);
@@ -124,8 +125,10 @@ const Transfers = () => {
   }, [activeTab, loadTransferHistory, loadUsers]);
 
   useEffect(() => {
+    console.log('useEffect disparado - activeTab:', activeTab, 'showRecipientModal:', showRecipientModal); // Debug
     const delayedLoad = setTimeout(() => {
         if(activeTab === 'new' || showRecipientModal) {
+            console.log('Cargando usuarios...'); // Debug
             loadUsers();
         }
     }, 300);
@@ -152,13 +155,16 @@ const Transfers = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const name = `${user.firstName} ${user.lastName}`;
+    // Manejar tanto user.name como firstName + lastName
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const matchesSearch = searchTerm === '' || 
-      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.run.includes(searchTerm) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
+
+  console.log('Debug - users:', users.length, 'filteredUsers:', filteredUsers.length); // Debug temporal
 
   const favoriteUsers = filteredUsers.filter(u => favorites.has(u.id));
   const otherUsers = filteredUsers.filter(u => !favorites.has(u.id));
@@ -166,15 +172,16 @@ const Transfers = () => {
   const isRecipientSelected = (user: ApiUser) => selectedRecipients.some(r => r.id === user.id);
 
   const toggleRecipientSelection = (user: ApiUser) => {
-    const name = `${user.firstName} ${user.lastName}`;
+    // Manejar tanto user.name como firstName + lastName
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
     
     if (transferMode === 'single') {
-      setSelectedRecipients([{ ...user, name, displayRole, favorite: favorites.has(user.id) }]);
+      setSelectedRecipients([{ ...user, name: userName, displayRole, favorite: favorites.has(user.id) }]);
       setShowRecipientModal(false);
       setSearchTerm('');
     } else {
-      setSelectedRecipients(prev => isRecipientSelected(user) ? prev.filter(r => r.id !== user.id) : [...prev, { ...user, name, displayRole, favorite: favorites.has(user.id) }]);
+      setSelectedRecipients(prev => isRecipientSelected(user) ? prev.filter(r => r.id !== user.id) : [...prev, { ...user, name: userName, displayRole, favorite: favorites.has(user.id) }]);
     }
     setErrors(prev => ({ ...prev, recipient: '' }));
   };
@@ -284,9 +291,10 @@ const Transfers = () => {
     onToggleSelection: (user: ApiUser) => void;
     onToggleFavorite: (userId: string) => void;
   }) => {
-    const name = `${user.firstName} ${user.lastName}`;
+    // Manejar tanto user.name como firstName + lastName
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
-    const colors = getAvatarColors(name);
+    const colors = getAvatarColors(userName);
     return (
         <div 
             key={user.id} 
@@ -301,10 +309,10 @@ const Transfers = () => {
                 </div>
             )}
             <div className={`w-10 h-10 ${colors.bg} rounded-full flex items-center justify-center flex-shrink-0`}>
-                <span className={`text-sm font-bold ${colors.text}`}>{getInitials(name)}</span>
+                <span className={`text-sm font-bold ${colors.text}`}>{getInitials(userName)}</span>
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+                <p className="text-sm font-semibold text-gray-800 truncate">{userName}</p>
                 <div className="flex items-center gap-2 mt-1">
                     <p className="text-xs text-gray-500">{user.run}</p>
                     <span className={`px-1.5 py-[1px] rounded text-[10px] font-normal ${getRoleBadgeColor(user.role)}`}>{displayRole}</span>
@@ -405,7 +413,12 @@ const Transfers = () => {
                     {transferMode === 'single' ? 'Destinatario' : 'Destinatarios'}
                   </label>
                   <button 
-                    onClick={() => setShowRecipientModal(true)} 
+                    onClick={() => {
+                      console.log('Abriendo modal de destinatarios'); // Debug
+                      setShowRecipientModal(true);
+                      // Forzar carga inmediata de usuarios
+                      loadUsers();
+                    }} 
                     className={`w-full text-left p-3 border rounded-lg transition-all shadow-sm ${ errors.recipient ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-blue-300 bg-white' }`}
                   >
                     <div className="flex items-center gap-2">
@@ -999,6 +1012,9 @@ const Transfers = () => {
                         </div>
                     ) : (
                         <>
+                            <div className="p-2">
+                                <p className="text-xs text-gray-500">Debug: {users.length} usuarios total, {filteredUsers.length} filtrados</p>
+                            </div>
                             {favoriteUsers.length > 0 && (
                                 <div className="pt-2">
                                     <h4 className="px-4 py-2 text-xs font-bold text-yellow-600 uppercase tracking-wider flex items-center gap-2"><Star className="w-4 h-4"/> Favoritos</h4>
