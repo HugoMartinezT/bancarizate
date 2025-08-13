@@ -392,7 +392,7 @@ const Transfers = () => {
 
           {/* Botón para Abrir Modal de Destinatarios */}
           <button onClick={() => setShowRecipientModal(true)} className="bg-blue-500 text-white p-2 rounded">
-            Seleccionar Destinatario{s transferMode === 'multiple' ? 's' : ''}
+            Seleccionar Destinatario{transferMode === 'multiple' ? 's' : ''}
           </button>
 
           {/* Campo de Monto */}
@@ -549,7 +549,7 @@ const Transfers = () => {
             <div className="mt-2">
               {/* Detalles de la transferencia */}
               <p>Monto: {formatCurrency(calculateTotalAmount())}</p>
-              <p>Destinatario{s selectedRecipients.length > 1 ? 's' : ''}: {selectedRecipients.map(r => r.name).join(', ')}</p>
+              <p>Destinatario{selectedRecipients.length > 1 ? 's' : ''}: {selectedRecipients.map(r => r.name).join(', ')}</p>
               <p>Descripción: {formData.description}</p>
             </div>
             <div className="mt-4 flex gap-2">
@@ -557,7 +557,12 @@ const Transfers = () => {
                 Cancelar
               </button>
               <button onClick={confirmTransfer} disabled={isCreatingTransfer} className="flex-1 p-2 bg-blue-500 text-white rounded">
-                {isCreatingTransfer ? 'Procesando...' : 'Confirmar'}
+                {isCreatingTransfer ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Procesando...
+                  </span>
+                ) : 'Confirmar'}
               </button>
             </div>
           </div>
