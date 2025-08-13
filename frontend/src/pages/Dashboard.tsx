@@ -14,6 +14,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import type { Transfer, UserStats } from '../services/api';
 import type { User } from '../types/types';
@@ -91,6 +92,7 @@ const StatCard: React.FC<StatCardProps> = ({
 );
 
 const Dashboard = ({ user }: DashboardProps) => {
+  const navigate = useNavigate();
   const [showBalance, setShowBalance] = useState(true);
   const [transactionFilter, setTransactionFilter] = useState<'all' | 'sent' | 'received'>('all');
   
@@ -372,9 +374,12 @@ const Dashboard = ({ user }: DashboardProps) => {
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTransfers ? 'animate-spin' : ''}`} />
                 </button>
-                <a href="/transfers" className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium">
+                <button 
+                  onClick={() => navigate('/transfers')}
+                  className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium"
+                >
                   Ver historial completo
-                </a>
+                </button>
               </div>
             </div>
             
@@ -504,13 +509,13 @@ const Dashboard = ({ user }: DashboardProps) => {
             {/* Enlace para ver más si hay transferencias */}
             {!isLoadingTransfers && filteredTransfers.length > 0 && (
               <div className="p-3 text-center border-t border-gray-100">
-                <a 
-                  href="/transfers" 
+                <button 
+                  onClick={() => navigate('/transfers')}
                   className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium inline-flex items-center gap-1"
                 >
                   Ver historial completo
                   <ArrowUpRight className="w-3 h-3" />
-                </a>
+                </button>
               </div>
             )}
           </div>
