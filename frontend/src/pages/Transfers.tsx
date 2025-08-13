@@ -160,7 +160,7 @@ const Transfers = () => {
 
   const toggleRecipientSelection = (user: ApiUser) => {
     const name = `${user.firstName} ${user.lastName}`;
-    const displayRole = user.role === 'student' ? 'Estudiante' : user.role === 'teacher' ? 'Docente' : user.role;
+    const displayRole = getDisplayRole(user.role);
     
     if (transferMode === 'single') {
       setSelectedRecipients([{ ...user, name, displayRole, favorite: favorites.has(user.id) }]);
@@ -258,7 +258,7 @@ const Transfers = () => {
   };
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
-  const formatDate = (date: string) => new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(date));
+  const formatDate = (date: string | Date) => new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(typeof date === 'string' ? new Date(date) : date);
   const getStatusIcon = (status: Transfer['status']) => ({ completed: <CheckCircle className="w-3.5 h-3.5 text-green-500" />, pending: <Clock className="w-3.5 h-3.5 text-yellow-500" />, failed: <XCircle className="w-3.5 h-3.5 text-red-500" /> }[status]);
   const getStatusLabel = (status: Transfer['status']) => ({ completed: 'Completada', pending: 'Pendiente', failed: 'Fallida' }[status]);
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -267,11 +267,12 @@ const Transfers = () => {
     return colors[name.charCodeAt(0) % colors.length];
   };
   const getRoleBadgeColor = (role: string) => ({ student: 'bg-blue-100 text-blue-700', teacher: 'bg-green-100 text-green-700', admin: 'bg-purple-100 text-purple-700' }[role] || 'bg-gray-100 text-gray-700');
+  const getDisplayRole = (role: string) => ({ student: 'Estudiante', teacher: 'Docente', admin: 'Administrador' }[role] || role);
   
   // Componente para renderizar la lista de usuarios en el modal
   const UserListItem = ({ user, isSelected, onToggleSelection, onToggleFavorite }: any) => {
     const name = `${user.firstName} ${user.lastName}`;
-    const displayRole = user.role === 'student' ? 'Estudiante' : user.role === 'teacher' ? 'Docente' : user.role;
+    const displayRole = getDisplayRole(user.role);
     const colors = getAvatarColors(name);
     return (
         <div 
