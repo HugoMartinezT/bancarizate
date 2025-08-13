@@ -73,16 +73,53 @@ const Transfers = () => {
 
   const loadUsers = useCallback(async () => {
     setIsLoadingUsers(true);
+    setErrors(prev => ({ ...prev, users: '' }));
+    
     try {
+      console.log('🔍 Cargando usuarios para transferencias...', { 
+        search: searchTerm, 
+        role: roleFilter 
+      });
+      
       const response = await apiService.getAllUsers({
-        search: searchTerm,
-        role: roleFilter,
+        search: searchTerm || undefined,
+        role: roleFilter === 'all' ? undefined : roleFilter,
         limit: 100
       });
-      setUsers(response.data.users);
+      
+      console.log('✅ Usuarios cargados:', response.data);
+      
+      // Asegurar que cada usuario tenga el campo name
+      const usersWithName = response.data.users.map((user: any) => ({
+        ...user,
+        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()
+      }));
+      
+      setUsers(usersWithName);
+      
+      if (usersWithName.length === 0) {
+        console.warn('⚠️ No se encontraron usuarios disponibles');
+        setErrors(prev => ({ ...prev, users: 'No hay usuarios disponibles para transferir' }));
+      }
+      
     } catch (error: any) {
-      console.error('Error cargando usuarios:', error);
-      setErrors(prev => ({ ...prev, users: error.message }));
+      console.error('❌ Error cargando usuarios:', error);
+      
+      // Manejo específico de errores
+      if (error.message.includes('fetch') || error.message.includes('conectar')) {
+        setErrors(prev => ({ ...prev, users: 'No se puede conectar con el servidor. Verifica que el backend esté corriendo.' }));
+      } else if (error.message.includes('403') || error.message.includes('autorizado')) {
+        setErrors(prev => ({ ...prev, users: 'No tienes permisos para ver esta información. Contacta al administrador.' }));
+      } else if (error.message.includes('401')) {
+        setErrors(prev => ({ ...prev, users: 'Tu sesión ha expirado. Redirigiendo al login...' }));
+        setTimeout(() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }, 3000);
+      } else {
+        setErrors(prev => ({ ...prev, users: error.message || 'Error al cargar usuarios' }));
+      }
     } finally {
       setIsLoadingUsers(false);
     }
@@ -118,19 +155,16 @@ const Transfers = () => {
   useEffect(() => {
     if (activeTab === 'history') {
       loadTransferHistory();
-    } else {
-        loadUsers();
     }
-  }, [activeTab, loadTransferHistory, loadUsers]);
+  }, [activeTab, loadTransferHistory]);
 
+  // Cargar usuarios cuando se abre el modal o cambian los filtros
   useEffect(() => {
-    const delayedLoad = setTimeout(() => {
-        if(activeTab === 'new' || showRecipientModal) {
-            loadUsers();
-        }
-    }, 300);
-    return () => clearTimeout(delayedLoad);
-  }, [searchTerm, roleFilter, activeTab, showRecipientModal, loadUsers]);
+    if (activeTab === 'new' || showRecipientModal) {
+      console.log('🔄 Disparando carga de usuarios por cambio en filtros');
+      loadUsers();
+    }
+  }, [activeTab, showRecipientModal, searchTerm, roleFilter]);
 
   // Efecto para recargar cuando cambian los filtros
   useEffect(() => {
@@ -152,8 +186,7 @@ const Transfers = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    // Usar firstName + lastName ya que no existe user.name en el tipo
-    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const matchesSearch = searchTerm === '' || 
       userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.run.includes(searchTerm) ||
@@ -167,8 +200,7 @@ const Transfers = () => {
   const isRecipientSelected = (user: ApiUser) => selectedRecipients.some(r => r.id === user.id);
 
   const toggleRecipientSelection = (user: ApiUser) => {
-    // Usar firstName + lastName ya que no existe user.name en el tipo
-    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
     
     if (transferMode === 'single') {
@@ -286,10 +318,10 @@ const Transfers = () => {
     onToggleSelection: (user: ApiUser) => void;
     onToggleFavorite: (userId: string) => void;
   }) => {
-    // Usar firstName + lastName ya que no existe user.name en el tipo
-    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const userName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const displayRole = getDisplayRole(user.role);
     const colors = getAvatarColors(userName);
+    
     return (
         <div 
             key={user.id} 
@@ -324,7 +356,6 @@ const Transfers = () => {
         </div>
     );
 };
-
 
   return (
     <div className="max-w-5xl mx-auto px-3 py-4">
@@ -409,9 +440,12 @@ const Transfers = () => {
                   </label>
                   <button 
                     onClick={() => {
+                      console.log('🔄 Abriendo modal de usuarios - Forzando carga');
                       setShowRecipientModal(true);
+                      setSearchTerm(''); // Limpiar búsqueda
+                      setRoleFilter('all'); // Resetear filtro
                       // Forzar carga inmediata de usuarios
-                      loadUsers();
+                      setTimeout(() => loadUsers(), 100);
                     }} 
                     className={`w-full text-left p-3 border rounded-lg transition-all shadow-sm ${ errors.recipient ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-blue-300 bg-white' }`}
                   >
@@ -849,7 +883,6 @@ const Transfers = () => {
                     {transfers.map((transfer) => {
                       const isIncoming = transfer.direction === 'received';
                       const otherPerson = transfer.otherPerson;
-                      // El backend ya devuelve otherPerson.name formateado
                       const otherPersonName = otherPerson?.name || 'Unknown';
                       const colors = getAvatarColors(otherPersonName);
                       return (
@@ -962,7 +995,7 @@ const Transfers = () => {
         </div>
       )}
       
-      {/* MODAL DE SELECCIÓN DE DESTINATARIOS MEJORADO V3 */}
+      {/* MODAL DE SELECCIÓN DE DESTINATARIOS MEJORADO */}
       {showRecipientModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300">
             <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
@@ -1006,6 +1039,21 @@ const Transfers = () => {
                             <Loader2 className="w-8 h-8 animate-spin text-[#193cb8]" />
                             <p className="mt-4 text-sm text-gray-600">Cargando usuarios...</p>
                         </div>
+                    ) : errors.users ? (
+                        <div className="p-8 text-center flex flex-col items-center justify-center h-full">
+                            <AlertCircle className="w-16 h-16 text-red-300" />
+                            <p className="mt-4 text-sm font-semibold text-red-700">Error cargando usuarios</p>
+                            <p className="mt-1 text-xs text-red-600">{errors.users}</p>
+                            <button 
+                              onClick={() => {
+                                console.log('🔄 Reintentando carga de usuarios...');
+                                loadUsers();
+                              }}
+                              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-medium"
+                            >
+                              Reintentar
+                            </button>
+                        </div>
                     ) : (
                         <>
                             {favoriteUsers.length > 0 && (
@@ -1024,7 +1072,7 @@ const Transfers = () => {
                                     </div>
                                 </div>
                             )}
-                            {filteredUsers.length === 0 && !isLoadingUsers && (
+                            {filteredUsers.length === 0 && !isLoadingUsers && !errors.users && (
                                 <div className="p-8 text-center flex flex-col items-center justify-center h-full">
                                     <UserCircle className="w-16 h-16 text-gray-300" />
                                     <p className="mt-4 text-sm font-semibold text-gray-700">No se encontraron personas</p>
