@@ -1,5 +1,5 @@
 // middleware/validation.js
-// Versión final con todas las validaciones necesarias para la aplicación.
+// Versión corregida con validación para cambio de contraseña por admin
 
 const { body, param, query, validationResult } = require('express-validator');
 
@@ -23,9 +23,20 @@ const validateLogin = [
   handleValidationErrors
 ];
 
+// ✅ VALIDACIÓN PARA USUARIOS NORMALES (requiere contraseña actual)
 const validatePasswordChange = [
   body('currentPassword').notEmpty().withMessage('La contraseña actual es requerida.'),
   body('newPassword').isLength({ min: 6 }).withMessage('La nueva contraseña debe tener al menos 6 caracteres.'),
+  handleValidationErrors
+];
+
+// ✅ NUEVA VALIDACIÓN PARA ADMINS (solo requiere nueva contraseña)
+const validateAdminPasswordChange = [
+  body('newPassword')
+    .notEmpty()
+    .withMessage('La nueva contraseña es requerida.')
+    .isLength({ min: 6 })
+    .withMessage('La nueva contraseña debe tener al menos 6 caracteres.'),
   handleValidationErrors
 ];
 
@@ -69,7 +80,7 @@ const validateCreateTeacher = [
     handleValidationErrors
 ];
 
-// --- VALIDACIONES DE TRANSFERENCIAS (¡NUEVAS!) ---
+// --- VALIDACIONES DE TRANSFERENCIAS ---
 const validateTransfer = [
     body('recipientIds').isArray({ min: 1 }).withMessage('Debe haber al menos un destinatario.'),
     body('recipientIds.*').isUUID().withMessage('Cada ID de destinatario debe ser un UUID válido.'),
@@ -81,21 +92,22 @@ const validateTransfer = [
 const validateTransferHistory = [
     query('type').optional().isIn(['sent', 'received', 'all']).withMessage("El tipo debe ser 'sent', 'received' o 'all'."),
     query('status').optional().isIn(['pending', 'completed', 'failed', 'all']).withMessage("El estado debe ser 'pending', 'completed', 'failed' o 'all'."),
-    validatePagination, // Reutilizamos la validación de paginación
+    validatePagination,
     handleValidationErrors
 ];
 
 const validateGetUsers = [
-    validateSearch, // Reutilizamos la validación de búsqueda
+    validateSearch,
     validatePagination,
     query('role').optional().isIn(['student', 'teacher', 'all']).withMessage("El rol debe ser 'student', 'teacher' o 'all'."),
     handleValidationErrors
 ];
 
-// Exportamos TODAS las funciones.
+// ✅ EXPORTAR TODAS LAS FUNCIONES INCLUYENDO LA NUEVA
 module.exports = {
   validateLogin,
   validatePasswordChange,
+  validateAdminPasswordChange, // ✅ NUEVA VALIDACIÓN
   validateIdParam,
   validatePagination,
   validateSearch,

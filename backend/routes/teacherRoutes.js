@@ -1,4 +1,4 @@
-// routes/teacherRoutes.js - CORREGIDO sin validación problemática
+// routes/teacherRoutes.js - CORREGIDO con middleware apropiado
 const express = require('express');
 const router = express.Router();
 
@@ -10,100 +10,15 @@ const { auth, authorize } = require('../middleware/auth');
 const { 
   validateIdParam, 
   validateCreateTeacher, 
-  validatePasswordChange 
+  validatePasswordChange,
+  validateAdminPasswordChange // ✅ NUEVO MIDDLEWARE IMPORTADO
 } = require('../middleware/validation');
 
 // Aplicar autenticación a todas las rutas
 router.use(auth);
 
 // ==========================================
-// ✅ RUTAS CORREGIDAS: INSTITUCIONES Y CURSOS
-// ==========================================
-
-// GET /api/teachers/institutions - Lista de instituciones activas
-router.get('/institutions', 
-  authorize('admin', 'teacher'),
-  async (req, res) => {
-    try {
-      console.log('📞 Endpoint /teachers/institutions llamado');
-      
-      const { data: institutions, error } = await require('../config/supabase').supabase
-        .from('institutions')
-        .select('id, name, type')
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('❌ Error BD instituciones:', error);
-        throw error;
-      }
-
-      console.log('✅ Instituciones encontradas:', institutions.length);
-      
-      res.status(200).json({
-        status: 'success',
-        data: institutions
-      });
-    } catch (error) {
-      console.error('❌ Error obteniendo instituciones:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error al obtener instituciones'
-      });
-    }
-  }
-);
-
-// GET /api/teachers/courses/:institutionId - Cursos por institución
-// ✅ REMOVIDA LA VALIDACIÓN PROBLEMÁTICA
-router.get('/courses/:institutionId', 
-  authorize('admin', 'teacher'),
-  // validateIdParam,  ← COMENTADA TEMPORALMENTE
-  async (req, res) => {
-    try {
-      const { institutionId } = req.params;
-      
-      console.log('📞 Endpoint /teachers/courses llamado con institutionId:', institutionId);
-      
-      // ✅ VALIDACIÓN MANUAL MÁS SIMPLE
-      if (!institutionId || institutionId.length < 10) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'ID de institución inválido'
-        });
-      }
-
-      const { data: courses, error } = await require('../config/supabase').supabase
-        .from('courses')
-        .select('id, name, level')
-        .eq('institution_id', institutionId)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('❌ Error BD cursos:', error);
-        throw error;
-      }
-
-      console.log('✅ Cursos encontrados para institución', institutionId + ':', courses.length);
-      console.log('📋 Cursos:', courses);
-
-      res.status(200).json({
-        status: 'success',
-        data: courses
-      });
-    } catch (error) {
-      console.error('❌ Error obteniendo cursos:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error al obtener cursos'
-      });
-    }
-  }
-);
-
-// ==========================================
-// RUTAS EXISTENTES DE DOCENTES
+// RUTAS DE DOCENTES
 // ==========================================
 
 // GET /api/teachers - Obtener todos los docentes
@@ -130,11 +45,11 @@ router.put('/:id',
   teacherController.updateTeacher
 );
 
-// POST /api/teachers/:id/change-password - Cambiar contraseña de docente
+// ✅ RUTA CORREGIDA: Cambiar contraseña de docente
 router.post('/:id/change-password',
   validateIdParam,
   authorize('admin'),
-  validatePasswordChange,
+  validateAdminPasswordChange, // ✅ CAMBIO: Usa el nuevo middleware que NO requiere currentPassword
   teacherController.changeTeacherPassword
 );
 
@@ -145,17 +60,17 @@ router.delete('/:id',
   teacherController.deleteTeacher
 );
 
-// GET /api/teachers/:id/courses - Obtener cursos de un docente
-router.get('/:id/courses',
+// GET /api/teachers/:id/courses - Obtener cursos del docente
+router.get('/:id/courses', 
   validateIdParam,
-  authorize('admin', 'teacher'),
+  auth, 
   teacherController.getTeacherCourses
 );
 
-// PUT /api/teachers/:id/courses - Actualizar cursos de un docente
-router.put('/:id/courses',
+// PUT /api/teachers/:id/courses - Actualizar cursos del docente
+router.put('/:id/courses', 
   validateIdParam,
-  authorize('admin'),
+  authorize('admin'), 
   teacherController.updateTeacherCourses
 );
 

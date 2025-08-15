@@ -1,4 +1,4 @@
-// routes/studentRoutes.js - CORREGIDO sin validación problemática
+// routes/studentRoutes.js - CORREGIDO con middleware apropiado
 const express = require('express');
 const router = express.Router();
 
@@ -10,7 +10,8 @@ const { auth, authorize } = require('../middleware/auth');
 const { 
   validateIdParam, 
   validateStudent, 
-  validatePasswordChange 
+  validatePasswordChange,
+  validateAdminPasswordChange // ✅ NUEVO MIDDLEWARE IMPORTADO
 } = require('../middleware/validation');
 
 // Aplicar autenticación a todas las rutas
@@ -55,10 +56,8 @@ router.get('/institutions',
 );
 
 // GET /api/students/courses/:institutionId - Cursos por institución
-// ✅ REMOVIDA LA VALIDACIÓN PROBLEMÁTICA
 router.get('/courses/:institutionId', 
   authorize('admin', 'teacher'),
-  // validateIdParam,  ← COMENTADA TEMPORALMENTE
   async (req, res) => {
     try {
       const { institutionId } = req.params;
@@ -86,7 +85,6 @@ router.get('/courses/:institutionId',
       }
 
       console.log('✅ Cursos encontrados para institución', institutionId + ':', courses.length);
-      console.log('📋 Cursos:', courses);
 
       res.status(200).json({
         status: 'success',
@@ -130,11 +128,11 @@ router.put('/:id',
   studentController.updateStudent
 );
 
-// POST /api/students/:id/change-password - Cambiar contraseña de estudiante
+// ✅ RUTA CORREGIDA: Cambiar contraseña de estudiante
 router.post('/:id/change-password',
   validateIdParam,
   authorize('admin'),
-  validatePasswordChange,
+  validateAdminPasswordChange, // ✅ CAMBIO: Usa el nuevo middleware que NO requiere currentPassword
   studentController.changeStudentPassword
 );
 
