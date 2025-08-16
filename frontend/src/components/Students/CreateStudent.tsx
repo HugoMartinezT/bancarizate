@@ -16,7 +16,7 @@ interface FormData {
   status: 'active' | 'inactive' | 'graduated';
 }
 
-// NUEVAS INTERFACES para las opciones de select
+// ✅ CORREGIDO: Interfaces para las opciones de select desde API
 interface InstitutionOption {
   value: string;
   label: string;
@@ -57,7 +57,7 @@ const CreateStudent = () => {
     status: 'active'
   });
   
-  // NUEVOS ESTADOS para dropdowns dinámicos
+  // ✅ CORREGIDO: Estados para dropdowns dinámicos desde API
   const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(true);
@@ -68,12 +68,12 @@ const CreateStudent = () => {
   const [success, setSuccess] = useState(false);
   const [createdStudent, setCreatedStudent] = useState<CreateStudentResponse['data']['student'] | null>(null);
 
-  // NUEVO: Cargar instituciones al montar el componente
+  // ✅ CORREGIDO: Cargar instituciones al montar el componente
   useEffect(() => {
     loadInstitutions();
   }, []);
 
-  // NUEVO: Cargar cursos cuando cambia la institución
+  // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
   useEffect(() => {
     if (formData.institutionId) {
       loadCourses(formData.institutionId);
@@ -83,29 +83,19 @@ const CreateStudent = () => {
     }
   }, [formData.institutionId]);
 
-  // NUEVA FUNCIÓN: Cargar instituciones activas
+  // ✅ CORREGIDO: Función que usa API real
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
-      console.log('🏫 Cargando instituciones...');
+      console.log('🏫 Cargando instituciones desde API...');
       
-      // Instituciones predefinidas comunes en Chile
-      const institutionOptions: InstitutionOption[] = [
-        { value: 'universidad-chile', label: 'Universidad de Chile' },
-        { value: 'universidad-catolica', label: 'Pontificia Universidad Católica de Chile' },
-        { value: 'universidad-santiago', label: 'Universidad de Santiago de Chile' },
-        { value: 'universidad-concepcion', label: 'Universidad de Concepción' },
-        { value: 'universidad-valparaiso', label: 'Universidad de Valparaíso' },
-        { value: 'duoc-uc', label: 'Duoc UC' },
-        { value: 'inacap', label: 'INACAP' },
-        { value: 'ipchile', label: 'IP Chile' },
-        { value: 'colegio-san-patricio', label: 'Colegio San Patricio' },
-        { value: 'liceo-manuel-barros-borgono', label: 'Liceo Manuel Barros Borgoño' }
-      ];
+      const response = await apiService.getActiveInstitutions();
       
-      setInstitutions(institutionOptions);
-      console.log('✅ Instituciones cargadas:', institutionOptions.length);
-      
+      if (response.status === 'success') {
+        const institutionOptions = apiService.formatInstitutionsForSelect(response);
+        setInstitutions(institutionOptions);
+        console.log('✅ Instituciones cargadas desde API:', institutionOptions.length);
+      }
     } catch (error: any) {
       console.error('❌ Error cargando instituciones:', error);
       setErrors(prev => ({ 
@@ -117,53 +107,20 @@ const CreateStudent = () => {
     }
   };
 
-  // NUEVA FUNCIÓN: Cargar cursos por institución
+  // ✅ CORREGIDO: Función que usa API real
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
       setCourses([]); // Limpiar cursos anteriores
-      console.log('📚 Cargando cursos para institución:', institutionId);
+      console.log('📚 Cargando cursos desde API para institución:', institutionId);
       
-      // Cursos por tipo de institución
-      let courseOptions: CourseOption[] = [];
+      const response = await apiService.getCoursesByInstitutionId(institutionId);
       
-      if (institutionId.includes('universidad')) {
-        courseOptions = [
-          { value: 'ingenieria-informatica', label: 'Ingeniería Informática' },
-          { value: 'ingenieria-civil', label: 'Ingeniería Civil' },
-          { value: 'medicina', label: 'Medicina' },
-          { value: 'derecho', label: 'Derecho' },
-          { value: 'psicologia', label: 'Psicología' },
-          { value: 'administracion-empresas', label: 'Administración de Empresas' },
-          { value: 'arquitectura', label: 'Arquitectura' },
-          { value: 'educacion-basica', label: 'Educación Básica' }
-        ];
-      } else if (institutionId.includes('duoc') || institutionId.includes('inacap') || institutionId.includes('ip')) {
-        courseOptions = [
-          { value: 'analista-programador', label: 'Analista Programador' },
-          { value: 'tecnico-electronica', label: 'Técnico en Electrónica' },
-          { value: 'administracion-rrhh', label: 'Administración de Recursos Humanos' },
-          { value: 'contabilidad-finanzas', label: 'Contabilidad y Finanzas' },
-          { value: 'diseno-grafico', label: 'Diseño Gráfico' },
-          { value: 'gastronomia', label: 'Gastronomía' },
-          { value: 'turismo', label: 'Turismo' },
-          { value: 'marketing', label: 'Marketing' }
-        ];
-      } else {
-        // Colegios/Liceos
-        courseOptions = [
-          { value: '1-medio', label: '1° Medio' },
-          { value: '2-medio', label: '2° Medio' },
-          { value: '3-medio', label: '3° Medio' },
-          { value: '4-medio', label: '4° Medio' },
-          { value: '7-basico', label: '7° Básico' },
-          { value: '8-basico', label: '8° Básico' }
-        ];
+      if (response.status === 'success') {
+        const courseOptions = apiService.formatCoursesForSelect(response);
+        setCourses(courseOptions);
+        console.log('✅ Cursos cargados desde API:', courseOptions.length);
       }
-      
-      setCourses(courseOptions);
-      console.log('✅ Cursos cargados:', courseOptions.length);
-      
     } catch (error: any) {
       console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ 
@@ -244,7 +201,7 @@ const CreateStudent = () => {
       }
     }
 
-    // CAMBIO: Validar institución y curso por ID
+    // ✅ CORREGIDO: Validar institución y curso por ID
     if (!formData.institutionId) newErrors.institutionId = 'Debe seleccionar un establecimiento educacional';
     if (!formData.courseId) newErrors.courseId = 'Debe seleccionar un curso';
     if (!formData.gender.trim()) newErrors.gender = 'El género es requerido';
@@ -272,7 +229,7 @@ const CreateStudent = () => {
     try {
       console.log('📤 Enviando datos del estudiante:', formData);
       
-      // Obtener nombres de las opciones seleccionadas
+      // ✅ CORREGIDO: Obtener nombres de las opciones seleccionadas desde API
       const selectedInstitution = institutions.find(inst => inst.value === formData.institutionId);
       const selectedCourse = courses.find(course => course.value === formData.courseId);
       
@@ -389,7 +346,7 @@ const CreateStudent = () => {
         {isLoadingInstitutions && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-xs">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <p>Cargando instituciones educacionales...</p>
+            <p>Cargando instituciones educacionales desde la base de datos...</p>
           </div>
         )}
 
@@ -587,7 +544,7 @@ const CreateStudent = () => {
               )}
             </div>
 
-            {/* Establecimiento Educacional como dropdown */}
+            {/* ✅ CORREGIDO: Establecimiento Educacional usando API real */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Establecimiento Educacional *
@@ -655,7 +612,7 @@ const CreateStudent = () => {
               )}
             </div>
 
-            {/* Curso como dropdown dependiente */}
+            {/* ✅ CORREGIDO: Curso usando API real y dependiente de institución */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Curso *
@@ -700,7 +657,7 @@ const CreateStudent = () => {
               {isLoadingCourses && (
                 <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Cargando cursos...
+                  Cargando cursos desde la base de datos...
                 </p>
               )}
             </div>

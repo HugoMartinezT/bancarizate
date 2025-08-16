@@ -16,7 +16,7 @@ interface FormData {
   status: 'active' | 'inactive' | 'retired';
 }
 
-// INTERFACES para las opciones de select
+// ✅ CORREGIDO: Interfaces para las opciones de select desde API
 interface InstitutionOption {
   value: string;
   label: string;
@@ -57,7 +57,7 @@ const CreateTeacher = () => {
     status: 'active'
   });
   
-  // ESTADOS para dropdowns dinámicos
+  // ✅ CORREGIDO: Estados para dropdowns dinámicos desde API
   const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(true);
@@ -68,12 +68,12 @@ const CreateTeacher = () => {
   const [success, setSuccess] = useState(false);
   const [createdTeacher, setCreatedTeacher] = useState<CreateTeacherResponse['data']['teacher'] | null>(null);
 
-  // CARGAR INSTITUCIONES al montar
+  // ✅ CORREGIDO: Cargar instituciones al montar
   useEffect(() => {
     loadInstitutions();
   }, []);
 
-  // CARGAR CURSOS cuando cambia la institución
+  // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
   useEffect(() => {
     if (formData.institutionId) {
       loadCourses(formData.institutionId);
@@ -83,29 +83,19 @@ const CreateTeacher = () => {
     }
   }, [formData.institutionId]);
 
-  // FUNCIÓN: Cargar instituciones activas (CORREGIDA)
+  // ✅ CORREGIDO: Función que usa API real
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
-      console.log('🏫 Cargando instituciones...');
+      console.log('🏫 Cargando instituciones desde API...');
       
-      // Instituciones predefinidas comunes en Chile
-      const institutionOptions: InstitutionOption[] = [
-        { value: 'universidad-chile', label: 'Universidad de Chile' },
-        { value: 'universidad-catolica', label: 'Pontificia Universidad Católica de Chile' },
-        { value: 'universidad-santiago', label: 'Universidad de Santiago de Chile' },
-        { value: 'universidad-concepcion', label: 'Universidad de Concepción' },
-        { value: 'universidad-valparaiso', label: 'Universidad de Valparaíso' },
-        { value: 'duoc-uc', label: 'Duoc UC' },
-        { value: 'inacap', label: 'INACAP' },
-        { value: 'ipchile', label: 'IP Chile' },
-        { value: 'colegio-san-patricio', label: 'Colegio San Patricio' },
-        { value: 'liceo-manuel-barros-borgono', label: 'Liceo Manuel Barros Borgoño' }
-      ];
+      const response = await apiService.getActiveInstitutions();
       
-      setInstitutions(institutionOptions);
-      console.log('✅ Instituciones cargadas:', institutionOptions.length);
-      
+      if (response.status === 'success') {
+        const institutionOptions = apiService.formatInstitutionsForSelect(response);
+        setInstitutions(institutionOptions);
+        console.log('✅ Instituciones cargadas desde API:', institutionOptions.length);
+      }
     } catch (error: any) {
       console.error('❌ Error cargando instituciones:', error);
       setErrors(prev => ({ 
@@ -117,63 +107,20 @@ const CreateTeacher = () => {
     }
   };
 
-  // FUNCIÓN: Cargar cursos por institución (CORREGIDA)
+  // ✅ CORREGIDO: Función que usa API real
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
       setCourses([]); // Limpiar cursos anteriores
-      console.log('📚 Cargando cursos para institución:', institutionId);
+      console.log('📚 Cargando cursos desde API para institución:', institutionId);
       
-      // Cursos por tipo de institución
-      let courseOptions: CourseOption[] = [];
+      const response = await apiService.getCoursesByInstitutionId(institutionId);
       
-      if (institutionId.includes('universidad')) {
-        courseOptions = [
-          { value: 'ingenieria-informatica', label: 'Ingeniería Informática' },
-          { value: 'ingenieria-civil', label: 'Ingeniería Civil' },
-          { value: 'medicina', label: 'Medicina' },
-          { value: 'derecho', label: 'Derecho' },
-          { value: 'psicologia', label: 'Psicología' },
-          { value: 'administracion-empresas', label: 'Administración de Empresas' },
-          { value: 'arquitectura', label: 'Arquitectura' },
-          { value: 'educacion-basica', label: 'Educación Básica' },
-          { value: 'matematicas', label: 'Matemáticas' },
-          { value: 'fisica', label: 'Física' },
-          { value: 'quimica', label: 'Química' },
-          { value: 'educacion-financiera', label: 'Educación Financiera' }
-        ];
-      } else if (institutionId.includes('duoc') || institutionId.includes('inacap') || institutionId.includes('ip')) {
-        courseOptions = [
-          { value: 'analista-programador', label: 'Analista Programador' },
-          { value: 'tecnico-electronica', label: 'Técnico en Electrónica' },
-          { value: 'administracion-rrhh', label: 'Administración de Recursos Humanos' },
-          { value: 'contabilidad-finanzas', label: 'Contabilidad y Finanzas' },
-          { value: 'diseno-grafico', label: 'Diseño Gráfico' },
-          { value: 'gastronomia', label: 'Gastronomía' },
-          { value: 'turismo', label: 'Turismo' },
-          { value: 'marketing', label: 'Marketing' },
-          { value: 'educacion-financiera', label: 'Educación Financiera' },
-          { value: 'emprendimiento', label: 'Emprendimiento' }
-        ];
-      } else {
-        // Colegios/Liceos - Materias que enseñan los docentes
-        courseOptions = [
-          { value: 'matematicas', label: 'Matemáticas' },
-          { value: 'lenguaje', label: 'Lenguaje y Comunicación' },
-          { value: 'ciencias-naturales', label: 'Ciencias Naturales' },
-          { value: 'historia', label: 'Historia y Geografía' },
-          { value: 'educacion-fisica', label: 'Educación Física' },
-          { value: 'ingles', label: 'Inglés' },
-          { value: 'artes-visuales', label: 'Artes Visuales' },
-          { value: 'musica', label: 'Música' },
-          { value: 'educacion-financiera', label: 'Educación Financiera' },
-          { value: 'orientacion', label: 'Orientación' }
-        ];
+      if (response.status === 'success') {
+        const courseOptions = apiService.formatCoursesForSelect(response);
+        setCourses(courseOptions);
+        console.log('✅ Cursos cargados desde API:', courseOptions.length);
       }
-      
-      setCourses(courseOptions);
-      console.log('✅ Cursos cargados:', courseOptions.length);
-      
     } catch (error: any) {
       console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ 
@@ -200,7 +147,7 @@ const CreateTeacher = () => {
     }
   };
 
-  // NUEVA FUNCIÓN: Manejo de cursos con validación de duplicados
+  // ✅ CORREGIDO: Manejo de cursos con validación de duplicados
   const handleCourseChange = (index: number, value: string) => {
     const newCourseIds = [...formData.courseIds];
     newCourseIds[index] = value;
@@ -210,7 +157,7 @@ const CreateTeacher = () => {
     }
   };
 
-  // NUEVA FUNCIÓN: Obtener cursos disponibles (sin duplicados)
+  // ✅ CORREGIDO: Obtener cursos disponibles (sin duplicados)
   const getAvailableCourses = (currentIndex: number): CourseOption[] => {
     const selectedCourseIds = formData.courseIds
       .filter((courseId, index) => index !== currentIndex && courseId.trim() !== '');
@@ -218,7 +165,7 @@ const CreateTeacher = () => {
     return courses.filter(course => !selectedCourseIds.includes(course.value));
   };
 
-  // NUEVA FUNCIÓN: Agregar curso (solo si hay cursos disponibles)
+  // ✅ CORREGIDO: Agregar curso (solo si hay cursos disponibles)
   const addCourse = () => {
     if (formData.courseIds.length < 10) {
       const availableCourses = getAvailableCourses(-1); // -1 para obtener todos los disponibles
@@ -228,7 +175,7 @@ const CreateTeacher = () => {
     }
   };
 
-  // FUNCIÓN: Remover curso
+  // Función: Remover curso
   const removeCourse = (index: number) => {
     if (formData.courseIds.length > 1) {
       const newCourseIds = formData.courseIds.filter((_, i) => i !== index);
@@ -236,7 +183,7 @@ const CreateTeacher = () => {
     }
   };
 
-  // FUNCIÓN: Verificar si se pueden agregar más cursos
+  // Función: Verificar si se pueden agregar más cursos
   const canAddMoreCourses = (): boolean => {
     if (formData.courseIds.length >= 10) return false;
     const selectedCourseIds = formData.courseIds.filter(courseId => courseId.trim() !== '');
@@ -296,11 +243,11 @@ const CreateTeacher = () => {
       }
     }
 
-    // VALIDAR institución y cursos
+    // ✅ CORREGIDO: Validar institución y cursos
     if (!formData.institutionId) newErrors.institutionId = 'Debe seleccionar un establecimiento educacional';
     if (!formData.gender.trim()) newErrors.gender = 'El género es requerido';
     
-    // VALIDAR cursos con verificación de duplicados
+    // ✅ CORREGIDO: Validar cursos con verificación de duplicados
     const validCourseIds = formData.courseIds.filter(courseId => courseId.trim() !== '');
     if (validCourseIds.length === 0) {
       newErrors.courseIds = 'Debe seleccionar al menos un curso';
@@ -333,7 +280,7 @@ const CreateTeacher = () => {
     try {
       console.log('📤 Enviando datos del docente:', formData);
       
-      // Obtener nombres de las opciones seleccionadas
+      // ✅ CORREGIDO: Obtener nombres de las opciones seleccionadas desde API
       const selectedInstitution = institutions.find(inst => inst.value === formData.institutionId);
       const selectedCourses = formData.courseIds
         .filter(courseId => courseId.trim() !== '')
@@ -450,7 +397,7 @@ const CreateTeacher = () => {
         {isLoadingInstitutions && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-xs">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <p>Cargando instituciones educacionales...</p>
+            <p>Cargando instituciones educacionales desde la base de datos...</p>
           </div>
         )}
 
@@ -648,7 +595,7 @@ const CreateTeacher = () => {
               )}
             </div>
 
-            {/* Establecimiento Educacional como dropdown */}
+            {/* ✅ CORREGIDO: Establecimiento Educacional usando API real */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Establecimiento Educacional *
@@ -737,7 +684,7 @@ const CreateTeacher = () => {
             </div>
           </div>
 
-          {/* Cursos como dropdowns dependientes CON VALIDACIÓN DE DUPLICADOS */}
+          {/* ✅ CORREGIDO: Cursos como dropdowns dependientes CON VALIDACIÓN DE DUPLICADOS */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
               Cursos que Imparte *
@@ -781,9 +728,10 @@ const CreateTeacher = () => {
                         type="button"
                         onClick={() => removeCourse(index)}
                         disabled={isLoading}
-                        className={`p-2 text-red-600 hover:text-red-800 transition-colors ${
+                        className={`p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors ${
                           isLoading ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
+                        title="Eliminar curso"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -802,16 +750,16 @@ const CreateTeacher = () => {
             {isLoadingCourses && (
               <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Cargando cursos...
+                Cargando cursos desde la base de datos...
               </p>
             )}
-            {/* Botón agregar curso CON VALIDACIÓN */}
+            {/* ✅ CORREGIDO: Botón agregar curso CON VALIDACIÓN */}
             {canAddMoreCourses() && (
               <button
                 type="button"
                 onClick={addCourse}
                 disabled={isLoading || !formData.institutionId}
-                className={`mt-2 flex items-center gap-1.5 text-xs text-[#193cb8] hover:text-[#0e2167] transition-colors ${
+                className={`mt-2 flex items-center gap-1.5 text-xs text-[#193cb8] hover:text-[#0e2167] hover:bg-blue-50 px-2 py-1 rounded transition-colors ${
                   isLoading || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -823,6 +771,11 @@ const CreateTeacher = () => {
             {!canAddMoreCourses() && formData.courseIds.length < 10 && courses.length > 0 && (
               <p className="mt-1 text-xs text-gray-500">
                 ✅ Todos los cursos disponibles han sido seleccionados
+              </p>
+            )}
+            {!formData.institutionId && (
+              <p className="mt-1 text-xs text-gray-500">
+                Primero selecciona una institución para cargar los cursos disponibles
               </p>
             )}
           </div>
