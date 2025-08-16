@@ -119,6 +119,29 @@ function App() {
     setShowLoadingScreen(false);
   };
 
+  // 🎯 FUNCIÓN PARA OBTENER EL NOMBRE COMPLETO DEL USUARIO
+  const getUserDisplayName = (): string => {
+    if (!user) return 'Usuario';
+    
+    // Si tiene firstName y lastName, usar nombre completo
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    
+    // Si solo tiene firstName
+    if (user.firstName) {
+      return user.firstName;
+    }
+    
+    // Si tiene email, usar la parte antes del @
+    if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    // Fallback por defecto
+    return 'Usuario';
+  };
+
   // Mostrar loading mientras se verifica la autenticación inicial
   if (isLoading) {
     return (
@@ -135,7 +158,8 @@ function App() {
     <Router>
       {showLoadingScreen && (
         <LoadingScreen 
-          onComplete={handleLoadingComplete} 
+          onComplete={handleLoadingComplete}
+          userName={getUserDisplayName()} // 🎯 AQUÍ ESTÁ EL CAMBIO PRINCIPAL
         />
       )}
       
