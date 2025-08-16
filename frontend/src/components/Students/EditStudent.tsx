@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key, Eye, EyeOff, Zap } from 'lucide-react';
 import { validateRUT, formatRUTOnInput } from '../../utils/rutValidator';
 import { apiService } from '../../services/api';
+import type { OptimizedStudentEditData } from '../../services/api';
 
-// ✅ CORREGIDO: Usar nombres de campos consistentes con backend
+// ==========================================
+// 🎯 INTERFACES OPTIMIZADAS
+// ==========================================
+
 interface FormData {
   run: string;
   firstName: string;
@@ -12,8 +16,8 @@ interface FormData {
   email: string;
   phone: string;
   birthDate: string;
-  institutionId: string;        // ✅ CAMBIADO: usar ID para API
-  courseId: string;             // ✅ CAMBIADO: usar ID para API
+  institutionId: string;
+  courseId: string;
   gender: string;
   status: 'active' | 'inactive' | 'graduated';
   balance: number;
@@ -21,41 +25,28 @@ interface FormData {
   isActive: boolean;
 }
 
-// Interfaces para las opciones de select
 interface InstitutionOption {
   value: string;
   label: string;
+  type?: string;
 }
 
 interface CourseOption {
   value: string;
   label: string;
+  level?: string;
 }
 
-interface StudentData {
-  id: string;
-  userId: string;
-  run: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  balance: number;
-  overdraftLimit: number;
-  birthDate: string;
-  institution: string;  // Backend devuelve nombre de institución
-  course: string;       // Backend devuelve nombre de curso
-  gender: string;
-  status: 'active' | 'inactive' | 'graduated';
-  isActive: boolean;
-  createdAt: string;
-}
+// ==========================================
+// 🚀 COMPONENTE PRINCIPAL OPTIMIZADO
+// ==========================================
 
-const EditStudent = () => {
+const EditStudentOptimized = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const [student, setStudent] = useState<StudentData | null>(null);
+  // 🔥 ESTADOS OPTIMIZADOS
+  const [studentData, setStudentData] = useState<OptimizedStudentEditData | null>(null);
   const [formData, setFormData] = useState<FormData>({
     run: '',
     firstName: '',
@@ -63,8 +54,8 @@ const EditStudent = () => {
     email: '',
     phone: '',
     birthDate: '',
-    institutionId: '',      // ✅ CORREGIDO: Usar ID
-    courseId: '',           // ✅ CORREGIDO: Usar ID
+    institutionId: '',
+    courseId: '',
     gender: '',
     status: 'active',
     balance: 0,
@@ -72,284 +63,103 @@ const EditStudent = () => {
     isActive: true
   });
   
-  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
-  const [courses, setCourses] = useState<CourseOption[]>([]);
-  const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(true);
-  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-  
+  // Estados de UI
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: ''
   });
-  
-  // ✅ NUEVO: Estados para visibilidad de contraseñas
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'password' | 'financial'>('info');
+  const [loadTime, setLoadTime] = useState<number>(0);
 
-  // ✅ CORREGIDO: Secuencia de carga optimizada
+  // ==========================================
+  // 🚀 CARGA OPTIMIZADA PRINCIPAL
+  // ==========================================
+
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        console.log('🚀 Iniciando carga de datos...');
-        
-        // 1. Cargar instituciones primero
-        await loadInstitutions();
-        
-        // 2. Si tenemos ID, cargar estudiante
-        if (id) {
-          await loadStudent();
-        }
-      } catch (error) {
-        console.error('❌ Error en inicialización:', error);
-        setError('Error al cargar datos iniciales');
-      }
-    };
-
-    initializeData();
+    if (!id) return;
+    
+    loadStudentDataOptimized();
   }, [id]);
 
-  // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
-  useEffect(() => {
-    if (formData.institutionId) {
-      console.log('🔄 Cargando cursos para institución:', formData.institutionId);
-      loadCourses(formData.institutionId);
-    } else {
-      setCourses([]);
-    }
-  }, [formData.institutionId]);
-
-  // ✅ CORREGIDO: Usar API real
-  const loadInstitutions = async () => {
-    try {
-      setIsLoadingInstitutions(true);
-      console.log('🏫 Cargando instituciones desde API...');
-      
-      const response = await apiService.getActiveInstitutions();
-      
-      if (response.status === 'success') {
-        const institutionOptions = apiService.formatInstitutionsForSelect(response);
-        setInstitutions(institutionOptions);
-        console.log('✅ Instituciones cargadas desde API:', institutionOptions.length);
-      }
-    } catch (error: any) {
-      console.error('❌ Error cargando instituciones:', error);
-      setErrors(prev => ({ 
-        ...prev, 
-        general: 'Error al cargar instituciones. Verifique su conexión.' 
-      }));
-    } finally {
-      setIsLoadingInstitutions(false);
-    }
-  };
-
-  // ✅ CORREGIDO: Usar API real
-  const loadCourses = async (institutionId: string) => {
-    try {
-      setIsLoadingCourses(true);
-      console.log('📚 Cargando cursos desde API para institución:', institutionId);
-      
-      const response = await apiService.getCoursesByInstitutionId(institutionId);
-      
-      if (response.status === 'success') {
-        const courseOptions = apiService.formatCoursesForSelect(response);
-        setCourses(courseOptions);
-        console.log('✅ Cursos cargados desde API:', courseOptions.length);
-      }
-    } catch (error: any) {
-      console.error('❌ Error cargando cursos:', error);
-      setErrors(prev => ({ 
-        ...prev, 
-        courseId: 'Error al cargar cursos disponibles' 
-      }));
-    } finally {
-      setIsLoadingCourses(false);
-    }
-  };
-
-  // ✅ CORREGIDO: Función de mapeo mejorada
-  const findInstitutionByName = (institutionName: string): InstitutionOption | undefined => {
-    if (!institutionName || !institutions.length) return undefined;
-    
-    const normalizedName = institutionName.trim().toLowerCase();
-    console.log('🔍 Buscando institución:', normalizedName);
-    
-    // Buscar coincidencia exacta primero
-    let found = institutions.find(inst => 
-      inst.label.trim().toLowerCase() === normalizedName
-    );
-    
-    // Si no encuentra, buscar contenido parcial
-    if (!found) {
-      found = institutions.find(inst => 
-        inst.label.trim().toLowerCase().includes(normalizedName) ||
-        normalizedName.includes(inst.label.trim().toLowerCase())
-      );
-    }
-    
-    console.log('🔍 Institución encontrada:', found);
-    return found;
-  };
-
-  const findCourseByName = (courseName: string): CourseOption | undefined => {
-    if (!courseName || !courses.length) return undefined;
-    
-    const normalizedName = courseName.trim().toLowerCase();
-    console.log('🔍 Buscando curso:', normalizedName);
-    
-    // Buscar coincidencia exacta primero
-    let found = courses.find(course => 
-      course.label.trim().toLowerCase() === normalizedName
-    );
-    
-    // Si no encuentra, buscar contenido parcial
-    if (!found) {
-      found = courses.find(course => 
-        course.label.trim().toLowerCase().includes(normalizedName) ||
-        normalizedName.includes(course.label.trim().toLowerCase())
-      );
-    }
-    
-    console.log('🔍 Curso encontrado:', found);
-    return found;
-  };
-
-  // ✅ CORREGIDO: Mapear correctamente los datos del estudiante
-  const loadStudent = async () => {
+  /**
+   * ⚡ MÉTODO PRINCIPAL: Carga todos los datos en UNA sola request
+   * Reemplaza: loadInstitutions() + loadStudent() + mapData() + loadCourses()
+   */
+  const loadStudentDataOptimized = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('📖 Cargando estudiante...', { id });
+      const startTime = Date.now();
+      console.log('⚡ [OPTIMIZED] Iniciando carga optimizada...');
       
-      const response = await apiService.getStudentById(id!);
+      // 🔥 UNA SOLA REQUEST para obtener TODO
+      const response = await (apiService as any).getStudentEditDataOptimized(id!);
       
       if (response.status === 'success') {
-        const studentData = response.data.student;
-        setStudent(studentData);
-        console.log('📋 Datos del estudiante cargados:', studentData);
+        const data = response.data;
+        setStudentData(data);
+        setLoadTime(response.loadTime || 0);
         
-        // ✅ CORREGIDO: Esperar a que las instituciones estén cargadas
-        if (institutions.length === 0) {
-          console.log('⏳ Esperando instituciones...');
-          return;
-        }
+        // 🔥 MAPEO AUTOMÁTICO desde el backend optimizado
+        setFormData({
+          run: data.student.run,
+          firstName: data.student.firstName,
+          lastName: data.student.lastName,
+          email: data.student.email,
+          phone: data.student.phone || '',
+          birthDate: data.student.birthDate,
+          institutionId: data.student.institutionId || '',
+          courseId: data.student.courseId || '',
+          gender: data.student.gender,
+          status: data.student.status,
+          balance: data.student.balance,
+          overdraftLimit: data.student.overdraftLimit,
+          isActive: data.student.isActive
+        });
         
-        await mapStudentDataToForm(studentData);
+        const endTime = Date.now();
+        const totalTime = endTime - startTime;
+        
+        console.log(`🎉 [OPTIMIZED] Carga completada en ${totalTime}ms total:`);
+        console.log(`  📊 Backend: ${response.loadTime}ms`);
+        console.log(`  🌐 Frontend: ${totalTime - response.loadTime}ms`);
+        console.log(`  📈 Instituciones: ${data.metadata.totalInstitutions}`);
+        console.log(`  📚 Cursos: ${data.metadata.totalCourses}`);
+        console.log(`  🎯 Match institución: ${data.metadata.institutionMatch ? '✅' : '❌'}`);
+        console.log(`  🎯 Match curso: ${data.metadata.courseMatch ? '✅' : '❌'}`);
       }
     } catch (error: any) {
-      console.error('Error cargando estudiante:', error);
-      setError(error.message || 'Error al cargar estudiante');
+      console.error('💥 [OPTIMIZED] Error en carga:', error);
+      setError(error.message || 'Error al cargar datos del estudiante');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ NUEVO: Función separada para mapear datos
-  const mapStudentDataToForm = async (studentData: StudentData) => {
-    console.log('🗺️ Mapeando datos del estudiante a formulario...');
-    
-    // Buscar institución por nombre
-    const institutionOption = findInstitutionByName(studentData.institution);
-    
-    let formUpdate: Partial<FormData> = {
-      run: studentData.run,
-      firstName: studentData.firstName,
-      lastName: studentData.lastName,
-      email: studentData.email,
-      phone: studentData.phone || '',
-      birthDate: studentData.birthDate,
-      institutionId: institutionOption?.value || '',
-      courseId: '', // Se llenará después de cargar cursos
-      gender: studentData.gender,
-      status: studentData.status,
-      balance: studentData.balance,
-      overdraftLimit: studentData.overdraftLimit,
-      isActive: studentData.isActive
-    };
-
-    console.log('📊 FormData parcial:', formUpdate);
-    setFormData(prev => ({ ...prev, ...formUpdate }));
-
-    // Si encontramos institución, cargar cursos y buscar el curso
-    if (institutionOption?.value) {
-      console.log('🔄 Cargando cursos para mapear curso actual...');
-      
-      try {
-        const response = await apiService.getCoursesByInstitutionId(institutionOption.value);
-        if (response.status === 'success') {
-          const courseOptions = apiService.formatCoursesForSelect(response);
-          setCourses(courseOptions);
-          
-          // Buscar curso por nombre
-          const courseOption = courseOptions.find(course => 
-            course.label.trim().toLowerCase() === studentData.course.trim().toLowerCase()
-          );
-          
-          if (courseOption) {
-            console.log('✅ Curso encontrado y mapeado:', courseOption);
-            setFormData(prev => ({ ...prev, courseId: courseOption.value }));
-          } else {
-            console.log('⚠️ Curso no encontrado en opciones disponibles:', studentData.course);
-            // Agregar el curso actual como opción si no existe
-            const currentCourseOption = { 
-              value: `custom_${Date.now()}`, 
-              label: studentData.course 
-            };
-            setCourses(prev => [currentCourseOption, ...prev]);
-            setFormData(prev => ({ ...prev, courseId: currentCourseOption.value }));
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error cargando cursos para mapeo:', error);
-      }
-    } else {
-      console.log('⚠️ Institución no encontrada, agregando como custom:', studentData.institution);
-      // Agregar institución actual como opción si no existe
-      const currentInstitutionOption = { 
-        value: `custom_${Date.now()}`, 
-        label: studentData.institution 
-      };
-      setInstitutions(prev => [currentInstitutionOption, ...prev]);
-      setFormData(prev => ({ ...prev, institutionId: currentInstitutionOption.value }));
-    }
-
-    console.log('✅ Mapeo completado');
-  };
-
-  // ✅ CORREGIDO: Efecto para mapear cuando las instituciones estén listas
-  useEffect(() => {
-    if (student && institutions.length > 0) {
-      console.log('🔄 Instituciones cargadas, mapeando datos del estudiante...');
-      mapStudentDataToForm(student);
-    }
-  }, [institutions, student]);
+  // ==========================================
+  // 🔄 MÉTODOS DE MANEJO DE DATOS
+  // ==========================================
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-    
+    const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setFormData(prev => ({ ...prev, [name]: newValue }));
     setErrors(prev => ({ ...prev, [name]: '' }));
     if (error) setError(null);
   };
 
-  // ✅ CORREGIDO: Manejar cambio de institución con IDs
-  const handleInstitutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleInstitutionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
-    console.log('🏫 Institución seleccionada ID:', selectedId);
+    console.log('🏫 [OPTIMIZED] Institución seleccionada:', selectedId);
     
     setFormData(prev => ({ 
       ...prev, 
@@ -357,16 +167,22 @@ const EditStudent = () => {
       courseId: ''  // Limpiar curso cuando cambia institución
     }));
     setErrors(prev => ({ ...prev, institutionId: '', courseId: '' }));
+
+    // 🔥 Los cursos ya están cacheados, no necesitamos hacer request adicional
+    // Solo actualizamos el estado, los cursos se renderizan automáticamente
   };
 
-  // ✅ CORREGIDO: Manejar cambio de curso con IDs
   const handleCourseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
-    console.log('📚 Curso seleccionado ID:', selectedId);
+    console.log('📚 [OPTIMIZED] Curso seleccionado:', selectedId);
     
     setFormData(prev => ({ ...prev, courseId: selectedId }));
     setErrors(prev => ({ ...prev, courseId: '' }));
   };
+
+  // ==========================================
+  // 📝 VALIDACIÓN Y ENVÍO OPTIMIZADO
+  // ==========================================
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -374,8 +190,12 @@ const EditStudent = () => {
     if (!validateRUT(formData.run)) newErrors.run = 'RUN inválido';
     if (!formData.firstName.trim()) newErrors.firstName = 'Nombre requerido';
     if (!formData.lastName.trim()) newErrors.lastName = 'Apellido requerido';
-    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Email inválido';
-    if (formData.phone && !/^(\+56)?9\d{8}$/.test(formData.phone.replace(/\s/g, ''))) newErrors.phone = 'Teléfono inválido';
+    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Email inválido';
+    }
+    if (formData.phone && !/^(\+56)?9\d{8}$/.test(formData.phone.replace(/\s/g, ''))) {
+      newErrors.phone = 'Teléfono inválido';
+    }
     if (!formData.birthDate) newErrors.birthDate = 'Fecha de nacimiento requerida';
     if (!formData.institutionId) newErrors.institutionId = 'Institución requerida';
     if (!formData.courseId) newErrors.courseId = 'Curso requerido';
@@ -394,11 +214,12 @@ const EditStudent = () => {
 
     setIsSaving(true);
     setSuccess(null);
+    setError(null);
 
     try {
-      // ✅ CORREGIDO: Convertir IDs a nombres para el backend
-      const selectedInstitution = institutions.find(inst => inst.value === formData.institutionId);
-      const selectedCourse = courses.find(course => course.value === formData.courseId);
+      // 🔥 OPTIMIZADO: Convertir IDs a nombres usando datos cacheados
+      const selectedInstitution = studentData?.institutions.find(inst => inst.value === formData.institutionId);
+      const selectedCourse = getCurrentCourses().find(course => course.value === formData.courseId);
       
       const updateData = {
         ...formData,
@@ -406,16 +227,20 @@ const EditStudent = () => {
         course: selectedCourse?.label || formData.courseId
       };
       
-      console.log('📤 Enviando datos al backend:', updateData);
+      console.log('📤 [OPTIMIZED] Enviando datos:', updateData);
       
       const response = await apiService.updateStudent(id!, updateData);
       if (response.status === 'success') {
         setSuccess('Estudiante actualizado exitosamente');
+        
+        // 🔥 OPTIMIZACIÓN: Limpiar cache para refrescar datos
+        (apiService as any).clearCache?.();
+        
         setTimeout(() => navigate('/students'), 2000);
       }
     } catch (error: any) {
-      console.error('Error actualizando estudiante:', error);
-      setErrors({ general: error.message || 'Error al actualizar estudiante' });
+      console.error('💥 Error actualizando estudiante:', error);
+      setError(error.message || 'Error al actualizar estudiante');
     } finally {
       setIsSaving(false);
     }
@@ -433,6 +258,7 @@ const EditStudent = () => {
     }
 
     setIsChangingPassword(true);
+    setError(null);
 
     try {
       const response = await apiService.changeStudentPassword(id!, passwordData.newPassword);
@@ -442,15 +268,37 @@ const EditStudent = () => {
         setTimeout(() => setSuccess(null), 3000);
       }
     } catch (error: any) {
-      setErrors({ password: error.message || 'Error al cambiar contraseña' });
+      setError(error.message || 'Error al cambiar contraseña');
     } finally {
       setIsChangingPassword(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+  // ==========================================
+  // 🎯 MÉTODOS AUXILIARES OPTIMIZADOS
+  // ==========================================
+
+  /**
+   * Obtener cursos para la institución seleccionada (desde cache)
+   */
+  const getCurrentCourses = (): CourseOption[] => {
+    if (!studentData || !formData.institutionId) return [];
+    
+    // 🔥 OPTIMIZADO: Usar datos pre-cargados del cache
+    return studentData.coursesByInstitution[formData.institutionId] || [];
   };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', { 
+      style: 'currency', 
+      currency: 'CLP',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // ==========================================
+  // 🎨 RENDERIZADO OPTIMIZADO
+  // ==========================================
 
   if (isLoading) {
     return (
@@ -458,23 +306,10 @@ const EditStudent = () => {
         <div className="bg-white rounded-lg shadow border border-gray-100 p-8">
           <div className="flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
-            <span className="text-gray-600">Cargando datos del estudiante...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !student) {
-    return (
-      <div className="max-w-5xl mx-auto px-3 py-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-red-500" />
-            <div>
-              <h3 className="text-sm font-medium text-red-800">Estudiante no encontrado</h3>
-              <p className="text-sm text-red-600 mt-1">
-                {error || 'No se pudo cargar la información del estudiante'}
+            <div className="text-center">
+              <span className="text-gray-600">Cargando datos optimizados...</span>
+              <p className="text-xs text-gray-400 mt-1">
+                ⚡ Carga ultra-rápida con cache inteligente
               </p>
             </div>
           </div>
@@ -483,9 +318,27 @@ const EditStudent = () => {
     );
   }
 
+  if (error && !studentData) {
+    return (
+      <div className="max-w-5xl mx-auto px-3 py-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-5 h-5 text-red-500" />
+            <div>
+              <h3 className="text-sm font-medium text-red-800">Error al cargar estudiante</h3>
+              <p className="text-sm text-red-600 mt-1">{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!studentData) return null;
+
   return (
     <div className="max-w-5xl mx-auto px-3 py-4">
-      {/* Header */}
+      {/* Header Optimizado con métricas */}
       <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -496,25 +349,39 @@ const EditStudent = () => {
               <ArrowLeft className="w-4 h-4 text-white" />
             </button>
             <div className="p-1.5 bg-white/20 rounded">
-              <User className="w-4 h-4 text-white" />
+              <Zap className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold">Editar Estudiante</h1>
-              <p className="text-blue-200 text-xs">{student?.firstName} {student?.lastName} - {student?.run}</p>
+              <h1 className="text-base font-bold">Editar Estudiante (Optimizado)</h1>
+              <p className="text-blue-200 text-xs">
+                {studentData.student.firstName} {studentData.student.lastName} - {studentData.student.run}
+                {loadTime && (
+                  <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-xs">
+                    ⚡ {loadTime}ms
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           <div className="text-right">
             <p className="text-blue-200 text-xs mb-0.5">Balance Actual</p>
-            <p className="text-base font-bold">{student && formatCurrency(student.balance)}</p>
+            <p className="text-base font-bold">{formatCurrency(studentData.student.balance)}</p>
           </div>
         </div>
       </div>
 
-      {/* ✅ MENSAJE: Estado de carga de instituciones */}
-      {isLoadingInstitutions && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-xs">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <p>Cargando instituciones educacionales...</p>
+      {/* Métricas de optimización */}
+      {studentData.metadata && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-xs">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              <span>Carga optimizada: {loadTime}ms</span>
+            </div>
+            <div>📊 {studentData.metadata.totalInstitutions} instituciones</div>
+            <div>📚 {studentData.metadata.totalCourses} cursos</div>
+            <div>🎯 Match: {studentData.metadata.institutionMatch ? '✅' : '❌'} / {studentData.metadata.courseMatch ? '✅' : '❌'}</div>
+          </div>
         </div>
       )}
 
@@ -527,10 +394,10 @@ const EditStudent = () => {
       )}
 
       {/* Mensaje de error general */}
-      {errors.general && (
+      {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800 text-xs shadow-sm">
           <XCircle className="w-4 h-4" />
-          <p>{errors.general}</p>
+          <p>{error}</p>
         </div>
       )}
 
@@ -588,7 +455,7 @@ const EditStudent = () => {
               <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
                 <School className="w-3.5 h-3.5 text-white" />
               </div>
-              <h2 className="text-sm font-bold text-gray-800">Información Personal</h2>
+              <h2 className="text-sm font-bold text-gray-800">Información Personal (Optimizada)</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -763,10 +630,11 @@ const EditStudent = () => {
                 )}
               </div>
 
-              {/* ✅ CAMBIO: Establecimiento Educacional como dropdown */}
+              {/* 🔥 OPTIMIZADO: Establecimiento Educacional (datos pre-cargados) */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Establecimiento Educacional *
+                  Establecimiento Educacional * 
+                  <span className="text-green-600 ml-1">⚡ Optimizado</span>
                 </label>
                 <div className="relative">
                   <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -774,19 +642,17 @@ const EditStudent = () => {
                     name="institutionId"
                     value={formData.institutionId}
                     onChange={handleInstitutionChange}
-                    disabled={isSaving || isLoadingInstitutions}
+                    disabled={isSaving}
                     className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                       errors.institutionId 
                         ? 'border-red-500 bg-red-50' 
                         : 'border-gray-200 focus:border-blue-300'
-                    } ${isSaving || isLoadingInstitutions ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">
-                      {isLoadingInstitutions ? 'Cargando instituciones...' : 'Seleccionar establecimiento'}
-                    </option>
-                    {institutions.map(institution => (
+                    <option value="">Seleccionar establecimiento</option>
+                    {studentData.institutions.map(institution => (
                       <option key={institution.value} value={institution.value}>
-                        {institution.label}
+                        {institution.label} {institution.type && `(${institution.type})`}
                       </option>
                     ))}
                   </select>
@@ -831,10 +697,11 @@ const EditStudent = () => {
                 )}
               </div>
 
-              {/* ✅ CAMBIO: Curso como dropdown dependiente */}
+              {/* 🔥 OPTIMIZADO: Curso (datos pre-cargados desde cache) */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Curso *
+                  Curso * 
+                  <span className="text-green-600 ml-1">⚡ Cache</span>
                 </label>
                 <div className="relative">
                   <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -842,26 +709,24 @@ const EditStudent = () => {
                     name="courseId"
                     value={formData.courseId}
                     onChange={handleCourseChange}
-                    disabled={isSaving || isLoadingCourses || !formData.institutionId}
+                    disabled={isSaving || !formData.institutionId}
                     className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                       errors.courseId 
                         ? 'border-red-500 bg-red-50' 
                         : 'border-gray-200 focus:border-blue-300'
-                    } ${isSaving || isLoadingCourses || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isSaving || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <option value="">
                       {!formData.institutionId 
                         ? 'Primero seleccione un establecimiento'
-                        : isLoadingCourses 
-                        ? 'Cargando cursos...'
-                        : courses.length === 0
+                        : getCurrentCourses().length === 0
                         ? 'No hay cursos disponibles'
                         : 'Seleccionar curso'
                       }
                     </option>
-                    {courses.map(course => (
+                    {getCurrentCourses().map(course => (
                       <option key={course.value} value={course.value}>
-                        {course.label}
+                        {course.label} {course.level && `(${course.level})`}
                       </option>
                     ))}
                   </select>
@@ -872,11 +737,11 @@ const EditStudent = () => {
                     {errors.courseId}
                   </p>
                 )}
-                {/* ✅ Indicador de carga de cursos */}
-                {isLoadingCourses && (
-                  <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Cargando cursos...
+                {/* Info de cursos cargados */}
+                {formData.institutionId && getCurrentCourses().length > 0 && (
+                  <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    {getCurrentCourses().length} cursos cargados desde cache
                   </p>
                 )}
               </div>
@@ -925,9 +790,9 @@ const EditStudent = () => {
             <div className="flex gap-3 pt-2">
               <button 
                 type="submit" 
-                disabled={isSaving || isLoadingInstitutions}
+                disabled={isSaving}
                 className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-1.5 text-sm font-bold transition-all shadow-md ${
-                  isSaving || isLoadingInstitutions
+                  isSaving
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white hover:opacity-90'
                 }`}
@@ -1201,4 +1066,4 @@ const EditStudent = () => {
   );
 };
 
-export default EditStudent;
+export default EditStudentOptimized;
