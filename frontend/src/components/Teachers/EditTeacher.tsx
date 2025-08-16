@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Sparkles, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key, Plus, X } from 'lucide-react';
+import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Sparkles, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key, Plus, X, Eye, EyeOff } from 'lucide-react';
 import { validateRUT, formatRUTOnInput } from '../../utils/rutValidator';
 import { apiService } from '../../services/api';
 
@@ -86,22 +86,44 @@ const EditTeacher = () => {
     confirmPassword: ''
   });
   
+  // ✅ NUEVO: Estados para visibilidad de contraseñas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null); // AGREGADO: faltaba esta línea
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'password' | 'financial'>('info');
 
-  // CARGAR INSTITUCIONES al montar (idéntico a Student)
+  // ✅ CORREGIDO: Secuencia de carga optimizada
   useEffect(() => {
-    loadInstitutions();
-  }, []);
+    const initializeData = async () => {
+      try {
+        console.log('🚀 [Teacher] Iniciando carga de datos...');
+        
+        // 1. Cargar instituciones primero
+        await loadInstitutions();
+        
+        // 2. Si tenemos ID, cargar docente
+        if (id) {
+          await loadTeacher();
+        }
+      } catch (error) {
+        console.error('❌ [Teacher] Error en inicialización:', error);
+        setError('Error al cargar datos iniciales');
+      }
+    };
 
-  // CARGAR CURSOS cuando cambia la institución (idéntico a Student)
+    initializeData();
+  }, [id]);
+
+  // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
   useEffect(() => {
     if (formData.institutionId) {
+      console.log('🔄 [Teacher] Cargando cursos para institución:', formData.institutionId);
       loadCourses(formData.institutionId);
     } else {
       setCourses([]);
@@ -112,17 +134,17 @@ const EditTeacher = () => {
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
-      console.log('🏫 Cargando instituciones...');
+      console.log('🏫 [Teacher] Cargando instituciones...');
       
       const response = await apiService.getActiveInstitutions();
       
       if (response.status === 'success') {
         const institutionOptions = apiService.formatInstitutionsForSelect(response);
         setInstitutions(institutionOptions);
-        console.log('✅ Instituciones cargadas:', institutionOptions.length);
+        console.log('✅ [Teacher] Instituciones cargadas:', institutionOptions.length);
       }
     } catch (error: any) {
-      console.error('❌ Error cargando instituciones:', error);
+      console.error('❌ [Teacher] Error cargando instituciones:', error);
       setErrors(prev => ({ 
         ...prev, 
         general: 'Error al cargar instituciones. Verifique su conexión.' 
@@ -136,17 +158,17 @@ const EditTeacher = () => {
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
-      console.log('📚 Cargando cursos para institución:', institutionId);
+      console.log('📚 [Teacher] Cargando cursos para institución:', institutionId);
       
       const response = await apiService.getCoursesByInstitutionId(institutionId);
       
       if (response.status === 'success') {
         const courseOptions = apiService.formatCoursesForSelect(response);
         setCourses(courseOptions);
-        console.log('✅ Cursos cargados:', courseOptions.length);
+        console.log('✅ [Teacher] Cursos cargados:', courseOptions.length);
       }
     } catch (error: any) {
-      console.error('❌ Error cargando cursos:', error);
+      console.error('❌ [Teacher] Error cargando cursos:', error);
       setErrors(prev => ({ 
         ...prev, 
         courseIds: 'Error al cargar cursos disponibles' 
@@ -156,24 +178,99 @@ const EditTeacher = () => {
     }
   };
 
+  // ✅ CORREGIDO: Función de mapeo mejorada para docentes
+  const findInstitutionByName = (institutionName: string): InstitutionOption | undefined => {
+    if (!institutionName || !institutions.length) return undefined;
+    
+    const normalizedName = institutionName.trim().toLowerCase();
+    console.log('🔍 [Teacher] Buscando institución:', normalizedName);
+    
+    // Buscar coincidencia exacta primero
+    let found = institutions.find(inst => 
+      inst.label.trim().toLowerCase() === normalizedName
+    );
+    
+    // Si no encuentra, buscar contenido parcial
+    if (!found) {
+      found = institutions.find(inst => 
+        inst.label.trim().toLowerCase().includes(normalizedName) ||
+        normalizedName.includes(inst.label.trim().toLowerCase())
+      );
+    }
+    
+    console.log('📍 [Teacher] Institución encontrada:', found);
+    return found;
+  };
+
+  const findCoursesByNames = (courseNames: string[]): string[] => {
+    if (!courseNames || !courseNames.length || !courses.length) return [];
+    
+    console.log('🔍 [Teacher] Buscando cursos:', courseNames);
+    
+    const foundCourseIds: string[] = [];
+    const notFoundCourses: string[] = [];
+    
+    courseNames.forEach(courseName => {
+      const normalizedName = courseName.trim().toLowerCase();
+      
+      // Buscar coincidencia exacta primero
+      let found = courses.find(course => 
+        course.label.trim().toLowerCase() === normalizedName
+      );
+      
+      // Si no encuentra, buscar contenido parcial
+      if (!found) {
+        found = courses.find(course => 
+          course.label.trim().toLowerCase().includes(normalizedName) ||
+          normalizedName.includes(course.label.trim().toLowerCase())
+        );
+      }
+      
+      if (found) {
+        foundCourseIds.push(found.value);
+      } else {
+        notFoundCourses.push(courseName);
+      }
+    });
+    
+    // Agregar cursos no encontrados como opciones custom
+    if (notFoundCourses.length > 0) {
+      console.log('⚠️ [Teacher] Cursos no encontrados, agregando como custom:', notFoundCourses);
+      const customCourses = notFoundCourses.map(courseName => ({
+        value: `custom_${Date.now()}_${Math.random()}`,
+        label: courseName
+      }));
+      
+      setCourses(prev => [...customCourses, ...prev]);
+      foundCourseIds.push(...customCourses.map(c => c.value));
+    }
+    
+    console.log('📍 [Teacher] Cursos encontrados/mapeados:', foundCourseIds.length);
+    return foundCourseIds;
+  };
+
   // Cargar docente
   const loadTeacher = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔍 Cargando docente...', { id });
+      console.log('📖 [Teacher] Cargando docente...', { id });
       
       const response = await apiService.getTeacherById(id!);
       
       if (response.status === 'success') {
         const teacherData = response.data.teacher;
         setTeacher(teacherData);
-        setFormData({
-          ...teacherData,
-          institutionId: teacherData.institution, // Usar directamente si ya es el ID
-          courseIds: teacherData.courses || [''] // Usar cursos directamente
-        });
+        console.log('📋 [Teacher] Datos del docente cargados:', teacherData);
+        
+        // ✅ CORREGIDO: Esperar a que las instituciones estén cargadas
+        if (institutions.length === 0) {
+          console.log('⏳ [Teacher] Esperando instituciones...');
+          return;
+        }
+        
+        await mapTeacherDataToForm(teacherData);
       }
     } catch (error: any) {
       console.error('Error cargando docente:', error);
@@ -183,11 +280,77 @@ const EditTeacher = () => {
     }
   };
 
-  useEffect(() => {
-    if (id) {
-      loadTeacher();
+  // ✅ NUEVO: Función separada para mapear datos de docente
+  const mapTeacherDataToForm = async (teacherData: TeacherData) => {
+    console.log('🗺️ [Teacher] Mapeando datos del docente a formulario...');
+    
+    // Buscar institución por nombre
+    const institutionOption = findInstitutionByName(teacherData.institution);
+    
+    let formUpdate: Partial<FormData> = {
+      run: teacherData.run,
+      firstName: teacherData.firstName,
+      lastName: teacherData.lastName,
+      email: teacherData.email,
+      phone: teacherData.phone || '',
+      birthDate: teacherData.birthDate,
+      institutionId: institutionOption?.value || '',
+      courseIds: [''], // Se llenará después de cargar cursos
+      gender: teacherData.gender,
+      status: teacherData.status,
+      balance: teacherData.balance,
+      overdraftLimit: teacherData.overdraftLimit,
+      isActive: teacherData.isActive
+    };
+
+    console.log('📊 [Teacher] FormData parcial:', formUpdate);
+    setFormData(prev => ({ ...prev, ...formUpdate }));
+
+    // Si encontramos institución, cargar cursos y buscar los cursos
+    if (institutionOption?.value) {
+      console.log('🔄 [Teacher] Cargando cursos para mapear cursos actuales...');
+      
+      try {
+        const response = await apiService.getCoursesByInstitutionId(institutionOption.value);
+        if (response.status === 'success') {
+          const courseOptions = apiService.formatCoursesForSelect(response);
+          setCourses(courseOptions);
+          
+          // Buscar cursos por nombres
+          const foundCourseIds = findCoursesByNames(teacherData.courses || []);
+          
+          if (foundCourseIds.length > 0) {
+            console.log('✅ [Teacher] Cursos encontrados y mapeados:', foundCourseIds);
+            setFormData(prev => ({ ...prev, courseIds: foundCourseIds }));
+          } else {
+            console.log('⚠️ [Teacher] No se encontraron cursos, manteniendo array con un elemento vacío');
+            setFormData(prev => ({ ...prev, courseIds: [''] }));
+          }
+        }
+      } catch (error) {
+        console.error('❌ [Teacher] Error cargando cursos para mapeo:', error);
+      }
+    } else {
+      console.log('⚠️ [Teacher] Institución no encontrada, agregando como custom:', teacherData.institution);
+      // Agregar institución actual como opción si no existe
+      const currentInstitutionOption = { 
+        value: `custom_${Date.now()}`, 
+        label: teacherData.institution 
+      };
+      setInstitutions(prev => [currentInstitutionOption, ...prev]);
+      setFormData(prev => ({ ...prev, institutionId: currentInstitutionOption.value }));
     }
-  }, [id]);
+
+    console.log('✅ [Teacher] Mapeo completado');
+  };
+
+  // ✅ CORREGIDO: Efecto para mapear cuando las instituciones estén listas
+  useEffect(() => {
+    if (teacher && institutions.length > 0) {
+      console.log('🔄 [Teacher] Instituciones cargadas, mapeando datos del docente...');
+      mapTeacherDataToForm(teacher);
+    }
+  }, [institutions, teacher]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -207,6 +370,27 @@ const EditTeacher = () => {
         courseIds: prev.courseIds.filter((_, i) => i !== index) 
       }));
     }
+  };
+
+  const updateCourseId = (index: number, newCourseId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      courseIds: prev.courseIds.map((id, i) => i === index ? newCourseId : id)
+    }));
+    setErrors(prev => ({ ...prev, courseIds: '' }));
+  };
+
+  // ✅ CORREGIDO: Manejar cambio de institución
+  const handleInstitutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    console.log('🏫 [Teacher] Institución seleccionada ID:', selectedId);
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      institutionId: selectedId,
+      courseIds: ['']  // Limpiar cursos cuando cambia institución
+    }));
+    setErrors(prev => ({ ...prev, institutionId: '', courseIds: '' }));
   };
 
   const canAddMoreCourses = () => {
@@ -260,7 +444,24 @@ const EditTeacher = () => {
     setError(null);
 
     try {
-      const response = await apiService.updateTeacher(id!, formData);
+      // ✅ CORREGIDO: Convertir IDs a nombres para el backend
+      const selectedInstitution = institutions.find(inst => inst.value === formData.institutionId);
+      const selectedCourses = formData.courseIds
+        .filter(id => id.trim())
+        .map(id => {
+          const course = courses.find(c => c.value === id);
+          return course ? course.label : id;
+        });
+      
+      const updateData = {
+        ...formData,
+        institution: selectedInstitution?.label || formData.institutionId,
+        courses: selectedCourses
+      };
+      
+      console.log('📤 [Teacher] Enviando datos al backend:', updateData);
+      
+      const response = await apiService.updateTeacher(id!, updateData);
       if (response.status === 'success') {
         setSuccess('Docente actualizado exitosamente');
         setTimeout(() => navigate('/teachers'), 2000);
@@ -611,9 +812,9 @@ const EditTeacher = () => {
                   } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Seleccionar género</option>
-                  <option value="male">Masculino</option>
-                  <option value="female">Femenino</option>
-                  <option value="other">Otro</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="Otro">Otro</option>
                 </select>
                 {errors.gender && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
@@ -653,7 +854,7 @@ const EditTeacher = () => {
               <select
                 name="institutionId"
                 value={formData.institutionId}
-                onChange={handleChange}
+                onChange={handleInstitutionChange}
                 disabled={isSaving || isLoadingInstitutions}
                 className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                   errors.institutionId 
@@ -691,12 +892,7 @@ const EditTeacher = () => {
                   <div key={index} className="flex items-center gap-2">
                     <select
                       value={courseId}
-                      onChange={(e) => {
-                        const newCourseIds = [...formData.courseIds];
-                        newCourseIds[index] = e.target.value;
-                        setFormData(prev => ({ ...prev, courseIds: newCourseIds }));
-                        setErrors(prev => ({ ...prev, courseIds: '' }));
-                      }}
+                      onChange={(e) => updateCourseId(index, e.target.value)}
                       disabled={isSaving || isLoadingCourses || !formData.institutionId}
                       className={`flex-1 px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                         errors.courseIds 
@@ -850,51 +1046,71 @@ const EditTeacher = () => {
               </p>
             </div>
 
-            {/* Nueva Contraseña */}
+            {/* ✅ NUEVO: Nueva Contraseña con toggle de visibilidad */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Nueva Contraseña
               </label>
-              <input
-                type="password"
-                value={passwordData.newPassword}
-                onChange={(e) => {
-                  setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
-                  setErrors(prev => ({ ...prev, password: '' }));
-                }}
-                placeholder="Mínimo 6 caracteres"
-                disabled={isChangingPassword}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={(e) => {
+                    setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
+                    setErrors(prev => ({ ...prev, password: '' }));
+                  }}
+                  placeholder="Mínimo 6 caracteres"
+                  disabled={isChangingPassword}
+                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.password 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isChangingPassword}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <p className="mt-1 text-xs text-gray-500">
                 La contraseña debe tener al menos 6 caracteres
               </p>
             </div>
 
-            {/* Confirmar Contraseña */}
+            {/* ✅ NUEVO: Confirmar Contraseña con toggle de visibilidad */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Confirmar Nueva Contraseña
               </label>
-              <input
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={(e) => {
-                  setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
-                  setErrors(prev => ({ ...prev, password: '' }));
-                }}
-                placeholder="Confirma la nueva contraseña"
-                disabled={isChangingPassword}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => {
+                    setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
+                    setErrors(prev => ({ ...prev, password: '' }));
+                  }}
+                  placeholder="Confirma la nueva contraseña"
+                  disabled={isChangingPassword}
+                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.password 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isChangingPassword}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.password && (
                 <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                   <XCircle className="w-3 h-3" />

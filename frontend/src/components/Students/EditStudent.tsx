@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key } from 'lucide-react';
+import { User, Mail, Phone, Calendar, BookOpen, XCircle, School, Building, Heart, Loader2, CheckCircle, Lock, DollarSign, CreditCard, Save, ArrowLeft, Key, Eye, EyeOff } from 'lucide-react';
 import { validateRUT, formatRUTOnInput } from '../../utils/rutValidator';
 import { apiService } from '../../services/api';
 
@@ -82,6 +82,10 @@ const EditStudent = () => {
     confirmPassword: ''
   });
   
+  // ✅ NUEVO: Estados para visibilidad de contraseñas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,14 +94,32 @@ const EditStudent = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'password' | 'financial'>('info');
 
-  // Cargar instituciones al montar el componente
+  // ✅ CORREGIDO: Secuencia de carga optimizada
   useEffect(() => {
-    loadInstitutions();
-  }, []);
+    const initializeData = async () => {
+      try {
+        console.log('🚀 Iniciando carga de datos...');
+        
+        // 1. Cargar instituciones primero
+        await loadInstitutions();
+        
+        // 2. Si tenemos ID, cargar estudiante
+        if (id) {
+          await loadStudent();
+        }
+      } catch (error) {
+        console.error('❌ Error en inicialización:', error);
+        setError('Error al cargar datos iniciales');
+      }
+    };
+
+    initializeData();
+  }, [id]);
 
   // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
   useEffect(() => {
     if (formData.institutionId) {
+      console.log('🔄 Cargando cursos para institución:', formData.institutionId);
       loadCourses(formData.institutionId);
     } else {
       setCourses([]);
@@ -152,47 +174,75 @@ const EditStudent = () => {
     }
   };
 
+  // ✅ CORREGIDO: Función de mapeo mejorada
+  const findInstitutionByName = (institutionName: string): InstitutionOption | undefined => {
+    if (!institutionName || !institutions.length) return undefined;
+    
+    const normalizedName = institutionName.trim().toLowerCase();
+    console.log('🔍 Buscando institución:', normalizedName);
+    
+    // Buscar coincidencia exacta primero
+    let found = institutions.find(inst => 
+      inst.label.trim().toLowerCase() === normalizedName
+    );
+    
+    // Si no encuentra, buscar contenido parcial
+    if (!found) {
+      found = institutions.find(inst => 
+        inst.label.trim().toLowerCase().includes(normalizedName) ||
+        normalizedName.includes(inst.label.trim().toLowerCase())
+      );
+    }
+    
+    console.log('📍 Institución encontrada:', found);
+    return found;
+  };
+
+  const findCourseByName = (courseName: string): CourseOption | undefined => {
+    if (!courseName || !courses.length) return undefined;
+    
+    const normalizedName = courseName.trim().toLowerCase();
+    console.log('🔍 Buscando curso:', normalizedName);
+    
+    // Buscar coincidencia exacta primero
+    let found = courses.find(course => 
+      course.label.trim().toLowerCase() === normalizedName
+    );
+    
+    // Si no encuentra, buscar contenido parcial
+    if (!found) {
+      found = courses.find(course => 
+        course.label.trim().toLowerCase().includes(normalizedName) ||
+        normalizedName.includes(course.label.trim().toLowerCase())
+      );
+    }
+    
+    console.log('📍 Curso encontrado:', found);
+    return found;
+  };
+
   // ✅ CORREGIDO: Mapear correctamente los datos del estudiante
   const loadStudent = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔍 Cargando estudiante...', { id });
+      console.log('📖 Cargando estudiante...', { id });
       
       const response = await apiService.getStudentById(id!);
       
       if (response.status === 'success') {
         const studentData = response.data.student;
         setStudent(studentData);
+        console.log('📋 Datos del estudiante cargados:', studentData);
         
-        // ✅ CORREGIDO: Mapear datos y encontrar IDs correspondientes
-        const institutionOption = institutions.find(inst => inst.label === studentData.institution);
-        const courseOption = courses.find(course => course.label === studentData.course);
+        // ✅ CORREGIDO: Esperar a que las instituciones estén cargadas
+        if (institutions.length === 0) {
+          console.log('⏳ Esperando instituciones...');
+          return;
+        }
         
-        setFormData({
-          run: studentData.run,
-          firstName: studentData.firstName,
-          lastName: studentData.lastName,
-          email: studentData.email,
-          phone: studentData.phone || '',
-          birthDate: studentData.birthDate,
-          institutionId: institutionOption?.value || '',  // ✅ MAPEAR A ID
-          courseId: courseOption?.value || '',            // ✅ MAPEAR A ID
-          gender: studentData.gender,
-          status: studentData.status,
-          balance: studentData.balance,
-          overdraftLimit: studentData.overdraftLimit,
-          isActive: studentData.isActive
-        });
-
-        console.log('✅ Datos del estudiante cargados:', {
-          run: studentData.run,
-          institution: studentData.institution,
-          course: studentData.course,
-          institutionId: institutionOption?.value,
-          courseId: courseOption?.value
-        });
+        await mapStudentDataToForm(studentData);
       }
     } catch (error: any) {
       console.error('Error cargando estudiante:', error);
@@ -202,12 +252,85 @@ const EditStudent = () => {
     }
   };
 
-  // ✅ CORREGIDO: Cargar estudiante después de tener instituciones
-  useEffect(() => {
-    if (id && !isLoadingInstitutions && institutions.length > 0) {
-      loadStudent();
+  // ✅ NUEVO: Función separada para mapear datos
+  const mapStudentDataToForm = async (studentData: StudentData) => {
+    console.log('🗺️ Mapeando datos del estudiante a formulario...');
+    
+    // Buscar institución por nombre
+    const institutionOption = findInstitutionByName(studentData.institution);
+    
+    let formUpdate: Partial<FormData> = {
+      run: studentData.run,
+      firstName: studentData.firstName,
+      lastName: studentData.lastName,
+      email: studentData.email,
+      phone: studentData.phone || '',
+      birthDate: studentData.birthDate,
+      institutionId: institutionOption?.value || '',
+      courseId: '', // Se llenará después de cargar cursos
+      gender: studentData.gender,
+      status: studentData.status,
+      balance: studentData.balance,
+      overdraftLimit: studentData.overdraftLimit,
+      isActive: studentData.isActive
+    };
+
+    console.log('📊 FormData parcial:', formUpdate);
+    setFormData(prev => ({ ...prev, ...formUpdate }));
+
+    // Si encontramos institución, cargar cursos y buscar el curso
+    if (institutionOption?.value) {
+      console.log('🔄 Cargando cursos para mapear curso actual...');
+      
+      try {
+        const response = await apiService.getCoursesByInstitutionId(institutionOption.value);
+        if (response.status === 'success') {
+          const courseOptions = apiService.formatCoursesForSelect(response);
+          setCourses(courseOptions);
+          
+          // Buscar curso por nombre
+          const courseOption = courseOptions.find(course => 
+            course.label.trim().toLowerCase() === studentData.course.trim().toLowerCase()
+          );
+          
+          if (courseOption) {
+            console.log('✅ Curso encontrado y mapeado:', courseOption);
+            setFormData(prev => ({ ...prev, courseId: courseOption.value }));
+          } else {
+            console.log('⚠️ Curso no encontrado en opciones disponibles:', studentData.course);
+            // Agregar el curso actual como opción si no existe
+            const currentCourseOption = { 
+              value: `custom_${Date.now()}`, 
+              label: studentData.course 
+            };
+            setCourses(prev => [currentCourseOption, ...prev]);
+            setFormData(prev => ({ ...prev, courseId: currentCourseOption.value }));
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error cargando cursos para mapeo:', error);
+      }
+    } else {
+      console.log('⚠️ Institución no encontrada, agregando como custom:', studentData.institution);
+      // Agregar institución actual como opción si no existe
+      const currentInstitutionOption = { 
+        value: `custom_${Date.now()}`, 
+        label: studentData.institution 
+      };
+      setInstitutions(prev => [currentInstitutionOption, ...prev]);
+      setFormData(prev => ({ ...prev, institutionId: currentInstitutionOption.value }));
     }
-  }, [id, isLoadingInstitutions, institutions]);
+
+    console.log('✅ Mapeo completado');
+  };
+
+  // ✅ CORREGIDO: Efecto para mapear cuando las instituciones estén listas
+  useEffect(() => {
+    if (student && institutions.length > 0) {
+      console.log('🔄 Instituciones cargadas, mapeando datos del estudiante...');
+      mapStudentDataToForm(student);
+    }
+  }, [institutions, student]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -816,51 +939,71 @@ const EditStudent = () => {
               </p>
             </div>
 
-            {/* Nueva Contraseña */}
+            {/* ✅ NUEVO: Nueva Contraseña con toggle de visibilidad */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Nueva Contraseña
               </label>
-              <input
-                type="password"
-                value={passwordData.newPassword}
-                onChange={(e) => {
-                  setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
-                  setErrors(prev => ({ ...prev, password: '' }));
-                }}
-                placeholder="Mínimo 6 caracteres"
-                disabled={isChangingPassword}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={(e) => {
+                    setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
+                    setErrors(prev => ({ ...prev, password: '' }));
+                  }}
+                  placeholder="Mínimo 6 caracteres"
+                  disabled={isChangingPassword}
+                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.password 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isChangingPassword}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <p className="mt-1 text-xs text-gray-500">
                 La contraseña debe tener al menos 6 caracteres
               </p>
             </div>
 
-            {/* Confirmar Contraseña */}
+            {/* ✅ NUEVO: Confirmar Contraseña con toggle de visibilidad */}
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 Confirmar Nueva Contraseña
               </label>
-              <input
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={(e) => {
-                  setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
-                  setErrors(prev => ({ ...prev, password: '' }));
-                }}
-                placeholder="Confirma la nueva contraseña"
-                disabled={isChangingPassword}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => {
+                    setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
+                    setErrors(prev => ({ ...prev, password: '' }));
+                  }}
+                  placeholder="Confirma la nueva contraseña"
+                  disabled={isChangingPassword}
+                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
+                    errors.password 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-200 focus:border-blue-300'
+                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isChangingPassword}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.password && (
                 <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                   <XCircle className="w-3 h-3" />
