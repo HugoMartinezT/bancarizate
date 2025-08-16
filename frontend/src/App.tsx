@@ -18,6 +18,7 @@ import { User } from './types/types';
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
+  const [loadingUser, setLoadingUser] = useState<User | null>(null); // 🎯 NUEVO: Usuario para LoadingScreen
   const [loginCompleted, setLoginCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Loading inicial
 
@@ -56,8 +57,6 @@ function App() {
   }, []);
 
   const handleLogin = async (run: string, password: string): Promise<boolean> => {
-    setShowLoadingScreen(true);
-    
     try {
       console.log('🚀 Intentando login con backend...');
       console.log('📧 RUN:', run);
@@ -69,7 +68,13 @@ function App() {
         console.log('✅ Login exitoso:', response.data.user);
         console.log(`🔑 Rol del usuario: ${response.data.user.role}`);
         
-        // Guardar usuario en estado y localStorage
+        // 🎯 PRIMERO: Guardar usuario para LoadingScreen
+        setLoadingUser(response.data.user);
+        
+        // 🎯 SEGUNDO: Mostrar LoadingScreen con datos del usuario
+        setShowLoadingScreen(true);
+        
+        // 🎯 TERCERO: Guardar usuario en estado principal y localStorage
         setUser(response.data.user);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
@@ -92,8 +97,6 @@ function App() {
       }
       
       return false;
-    } finally {
-      setShowLoadingScreen(false);
     }
   };
 
@@ -117,25 +120,29 @@ function App() {
 
   const handleLoadingComplete = () => {
     setShowLoadingScreen(false);
+    setLoadingUser(null); // 🎯 Limpiar usuario de loading
   };
 
   // 🎯 FUNCIÓN PARA OBTENER EL NOMBRE COMPLETO DEL USUARIO
   const getUserDisplayName = (): string => {
-    if (!user) return 'Usuario';
+    // Usar loadingUser si está disponible (para LoadingScreen), sino usar user normal
+    const currentUser = loadingUser || user;
+    
+    if (!currentUser) return 'Usuario';
     
     // Si tiene firstName y lastName, usar nombre completo
-    if (user.firstName && user.lastName) {
-      return `${user.firstName} ${user.lastName}`;
+    if (currentUser.firstName && currentUser.lastName) {
+      return `${currentUser.firstName} ${currentUser.lastName}`;
     }
     
     // Si solo tiene firstName
-    if (user.firstName) {
-      return user.firstName;
+    if (currentUser.firstName) {
+      return currentUser.firstName;
     }
     
     // Si tiene email, usar la parte antes del @
-    if (user.email) {
-      return user.email.split('@')[0];
+    if (currentUser.email) {
+      return currentUser.email.split('@')[0];
     }
     
     // Fallback por defecto
@@ -157,10 +164,16 @@ function App() {
   return (
     <Router>
       {showLoadingScreen && (
-        <LoadingScreen 
-          onComplete={handleLoadingComplete}
-          userName={getUserDisplayName()} // 🎯 AQUÍ ESTÁ EL CAMBIO PRINCIPAL
-        />
+        <>
+          {/* 🔍 DEBUG: Verificar nombre antes de pasarlo */}
+          {console.log('🎯 LoadingScreen userName:', getUserDisplayName())}
+          {console.log('🎯 loadingUser:', loadingUser)}
+          {console.log('🎯 user:', user)}
+          <LoadingScreen 
+            onComplete={handleLoadingComplete}
+            userName={getUserDisplayName()} // 🎯 AQUÍ ESTÁ EL CAMBIO PRINCIPAL
+          />
+        </>
       )}
       
       <Routes>
