@@ -194,7 +194,7 @@ const EditStudent = () => {
       );
     }
     
-    console.log('📍 Institución encontrada:', found);
+    console.log('🔍 Institución encontrada:', found);
     return found;
   };
 
@@ -217,7 +217,7 @@ const EditStudent = () => {
       );
     }
     
-    console.log('📍 Curso encontrado:', found);
+    console.log('🔍 Curso encontrado:', found);
     return found;
   };
 
@@ -454,10 +454,12 @@ const EditStudent = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">Cargando estudiante...</p>
+      <div className="max-w-5xl mx-auto px-3 py-4">
+        <div className="bg-white rounded-lg shadow border border-gray-100 p-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
+            <span className="text-gray-600">Cargando datos del estudiante...</span>
+          </div>
         </div>
       </div>
     );
@@ -465,150 +467,204 @@ const EditStudent = () => {
 
   if (error && !student) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
-        <div className="text-center">
-          <XCircle className="w-8 h-8 text-red-600 mx-auto mb-4" />
-          <p className="text-red-600 mb-4">Error: {error}</p>
-          <button 
-            onClick={() => navigate('/students')}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-          >
-            Volver a Lista
-          </button>
+      <div className="max-w-5xl mx-auto px-3 py-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-5 h-5 text-red-500" />
+            <div>
+              <h3 className="text-sm font-medium text-red-800">Estudiante no encontrado</h3>
+              <p className="text-sm text-red-600 mt-1">
+                {error || 'No se pudo cargar la información del estudiante'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
-      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow border border-gray-200 p-6">
-        <button onClick={() => navigate('/students')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-4 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Volver a Lista de Estudiantes
-        </button>
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Editar Estudiante: {student?.firstName} {student?.lastName}
-          </h1>
-          {student && (
-            <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
-              <span>RUN: {student.run}</span>
-              <span>Balance: {formatCurrency(student.balance)}</span>
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                student.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {student.isActive ? 'Activo' : 'Inactivo'}
-              </span>
+    <div className="max-w-5xl mx-auto px-3 py-4">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/students')}
+              className="p-1.5 bg-white/20 rounded hover:bg-white/30 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </button>
+            <div className="p-1.5 bg-white/20 rounded">
+              <User className="w-4 h-4 text-white" />
             </div>
-          )}
+            <div>
+              <h1 className="text-base font-bold">Editar Estudiante</h1>
+              <p className="text-blue-200 text-xs">{student?.firstName} {student?.lastName} - {student?.run}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-blue-200 text-xs mb-0.5">Balance Actual</p>
+            <p className="text-base font-bold">{student && formatCurrency(student.balance)}</p>
+          </div>
         </div>
+      </div>
 
-        {/* Mensajes de éxito/error */}
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-green-700 text-sm">
-            <CheckCircle className="w-4 h-4" />
-            {success}
-          </div>
-        )}
+      {/* ✅ MENSAJE: Estado de carga de instituciones */}
+      {isLoadingInstitutions && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-800 text-xs">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <p>Cargando instituciones educacionales...</p>
+        </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
-            <XCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
+      {/* Mensaje de éxito */}
+      {success && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800 text-xs shadow-sm">
+          <CheckCircle className="w-4 h-4" />
+          <p>{success}</p>
+        </div>
+      )}
 
-        {errors.general && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
-            <XCircle className="w-4 h-4" />
-            {errors.general}
-          </div>
-        )}
+      {/* Mensaje de error general */}
+      {errors.general && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800 text-xs shadow-sm">
+          <XCircle className="w-4 h-4" />
+          <p>{errors.general}</p>
+        </div>
+      )}
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
-          <button 
-            onClick={() => setActiveTab('info')} 
-            className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'info' 
-                ? 'border-b-2 border-blue-500 text-blue-600' 
-                : 'text-gray-500 hover:text-gray-700'
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow border border-gray-100 mb-4">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('info')}
+            className={`flex-1 px-4 py-3 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'info'
+                ? 'border-blue-600 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <User className="w-4 h-4 inline mr-2" />
-            Información Personal
+            <div className="flex items-center justify-center gap-2">
+              <User className="w-4 h-4" />
+              Información Personal
+            </div>
           </button>
-          <button 
-            onClick={() => setActiveTab('password')} 
-            className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'password' 
-                ? 'border-b-2 border-blue-500 text-blue-600' 
-                : 'text-gray-500 hover:text-gray-700'
+          <button
+            onClick={() => setActiveTab('password')}
+            className={`flex-1 px-4 py-3 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'password'
+                ? 'border-blue-600 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <Lock className="w-4 h-4 inline mr-2" />
-            Contraseña
+            <div className="flex items-center justify-center gap-2">
+              <Lock className="w-4 h-4" />
+              Contraseña
+            </div>
           </button>
-          <button 
-            onClick={() => setActiveTab('financial')} 
-            className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'financial' 
-                ? 'border-b-2 border-blue-500 text-blue-600' 
-                : 'text-gray-500 hover:text-gray-700'
+          <button
+            onClick={() => setActiveTab('financial')}
+            className={`flex-1 px-4 py-3 text-sm font-medium text-center border-b-2 transition-colors ${
+              activeTab === 'financial'
+                ? 'border-blue-600 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <DollarSign className="w-4 h-4 inline mr-2" />
-            Información Financiera
+            <div className="flex items-center justify-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              Información Financiera
+            </div>
           </button>
         </div>
+      </div>
 
+      {/* Contenido de tabs */}
+      <div className="bg-white rounded-lg shadow border border-gray-100 p-4">
         {/* Tab: Información Personal */}
         {activeTab === 'info' && (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* RUN */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                <User className="w-3 h-3 inline mr-1" />
-                RUN
-              </label>
-              <input
-                name="run"
-                value={formData.run}
-                onChange={(e) => {
-                  const formatted = formatRUTOnInput(e.target.value);
-                  setFormData(prev => ({ ...prev, run: formatted }));
-                  setErrors(prev => ({ ...prev, run: '' }));
-                }}
-                placeholder="Ej: 12.345.678-9"
-                disabled={isSaving}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.run 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
-              {errors.run && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.run}
-                </p>
-              )}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
+                <School className="w-3.5 h-3.5 text-white" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Información Personal</h2>
             </div>
 
-            {/* Grid de 2 columnas para nombre y apellido */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* RUN */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  RUN *
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="run"
+                    type="text"
+                    value={formData.run}
+                    onChange={(e) => {
+                      const formatted = formatRUTOnInput(e.target.value);
+                      setFormData(prev => ({ ...prev, run: formatted }));
+                      setErrors(prev => ({ ...prev, run: '' }));
+                    }}
+                    placeholder="12345678-9"
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.run 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
+                {errors.run && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.run}
+                  </p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Email *
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="estudiante@email.com"
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.email 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
               {/* Nombre */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Nombre
+                  Nombre *
                 </label>
                 <input
                   name="firstName"
+                  type="text"
                   value={formData.firstName}
                   onChange={handleChange}
-                  placeholder="Nombre del estudiante"
+                  placeholder="Juan"
                   disabled={isSaving}
                   className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                     errors.firstName 
@@ -627,13 +683,14 @@ const EditStudent = () => {
               {/* Apellido */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Apellido
+                  Apellido *
                 </label>
                 <input
                   name="lastName"
+                  type="text"
                   value={formData.lastName}
                   onChange={handleChange}
-                  placeholder="Apellido del estudiante"
+                  placeholder="Pérez"
                   disabled={isSaving}
                   className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
                     errors.lastName 
@@ -648,55 +705,28 @@ const EditStudent = () => {
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                <Mail className="w-3 h-3 inline mr-1" />
-                Email
-              </label>
-              <input
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="email@ejemplo.com"
-                disabled={isSaving}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.email 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.email}
-                </p>
-              )}
-            </div>
-
-            {/* Grid de 2 columnas para teléfono y fecha */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Teléfono */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  <Phone className="w-3 h-3 inline mr-1" />
-                  Teléfono (opcional)
+                  Teléfono *
                 </label>
-                <input
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="+56912345678"
-                  disabled={isSaving}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.phone 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+56 9 1234 5678"
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.phone 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
                 {errors.phone && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                     <XCircle className="w-3 h-3" />
@@ -708,21 +738,23 @@ const EditStudent = () => {
               {/* Fecha de Nacimiento */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Fecha de Nacimiento
+                  Fecha de Nacimiento *
                 </label>
-                <input
-                  name="birthDate"
-                  type="date"
-                  value={formData.birthDate}
-                  onChange={handleChange}
-                  disabled={isSaving}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.birthDate 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="birthDate"
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={handleChange}
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.birthDate 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
                 {errors.birthDate && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                     <XCircle className="w-3 h-3" />
@@ -730,35 +762,121 @@ const EditStudent = () => {
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Grid de 2 columnas para género y estado */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ✅ CAMBIO: Establecimiento Educacional como dropdown */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Establecimiento Educacional *
+                </label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <select
+                    name="institutionId"
+                    value={formData.institutionId}
+                    onChange={handleInstitutionChange}
+                    disabled={isSaving || isLoadingInstitutions}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.institutionId 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving || isLoadingInstitutions ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="">
+                      {isLoadingInstitutions ? 'Cargando instituciones...' : 'Seleccionar establecimiento'}
+                    </option>
+                    {institutions.map(institution => (
+                      <option key={institution.value} value={institution.value}>
+                        {institution.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {errors.institutionId && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.institutionId}
+                  </p>
+                )}
+              </div>
+
               {/* Género */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Género
+                  Género *
                 </label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  disabled={isSaving}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.gender 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <option value="">Seleccionar género</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Femenino">Femenino</option>
-                  <option value="Otro">Otro</option>
-                </select>
+                <div className="relative">
+                  <Heart className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.gender 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="">Seleccionar género</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
                 {errors.gender && (
                   <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
                     <XCircle className="w-3 h-3" />
                     {errors.gender}
+                  </p>
+                )}
+              </div>
+
+              {/* ✅ CAMBIO: Curso como dropdown dependiente */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Curso *
+                </label>
+                <div className="relative">
+                  <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <select
+                    name="courseId"
+                    value={formData.courseId}
+                    onChange={handleCourseChange}
+                    disabled={isSaving || isLoadingCourses || !formData.institutionId}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.courseId 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving || isLoadingCourses || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="">
+                      {!formData.institutionId 
+                        ? 'Primero seleccione un establecimiento'
+                        : isLoadingCourses 
+                        ? 'Cargando cursos...'
+                        : courses.length === 0
+                        ? 'No hay cursos disponibles'
+                        : 'Seleccionar curso'
+                      }
+                    </option>
+                    {courses.map(course => (
+                      <option key={course.value} value={course.value}>
+                        {course.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {errors.courseId && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.courseId}
+                  </p>
+                )}
+                {/* ✅ Indicador de carga de cursos */}
+                {isLoadingCourses && (
+                  <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Cargando cursos...
                   </p>
                 )}
               </div>
@@ -773,8 +891,8 @@ const EditStudent = () => {
                   value={formData.status}
                   onChange={handleChange}
                   disabled={isSaving}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    isSaving ? 'opacity-50 cursor-not-allowed' : 'border-gray-200 focus:border-blue-300'
+                  className={`w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors ${
+                    isSaving ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
                   <option value="active">Activo</option>
@@ -782,116 +900,34 @@ const EditStudent = () => {
                   <option value="graduated">Graduado</option>
                 </select>
               </div>
-            </div>
 
-            {/* ✅ CORREGIDO: Institución usando API real */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                <Building className="w-3 h-3 inline mr-1" />
-                Institución
-              </label>
-              <select
-                name="institutionId"
-                value={formData.institutionId}
-                onChange={handleInstitutionChange}
-                disabled={isSaving || isLoadingInstitutions}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.institutionId 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isSaving || isLoadingInstitutions ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <option value="">
-                  {isLoadingInstitutions 
-                    ? 'Cargando instituciones...' 
-                    : 'Seleccionar institución'}
-                </option>
-                {institutions.map(inst => (
-                  <option key={inst.value} value={inst.value}>
-                    {inst.label}
-                  </option>
-                ))}
-              </select>
-              {errors.institutionId && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.institutionId}
-                </p>
-              )}
-            </div>
-
-            {/* ✅ CORREGIDO: Curso usando API real */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                <BookOpen className="w-3 h-3 inline mr-1" />
-                Curso
-              </label>
-              <select
-                name="courseId"
-                value={formData.courseId}
-                onChange={handleCourseChange}
-                disabled={isSaving || isLoadingCourses || !formData.institutionId}
-                className={`w-full px-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                  errors.courseId 
-                    ? 'border-red-500 bg-red-50' 
-                    : 'border-gray-200 focus:border-blue-300'
-                } ${isSaving || isLoadingCourses || !formData.institutionId ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <option value="">
-                  {isLoadingCourses 
-                    ? 'Cargando cursos...'
-                    : courses.length === 0
-                    ? 'No hay cursos disponibles'
-                    : 'Seleccionar curso'
-                  }
-                </option>
-                {courses.map(course => (
-                  <option key={course.value} value={course.value}>
-                    {course.label}
-                  </option>
-                ))}
-              </select>
-              {errors.courseId && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.courseId}
-                </p>
-              )}
-              {isLoadingCourses && (
-                <p className="mt-1 text-xs text-blue-600 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Cargando cursos...
-                </p>
-              )}
-            </div>
-
-            {/* Checkbox activo */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center">
-                <input
-                  name="isActive"
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={handleChange}
-                  disabled={isSaving}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label className="ml-2 text-sm text-gray-700">
-                  Usuario activo en el sistema
+              {/* Usuario Activo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Usuario Activo
                 </label>
+                <div className="flex items-center">
+                  <input
+                    name="isActive"
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={handleChange}
+                    disabled={isSaving}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label className="ml-2 text-sm text-gray-700">
+                    El usuario puede iniciar sesión
+                  </label>
+                </div>
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Si está desactivado, el estudiante no podrá iniciar sesión
-              </p>
             </div>
 
-            {/* Botones */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <button 
                 type="submit" 
-                disabled={isSaving}
+                disabled={isSaving || isLoadingInstitutions}
                 className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-1.5 text-sm font-bold transition-all shadow-md ${
-                  isSaving
+                  isSaving || isLoadingInstitutions
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white hover:opacity-90'
                 }`}
@@ -904,21 +940,9 @@ const EditStudent = () => {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Actualizar Estudiante
+                    Guardar Cambios
                   </>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/students')}
-                disabled={isSaving}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors ${
-                  isSaving 
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                    : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
-                }`}
-              >
-                Cancelar
               </button>
             </div>
           </form>
@@ -927,215 +951,219 @@ const EditStudent = () => {
         {/* Tab: Contraseña */}
         {activeTab === 'password' && (
           <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
+                <Key className="w-3.5 h-3.5 text-white" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Cambiar Contraseña</h2>
+            </div>
+
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-yellow-600" />
-                <p className="text-sm text-yellow-700 font-medium">
-                  Cambio de contraseña para estudiante
-                </p>
-              </div>
-              <p className="text-xs text-yellow-600 mt-1">
-                Esta acción cambiará la contraseña de acceso del estudiante al sistema.
+              <p className="text-xs text-yellow-800">
+                ⚠️ <strong>Importante:</strong> Al cambiar la contraseña, el estudiante deberá usar la nueva contraseña para iniciar sesión.
               </p>
             </div>
 
-            {/* ✅ NUEVO: Nueva Contraseña con toggle de visibilidad */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Nueva Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={passwordData.newPassword}
-                  onChange={(e) => {
-                    setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
-                    setErrors(prev => ({ ...prev, password: '' }));
-                  }}
-                  placeholder="Mínimo 6 caracteres"
-                  disabled={isChangingPassword}
-                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.password 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isChangingPassword}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Nueva Contraseña */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nueva Contraseña *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={(e) => {
+                      setPasswordData(prev => ({ ...prev, newPassword: e.target.value }));
+                      setErrors(prev => ({ ...prev, password: '' }));
+                    }}
+                    placeholder="Mínimo 6 caracteres"
+                    disabled={isChangingPassword}
+                    className={`w-full pl-10 pr-10 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.password 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isChangingPassword}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.password}
+                  </p>
+                )}
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                La contraseña debe tener al menos 6 caracteres
-              </p>
+
+              {/* Confirmar Contraseña */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Confirmar Contraseña *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => {
+                      setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
+                      setErrors(prev => ({ ...prev, password: '' }));
+                    }}
+                    placeholder="Repite la nueva contraseña"
+                    disabled={isChangingPassword}
+                    className={`w-full pl-10 pr-10 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.password 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={isChangingPassword}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* ✅ NUEVO: Confirmar Contraseña con toggle de visibilidad */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Confirmar Nueva Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => {
-                    setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }));
-                    setErrors(prev => ({ ...prev, password: '' }));
-                  }}
-                  placeholder="Confirma la nueva contraseña"
-                  disabled={isChangingPassword}
-                  className={`w-full px-3 py-2.5 pr-10 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.password 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isChangingPassword ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  disabled={isChangingPassword}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.password}
-                </p>
-              )}
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="submit" 
+                disabled={isChangingPassword}
+                className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-1.5 text-sm font-bold transition-all shadow-md ${
+                  isChangingPassword
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:opacity-90'
+                }`}
+              >
+                {isChangingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cambiando...
+                  </>
+                ) : (
+                  <>
+                    <Key className="w-4 h-4" />
+                    Cambiar Contraseña
+                  </>
+                )}
+              </button>
             </div>
-
-            <button 
-              type="submit" 
-              disabled={isChangingPassword || !passwordData.newPassword || !passwordData.confirmPassword}
-              className={`w-full py-2.5 rounded-lg flex items-center justify-center gap-1.5 text-sm font-bold transition-all shadow-md ${
-                isChangingPassword || !passwordData.newPassword || !passwordData.confirmPassword
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:opacity-90'
-              }`}
-            >
-              {isChangingPassword ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Cambiando contraseña...
-                </>
-              ) : (
-                <>
-                  <Key className="w-4 h-4" />
-                  Cambiar Contraseña
-                </>
-              )}
-            </button>
           </form>
         )}
 
         {/* Tab: Información Financiera */}
         {activeTab === 'financial' && (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
+                <CreditCard className="w-3.5 h-3.5 text-white" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-800">Información Financiera</h2>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600" />
-                <p className="text-sm text-blue-700 font-medium">
-                  Gestión financiera del estudiante
-                </p>
-              </div>
-              <p className="text-xs text-blue-600 mt-1">
-                Modifica el balance y límites de sobregiro para este estudiante.
+              <p className="text-xs text-blue-800">
+                💡 <strong>Información:</strong> Aquí puedes modificar el balance actual y el límite de sobregiro del estudiante.
               </p>
             </div>
 
-            {/* Balance */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Balance Actual
-              </label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  name="balance"
-                  type="number"
-                  value={formData.balance}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  step="1000"
-                  disabled={isSaving}
-                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.balance 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Balance actual: {formatCurrency(formData.balance)}
-              </p>
-              {errors.balance && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.balance}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Balance Actual */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Balance Actual
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="balance"
+                    type="number"
+                    value={formData.balance}
+                    onChange={handleChange}
+                    placeholder="0"
+                    min="0"
+                    step="1000"
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.balance 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Balance actual: {formatCurrency(formData.balance)}
                 </p>
-              )}
-            </div>
+                {errors.balance && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.balance}
+                  </p>
+                )}
+              </div>
 
-            {/* Límite de Sobregiro */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Límite de Sobregiro
-              </label>
-              <div className="relative">
-                <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  name="overdraftLimit"
-                  type="number"
-                  value={formData.overdraftLimit}
-                  onChange={handleChange}
-                  placeholder="0"
-                  min="0"
-                  step="1000"
-                  disabled={isSaving}
-                  className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
-                    errors.overdraftLimit 
-                      ? 'border-red-500 bg-red-50' 
-                      : 'border-gray-200 focus:border-blue-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Límite de sobregiro: {formatCurrency(formData.overdraftLimit)}
-              </p>
-              {errors.overdraftLimit && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                  <XCircle className="w-3 h-3" />
-                  {errors.overdraftLimit}
+              {/* Límite de Sobregiro */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Límite de Sobregiro
+                </label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    name="overdraftLimit"
+                    type="number"
+                    value={formData.overdraftLimit}
+                    onChange={handleChange}
+                    placeholder="0"
+                    min="0"
+                    step="1000"
+                    disabled={isSaving}
+                    className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg shadow-sm transition-colors ${
+                      errors.overdraftLimit 
+                        ? 'border-red-500 bg-red-50' 
+                        : 'border-gray-200 focus:border-blue-300'
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Límite de sobregiro: {formatCurrency(formData.overdraftLimit)}
                 </p>
-              )}
+                {errors.overdraftLimit && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {errors.overdraftLimit}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Resumen Financiero */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <Heart className="w-4 h-4 text-gray-600" />
-                Resumen Financiero
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                <div className="text-center p-3 bg-white rounded border">
-                  <p className="text-xs text-gray-500 mb-1">Balance Actual</p>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-2">Resumen Financiero</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <p className="text-gray-500">Balance Actual</p>
                   <p className="font-semibold text-gray-900">{formatCurrency(formData.balance)}</p>
                 </div>
-                <div className="text-center p-3 bg-white rounded border">
-                  <p className="text-xs text-gray-500 mb-1">Límite de Sobregiro</p>
-                  <p className="font-semibold text-orange-600">{formatCurrency(formData.overdraftLimit)}</p>
+                <div>
+                  <p className="text-gray-500">Límite de Sobregiro</p>
+                  <p className="font-semibold text-gray-900">{formatCurrency(formData.overdraftLimit)}</p>
                 </div>
-                <div className="text-center p-3 bg-white rounded border">
-                  <p className="text-xs text-gray-500 mb-1">Dinero Total Disponible</p>
+                <div>
+                  <p className="text-gray-500">Dinero Disponible Total</p>
                   <p className="font-semibold text-green-600">
                     {formatCurrency(formData.balance + formData.overdraftLimit)}
                   </p>
@@ -1143,7 +1171,7 @@ const EditStudent = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <button 
                 type="submit" 
                 disabled={isSaving}
@@ -1156,12 +1184,12 @@ const EditStudent = () => {
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Actualizando...
+                    Guardando...
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Actualizar Información Financiera
+                    Actualizar Finanzas
                   </>
                 )}
               </button>
