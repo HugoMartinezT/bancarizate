@@ -1,7 +1,8 @@
-// controllers/studentController.js
+// controllers/studentController.js - VERSIÓN FINAL CORREGIDA
 const { supabase } = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+const { validateRUT } = require('../utils/rutValidator');
 
 // Obtener todos los estudiantes
 const getAllStudents = async (req, res) => {
@@ -168,6 +169,14 @@ const createStudent = async (req, res) => {
       overdraftLimit = 0
     } = req.body;
 
+    // Validar RUN antes de crear
+    if (!validateRUT(run)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'RUN inválido'
+      });
+    }
+
     // Verificar si el RUN ya existe
     const { data: existingUser } = await supabase
       .from('users')
@@ -201,11 +210,11 @@ const createStudent = async (req, res) => {
     const tempPassword = runDigits.slice(-4);
     const passwordHash = await bcrypt.hash(tempPassword, parseInt(process.env.BCRYPT_ROUNDS));
 
-    // Crear usuario
+    // Crear usuario - Guardar RUN tal como viene (con guión)
     const { data: newUser, error: userError } = await supabase
       .from('users')
       .insert({
-        run,
+        run, // Se guarda con el formato que viene del frontend
         password_hash: passwordHash,
         first_name: firstName,
         last_name: lastName,
@@ -281,36 +290,95 @@ const createStudent = async (req, res) => {
   }
 };
 
-// Actualizar estudiante
+// ✅ ACTUALIZAR ESTUDIANTE - COMPLETAMENTE CORREGIDO
 const updateStudent = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
+    console.log('🚀 updateStudent iniciado para ID:', id);
+    console.log('📋 Datos recibidos:', JSON.stringify(updates, null, 2));
+
     // Separar actualizaciones de usuario y estudiante
     const userUpdates = {};
     const studentUpdates = {};
 
-    if (updates.firstName) userUpdates.first_name = updates.firstName;
-    if (updates.lastName) userUpdates.last_name = updates.lastName;
-    if (updates.email) userUpdates.email = updates.email;
-    if (updates.phone) userUpdates.phone = updates.phone;
-    if (updates.isActive !== undefined) userUpdates.is_active = updates.isActive;
-    
-    // ✅ NUEVO: Actualizar balance y overdraftLimit
-    if (updates.balance !== undefined) userUpdates.balance = parseFloat(updates.balance);
-    if (updates.overdraftLimit !== undefined) userUpdates.overdraft_limit = parseFloat(updates.overdraftLimit);
+    // ✅ MANEJAR ACTUALIZACIÓN DE RUN
+    if (updates.run) {
+      console.log('🆔 Campo run detectado:', updates.run);
+      // Validar el nuevo RUN
+      if (!validateRUT(updates.run)) {
+        console.log('❌ RUN inválido:', updates.run);
+        return res.status(400).json({
+          status: 'error',
+          message: 'RUN inválido'
+        });
+      }
+      userUpdates.run = updates.run;
+      console.log('✅ RUN agregado a userUpdates:', updates.run);
+    }
 
-    if (updates.birthDate) studentUpdates.birth_date = updates.birthDate;
-    if (updates.institution) studentUpdates.institution = updates.institution;
-    if (updates.course) studentUpdates.course = updates.course;
-    if (updates.gender) studentUpdates.gender = updates.gender;
-    if (updates.status) studentUpdates.status = updates.status;
+    // Mapear campos de usuario
+    if (updates.firstName) {
+      console.log('✅ firstName:', updates.firstName);
+      userUpdates.first_name = updates.firstName;
+    }
+    if (updates.lastName) {
+      console.log('✅ lastName:', updates.lastName);
+      userUpdates.last_name = updates.lastName;
+    }
+    if (updates.email) {
+      console.log('✅ email:', updates.email);
+      userUpdates.email = updates.email;
+    }
+    if (updates.phone) {
+      console.log('✅ phone:', updates.phone);
+      userUpdates.phone = updates.phone;
+    }
+    if (updates.isActive !== undefined) {
+      console.log('✅ isActive:', updates.isActive);
+      userUpdates.is_active = updates.isActive;
+    }
+    
+    // Actualizar balance y overdraftLimit
+    if (updates.balance !== undefined) {
+      console.log('✅ balance:', updates.balance);
+      userUpdates.balance = parseFloat(updates.balance);
+    }
+    if (updates.overdraftLimit !== undefined) {
+      console.log('✅ overdraftLimit:', updates.overdraftLimit);
+      userUpdates.overdraft_limit = parseFloat(updates.overdraftLimit);
+    }
+
+    // ✅ MAPEAR CAMPOS DE ESTUDIANTE CON NOMBRES CORRECTOS
+    if (updates.birthDate) {
+      console.log('✅ birthDate:', updates.birthDate);
+      studentUpdates.birth_date = updates.birthDate;
+    }
+    if (updates.institution) {
+      console.log('✅ institution:', updates.institution);
+      studentUpdates.institution = updates.institution;
+    }
+    if (updates.course) {
+      console.log('✅ course:', updates.course);
+      studentUpdates.course = updates.course;
+    }
+    if (updates.gender) {
+      console.log('✅ gender:', updates.gender);
+      studentUpdates.gender = updates.gender;
+    }
+    if (updates.status) {
+      console.log('✅ status:', updates.status);
+      studentUpdates.status = updates.status;
+    }
+
+    console.log('📊 userUpdates preparado:', JSON.stringify(userUpdates, null, 2));
+    console.log('📊 studentUpdates preparado:', JSON.stringify(studentUpdates, null, 2));
 
     // Obtener el user_id del estudiante
     const { data: student } = await supabase
       .from('students')
-      .select('user_id, users(run, first_name, last_name)')
+      .select('user_id, users(id, run, first_name, last_name)')
       .eq('id', id)
       .single();
 
@@ -321,7 +389,33 @@ const updateStudent = async (req, res) => {
       });
     }
 
-    // ✅ NUEVO: Verificar email duplicado si se está actualizando
+    console.log('📋 Estudiante encontrado:', {
+      userId: student.user_id,
+      currentRUN: student.users.run,
+      currentName: `${student.users.first_name} ${student.users.last_name}`
+    });
+
+    // Verificar RUN duplicado si se está actualizando
+    if (updates.run && updates.run !== student.users.run) {
+      console.log('🔍 Verificando RUN duplicado...');
+      const { data: existingRUN } = await supabase
+        .from('users')
+        .select('id')
+        .eq('run', updates.run)
+        .neq('id', student.user_id)
+        .single();
+
+      if (existingRUN) {
+        console.log('❌ RUN duplicado encontrado:', updates.run);
+        return res.status(400).json({
+          status: 'error',
+          message: 'Ya existe un usuario con este RUN'
+        });
+      }
+      console.log('✅ RUN único, no hay duplicados');
+    }
+
+    // Verificar email duplicado si se está actualizando
     if (updates.email) {
       const { data: existingEmail } = await supabase
         .from('users')
@@ -338,35 +432,55 @@ const updateStudent = async (req, res) => {
       }
     }
 
-    // Actualizar usuario si hay cambios
+    // ✅ ACTUALIZAR USUARIO si hay cambios
     if (Object.keys(userUpdates).length > 0) {
+      console.log('🔄 EJECUTANDO ACTUALIZACIÓN DE USUARIO...');
       userUpdates.updated_at = new Date().toISOString();
       
-      const { error: userError } = await supabase
+      console.log('📤 Enviando a Supabase userUpdates:', JSON.stringify(userUpdates, null, 2));
+      
+      const { data: updateResult, error: userError } = await supabase
         .from('users')
         .update(userUpdates)
-        .eq('id', student.user_id);
+        .eq('id', student.user_id)
+        .select();
 
       if (userError) {
+        console.log('❌ ERROR EN ACTUALIZACIÓN DE USUARIO:', userError);
         throw userError;
       }
+      
+      console.log('✅ USUARIO ACTUALIZADO EXITOSAMENTE');
+      console.log('📋 Resultado:', JSON.stringify(updateResult, null, 2));
+    } else {
+      console.log('⚠️ NO HAY CAMBIOS EN USUARIO - userUpdates está vacío');
     }
 
-    // Actualizar estudiante si hay cambios
+    // ✅ ACTUALIZAR ESTUDIANTE si hay cambios
     if (Object.keys(studentUpdates).length > 0) {
+      console.log('🔄 EJECUTANDO ACTUALIZACIÓN DE ESTUDIANTE...');
       studentUpdates.updated_at = new Date().toISOString();
       
-      const { error: studentError } = await supabase
+      console.log('📤 Enviando a Supabase studentUpdates:', JSON.stringify(studentUpdates, null, 2));
+      
+      const { data: studentUpdateResult, error: studentError } = await supabase
         .from('students')
         .update(studentUpdates)
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
       if (studentError) {
+        console.log('❌ ERROR EN ACTUALIZACIÓN DE ESTUDIANTE:', studentError);
         throw studentError;
       }
+      
+      console.log('✅ ESTUDIANTE ACTUALIZADO EXITOSAMENTE');
+      console.log('📋 Resultado:', JSON.stringify(studentUpdateResult, null, 2));
+    } else {
+      console.log('⚠️ NO HAY CAMBIOS EN ESTUDIANTE - studentUpdates está vacío');
     }
 
-    // ✅ NUEVO: Registrar actividad más detallada
+    // Registrar actividad
     await supabase
       .from('activity_logs')
       .insert({
@@ -377,11 +491,14 @@ const updateStudent = async (req, res) => {
         metadata: { 
           studentName: `${student.users.first_name} ${student.users.last_name}`,
           run: student.users.run,
-          updatedFields: Object.keys({...userUpdates, ...studentUpdates})
+          updatedFields: Object.keys({...userUpdates, ...studentUpdates}),
+          newRUN: updates.run
         },
         ip_address: req.ip,
         user_agent: req.get('user-agent')
       });
+
+    console.log('🎉 updateStudent COMPLETADO EXITOSAMENTE');
 
     res.status(200).json({
       status: 'success',
@@ -389,7 +506,7 @@ const updateStudent = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error actualizando estudiante:', error);
+    console.error('💥 ERROR EN updateStudent:', error);
     res.status(500).json({
       status: 'error',
       message: 'Error al actualizar estudiante'
@@ -397,7 +514,7 @@ const updateStudent = async (req, res) => {
   }
 };
 
-// ✅ NUEVO: Cambiar contraseña de estudiante
+// Cambiar contraseña de estudiante
 const changeStudentPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -534,7 +651,7 @@ module.exports = {
   getAllStudents,
   getStudentById,
   createStudent,
-  updateStudent,
-  changeStudentPassword, // ✅ NUEVA FUNCIÓN
+  updateStudent, // ✅ FUNCIÓN COMPLETAMENTE CORREGIDA
+  changeStudentPassword,
   deleteStudent
 };
