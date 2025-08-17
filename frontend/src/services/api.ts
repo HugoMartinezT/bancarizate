@@ -1366,5 +1366,6 @@ export type {
   Institution,
   Course,
   SystemConfig,
+  MassUploadResult,  // ✅ AGREGADO
   BackupStats
 };
