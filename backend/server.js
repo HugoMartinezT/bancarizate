@@ -1,4 +1,4 @@
-// server.js - BANCARIZATE API v2.0 - CORREGIDO: Rate Limiting en transferRoutes
+// server.js - BANCARIZATE API v2.0 - Versión Final Optimizada para Vercel
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -33,7 +33,7 @@ const logger = winston.createLogger({
 });
 
 // IMPORTAR RUTAS CON MANEJO ROBUSTO DE ERRORES
-let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, dashboardRoutes, adminRoutes;
+let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, adminRoutes;
 const routeStatus = {};
 
 try {
@@ -60,22 +60,11 @@ try {
   routeStatus.activity = 'loaded';
   logger.info('✅ activityRoutes - Logs de actividad cargados');
   
-  // ✅ NUEVO: Cargar rutas de dashboard
-  dashboardRoutes = require('./routes/dashboardRoutes');
-  routeStatus.dashboard = 'loaded';
-  logger.info('✅ dashboardRoutes - Dashboard cargado');
+  adminRoutes = require('./routes/admin/adminRoutes');
+  routeStatus.admin = 'loaded';
+  logger.info('✅ adminRoutes - Panel de administración cargado');
   
-  // Intentar cargar rutas de admin (opcional)
-  try {
-    adminRoutes = require('./routes/admin/adminRoutes');
-    routeStatus.admin = 'loaded';
-    logger.info('✅ adminRoutes - Panel de administración cargado');
-  } catch (adminError) {
-    logger.warn('⚠️ adminRoutes no encontradas - continuando sin ellas');
-    routeStatus.admin = 'not_found';
-  }
-  
-  logger.info('🎉 Todas las rutas principales cargadas exitosamente');
+  logger.info('🎉 Todas las rutas cargadas exitosamente');
   
 } catch (error) {
   logger.error('❌ Error crítico cargando rutas:', {
@@ -95,6 +84,15 @@ const loginLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+const transferLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 10, // 10 transferencias por IP
+  message: {
+    status: 'error',
+    message: 'Demasiadas transferencias. Intenta en 5 minutos.'
+  }
 });
 
 const generalLimiter = rateLimit({
@@ -149,7 +147,6 @@ app.get('/', (req, res) => {
       'Autenticación JWT',
       'Gestión de Estudiantes y Docentes',
       'Sistema de Transferencias',
-      'Dashboard con Estadísticas',
       'Logging y Auditoría',
       'Rate Limiting',
       'Seguridad Avanzada'
@@ -162,9 +159,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth/*',
       students: '/api/students/*',
       teachers: '/api/teachers/*',
-      transfers: '/api/transfers/*',
-      dashboard: '/api/dashboard/*',
-      activity: '/api/activity/*'
+      transfers: '/api/transfers/*'
     },
     deployment_info: {
       platform: 'Vercel Serverless',
@@ -174,13 +169,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// REGISTRAR RUTAS - ✅ CORREGIDO: Sin rate limiting doble en transfers
+// REGISTRAR RUTAS CON RATE LIMITING ESPECÍFICO
 try {
   if (authRoutes) {
-    // Rate limiting específico para login
     app.use('/api/auth/login', loginLimiter);
     app.use('/api/auth', authRoutes);
-    logger.info('🔐 Rutas de autenticación registradas con rate limiting para login');
+    logger.info('🔐 Rutas de autenticación registradas con rate limiting');
   }
   
   if (studentRoutes) {
@@ -194,21 +188,14 @@ try {
   }
   
   if (transferRoutes) {
-    // ✅ CORREGIDO: Solo registrar las rutas, sin rate limiting general
-    // El rate limiting específico ya está definido en transferRoutes.js
+    app.use('/api/transfers', transferLimiter);
     app.use('/api/transfers', transferRoutes);
-    logger.info('💸 Rutas de transferencias registradas (rate limiting interno)');
+    logger.info('💸 Rutas de transferencias registradas con rate limiting');
   }
   
   if (activityRoutes) {
     app.use('/api/activity', activityRoutes);
     logger.info('📊 Rutas de actividad registradas');
-  }
-  
-  // ✅ NUEVO: Registrar rutas de dashboard
-  if (dashboardRoutes) {
-    app.use('/api/dashboard', dashboardRoutes);
-    logger.info('📈 Rutas de dashboard registradas');
   }
   
   if (adminRoutes) {
@@ -291,30 +278,14 @@ app.get('/api', (req, res) => {
       transfers: {
         create: 'POST /api/transfers',
         history: 'GET /api/transfers/history',
-        stats: 'GET /api/transfers/stats',
-        recent_activity: 'GET /api/transfers/recent-activity',
-        users: 'GET /api/transfers/users',
-        details: 'GET /api/transfers/:id',
-        classmates: 'GET /api/transfers/classmates'
-      },
-      dashboard: {
-        stats: 'GET /api/dashboard/stats',
-        recent_activity: 'GET /api/dashboard/recent-activity',
-        balance_history: 'GET /api/dashboard/balance-history'
-      },
-      activity: {
-        list: 'GET /api/activity',
-        stats: 'GET /api/activity/stats',
-        recent: 'GET /api/activity/recent',
-        types: 'GET /api/activity/types',
-        roles: 'GET /api/activity/roles',
-        users: 'GET /api/activity/users'
+        classmates: 'GET /api/transfers/classmates',
+        details: 'GET /api/transfers/:id'
       }
     },
     security_features: [
       'JWT Authentication',
       'Role-based Authorization', 
-      'Rate Limiting (específico por endpoint)',
+      'Rate Limiting',
       'Input Validation',
       'CORS Protection',
       'Helmet Security Headers'
@@ -349,25 +320,14 @@ app.get('/api/test', (req, res) => {
       express_app: '✅ Funcionando',
       cors_enabled: '✅ Activo',
       helmet_security: '✅ Activo',
-      rate_limiting: '✅ Activo (sin conflictos)',
+      rate_limiting: '✅ Activo',
       logging_winston: '✅ Activo',
       json_parsing: '✅ Activo'
-    },
-    endpoint_tests: {
-      auth_routes: authRoutes ? '✅ Cargadas' : '❌ Error',
-      student_routes: studentRoutes ? '✅ Cargadas' : '❌ Error',
-      teacher_routes: teacherRoutes ? '✅ Cargadas' : '❌ Error',
-      transfer_routes: transferRoutes ? '✅ Cargadas' : '❌ Error',
-      dashboard_routes: dashboardRoutes ? '✅ Cargadas' : '❌ Error',
-      activity_routes: activityRoutes ? '✅ Cargadas' : '❌ Error'
     },
     next_steps: [
       'Probar autenticación: POST /api/auth/login',
       'Verificar estudiantes: GET /api/students',
       'Probar transferencias: POST /api/transfers',
-      'Dashboard stats: GET /api/dashboard/stats',
-      'Historial transferencias: GET /api/transfers/history',
-      'Stats de usuario: GET /api/transfers/stats',
       'Conectar frontend React'
     ]
   };
@@ -398,9 +358,7 @@ app.use('*', (req, res) => {
       authRoutes ? 'POST /api/auth/login' : null,
       studentRoutes ? 'GET /api/students' : null,
       teacherRoutes ? 'GET /api/teachers' : null,
-      transferRoutes ? 'GET /api/transfers/history' : null,
-      transferRoutes ? 'GET /api/transfers/stats' : null,
-      dashboardRoutes ? 'GET /api/dashboard/stats' : null
+      transferRoutes ? 'POST /api/transfers' : null
     ].filter(Boolean),
     documentation: {
       api_info: '/api',
@@ -457,9 +415,8 @@ process.on('uncaughtException', (err) => {
 });
 
 logger.info('🏦 BANCARIZATE API v2.0 inicializado exitosamente');
-logger.info(`🔍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+logger.info(`📝 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 logger.info(`🚀 Todas las funcionalidades cargadas y listas para usar`);
-logger.info(`🔧 Rate limiting corregido - sin conflictos en transfers`);
 
 // ✅ EXPORT PARA VERCEL SERVERLESS
 module.exports = app;

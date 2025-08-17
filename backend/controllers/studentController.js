@@ -1,27 +1,15 @@
-// controllers/studentController.js - BANCARIZATE v2.0
-// Controlador completo para gestión de estudiantes con funcionalidades de edición optimizada
-
+// controllers/studentController.js - VERSIÓN FINAL CORREGIDA
 const { supabase } = require('../config/supabase');
 const bcrypt = require('bcryptjs');
-const { validateRUN } = require('../utils/rutValidator');
-const logger = require('../utils/logger');
+const { v4: uuidv4 } = require('uuid');
+const { validateRUT } = require('../utils/rutValidator');
 
-// 📊 Obtener todos los estudiantes con paginación y filtros
+// Obtener todos los estudiantes
 const getAllStudents = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      search = '', 
-      institution = '', 
-      status = '',
-      sortBy = 'created_at',
-      sortOrder = 'desc'
-    } = req.query;
+    const { page = 1, limit = 20, search = '', status = 'all' } = req.query;
+    const offset = (page - 1) * limit;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-
-    // Construir query base
     let query = supabase
       .from('students')
       .select(`
@@ -33,10 +21,7 @@ const getAllStudents = async (req, res) => {
           last_name,
           email,
           phone,
-          balance,
-          overdraft_limit,
-          is_active,
-          created_at
+          is_active
         )
       `, { count: 'exact' });
 
@@ -45,34 +30,22 @@ const getAllStudents = async (req, res) => {
       query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%,users.run.ilike.%${search}%,users.email.ilike.%${search}%`);
     }
 
-    if (institution) {
-      query = query.ilike('institution', `%${institution}%`);
-    }
-
-    if (status) {
+    if (status !== 'all') {
       query = query.eq('status', status);
     }
 
-    // Aplicar ordenamiento
-    if (sortBy.includes('users.')) {
-      query = query.order(sortBy.replace('users.', ''), { 
-        ascending: sortOrder === 'asc',
-        foreignTable: 'users'
-      });
-    } else {
-      query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-    }
-
-    // Aplicar paginación
-    query = query.range(offset, offset + parseInt(limit) - 1);
+    // Ordenar y paginar
+    query = query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     const { data: students, error, count } = await query;
 
     if (error) {
-      throw new Error('Error obteniendo estudiantes: ' + error.message);
+      throw error;
     }
 
-    // Formatear datos
+    // Formatear respuesta
     const formattedStudents = students.map(student => ({
       id: student.id,
       userId: student.users.id,
@@ -81,8 +54,6 @@ const getAllStudents = async (req, res) => {
       lastName: student.users.last_name,
       email: student.users.email,
       phone: student.users.phone,
-      balance: parseFloat(student.users.balance),
-      overdraftLimit: parseFloat(student.users.overdraft_limit),
       birthDate: student.birth_date,
       institution: student.institution,
       course: student.course,
@@ -92,51 +63,29 @@ const getAllStudents = async (req, res) => {
       createdAt: student.created_at
     }));
 
-    // Registrar actividad
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: req.user?.id,
-        action: 'view_students',
-        entity_type: 'students',
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        metadata: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          search,
-          institution,
-          status,
-          totalResults: count
-        }
-      });
-
     res.status(200).json({
       status: 'success',
       data: {
         students: formattedStudents,
         pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(count / parseInt(limit)),
-          totalItems: count,
-          itemsPerPage: parseInt(limit),
-          hasNext: (parseInt(page) * parseInt(limit)) < count,
-          hasPrev: parseInt(page) > 1
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalPages: Math.ceil(count / limit)
         }
       }
     });
 
   } catch (error) {
-    logger.error('Error en getAllStudents:', error);
+    console.error('Error obteniendo estudiantes:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al obtener estudiantes',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al obtener estudiantes'
     });
   }
 };
 
-// 🔍 Obtener estudiante por ID
+// Obtener estudiante por ID
 const getStudentById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -154,8 +103,7 @@ const getStudentById = async (req, res) => {
           phone,
           balance,
           overdraft_limit,
-          is_active,
-          created_at
+          is_active
         )
       `)
       .eq('id', id)
@@ -189,20 +137,21 @@ const getStudentById = async (req, res) => {
 
     res.status(200).json({
       status: 'success',
-      data: { student: formattedStudent }
+      data: {
+        student: formattedStudent
+      }
     });
 
   } catch (error) {
-    logger.error('Error en getStudentById:', error);
+    console.error('Error obteniendo estudiante:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al obtener estudiante',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al obtener estudiante'
     });
   }
 };
 
-// ➕ Crear nuevo estudiante
+// Crear estudiante
 const createStudent = async (req, res) => {
   try {
     const {
@@ -211,17 +160,17 @@ const createStudent = async (req, res) => {
       lastName,
       email,
       phone,
-      password,
       birthDate,
       institution,
       course,
       gender,
-      balance = 0,
+      status = 'active',
+      initialBalance = 0,
       overdraftLimit = 0
     } = req.body;
 
-    // Validar RUN
-    if (!validateRUN(run)) {
+    // Validar RUN antes de crear
+    if (!validateRUT(run)) {
       return res.status(400).json({
         status: 'error',
         message: 'RUN inválido'
@@ -229,13 +178,13 @@ const createStudent = async (req, res) => {
     }
 
     // Verificar si el RUN ya existe
-    const { data: existingRUN } = await supabase
+    const { data: existingUser } = await supabase
       .from('users')
       .select('id')
       .eq('run', run)
       .single();
 
-    if (existingRUN) {
+    if (existingUser) {
       return res.status(400).json({
         status: 'error',
         message: 'Ya existe un usuario con este RUN'
@@ -256,29 +205,31 @@ const createStudent = async (req, res) => {
       });
     }
 
-    // Hash de la contraseña
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Generar contraseña temporal (últimos 4 dígitos del RUN)
+    const runDigits = run.replace(/[^0-9]/g, '');
+    const tempPassword = runDigits.slice(-4);
+    const passwordHash = await bcrypt.hash(tempPassword, parseInt(process.env.BCRYPT_ROUNDS));
 
-    // Crear usuario
+    // Crear usuario - Guardar RUN tal como viene (con guión)
     const { data: newUser, error: userError } = await supabase
       .from('users')
       .insert({
-        run,
+        run, // Se guarda con el formato que viene del frontend
         password_hash: passwordHash,
         first_name: firstName,
         last_name: lastName,
         email,
         phone,
         role: 'student',
-        balance: parseFloat(balance),
-        overdraft_limit: parseFloat(overdraftLimit),
+        balance: initialBalance,
+        overdraft_limit: overdraftLimit,
         is_active: true
       })
       .select()
       .single();
 
     if (userError) {
-      throw new Error('Error creando usuario: ' + userError.message);
+      throw userError;
     }
 
     // Crear registro de estudiante
@@ -290,41 +241,29 @@ const createStudent = async (req, res) => {
         institution,
         course,
         gender,
-        status: 'active'
+        status
       })
       .select()
       .single();
 
     if (studentError) {
-      // Si falla, eliminar el usuario creado
+      // Revertir creación de usuario
       await supabase.from('users').delete().eq('id', newUser.id);
-      throw new Error('Error creando estudiante: ' + studentError.message);
+      throw studentError;
     }
 
     // Registrar actividad
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: req.user?.id,
+        user_id: req.user.id,
         action: 'create_student',
-        entity_type: 'students',
+        entity_type: 'student',
         entity_id: newStudent.id,
+        metadata: { studentName: `${firstName} ${lastName}`, run },
         ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        metadata: {
-          studentName: `${firstName} ${lastName}`,
-          run,
-          email,
-          institution,
-          course
-        }
+        user_agent: req.get('user-agent')
       });
-
-    logger.info(`Estudiante creado: ${firstName} ${lastName} (${run})`, {
-      studentId: newStudent.id,
-      userId: newUser.id,
-      createdBy: req.user?.id
-    });
 
     res.status(201).json({
       status: 'success',
@@ -333,63 +272,156 @@ const createStudent = async (req, res) => {
         student: {
           id: newStudent.id,
           userId: newUser.id,
-          run,
-          firstName,
-          lastName,
-          email,
-          institution,
-          course
+          run: newUser.run,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          email: newUser.email,
+          tempPassword: tempPassword // Solo para mostrar al admin
         }
       }
     });
 
   } catch (error) {
-    logger.error('Error en createStudent:', error);
+    console.error('Error creando estudiante:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al crear estudiante',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al crear estudiante'
     });
   }
 };
 
-// ✏️ Actualizar estudiante
+// ✅ ACTUALIZAR ESTUDIANTE - COMPLETAMENTE CORREGIDO
 const updateStudent = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // Obtener estudiante actual
-    const { data: currentStudent, error: fetchError } = await supabase
+    console.log('🚀 updateStudent iniciado para ID:', id);
+    console.log('📋 Datos recibidos:', JSON.stringify(updates, null, 2));
+
+    // Separar actualizaciones de usuario y estudiante
+    const userUpdates = {};
+    const studentUpdates = {};
+
+    // ✅ MANEJAR ACTUALIZACIÓN DE RUN
+    if (updates.run) {
+      console.log('🆔 Campo run detectado:', updates.run);
+      // Validar el nuevo RUN
+      if (!validateRUT(updates.run)) {
+        console.log('❌ RUN inválido:', updates.run);
+        return res.status(400).json({
+          status: 'error',
+          message: 'RUN inválido'
+        });
+      }
+      userUpdates.run = updates.run;
+      console.log('✅ RUN agregado a userUpdates:', updates.run);
+    }
+
+    // Mapear campos de usuario
+    if (updates.firstName) {
+      console.log('✅ firstName:', updates.firstName);
+      userUpdates.first_name = updates.firstName;
+    }
+    if (updates.lastName) {
+      console.log('✅ lastName:', updates.lastName);
+      userUpdates.last_name = updates.lastName;
+    }
+    if (updates.email) {
+      console.log('✅ email:', updates.email);
+      userUpdates.email = updates.email;
+    }
+    if (updates.phone) {
+      console.log('✅ phone:', updates.phone);
+      userUpdates.phone = updates.phone;
+    }
+    if (updates.isActive !== undefined) {
+      console.log('✅ isActive:', updates.isActive);
+      userUpdates.is_active = updates.isActive;
+    }
+    
+    // Actualizar balance y overdraftLimit
+    if (updates.balance !== undefined) {
+      console.log('✅ balance:', updates.balance);
+      userUpdates.balance = parseFloat(updates.balance);
+    }
+    if (updates.overdraftLimit !== undefined) {
+      console.log('✅ overdraftLimit:', updates.overdraftLimit);
+      userUpdates.overdraft_limit = parseFloat(updates.overdraftLimit);
+    }
+
+    // ✅ MAPEAR CAMPOS DE ESTUDIANTE CON NOMBRES CORRECTOS
+    if (updates.birthDate) {
+      console.log('✅ birthDate:', updates.birthDate);
+      studentUpdates.birth_date = updates.birthDate;
+    }
+    if (updates.institution) {
+      console.log('✅ institution:', updates.institution);
+      studentUpdates.institution = updates.institution;
+    }
+    if (updates.course) {
+      console.log('✅ course:', updates.course);
+      studentUpdates.course = updates.course;
+    }
+    if (updates.gender) {
+      console.log('✅ gender:', updates.gender);
+      studentUpdates.gender = updates.gender;
+    }
+    if (updates.status) {
+      console.log('✅ status:', updates.status);
+      studentUpdates.status = updates.status;
+    }
+
+    console.log('📊 userUpdates preparado:', JSON.stringify(userUpdates, null, 2));
+    console.log('📊 studentUpdates preparado:', JSON.stringify(studentUpdates, null, 2));
+
+    // Obtener el user_id del estudiante
+    const { data: student } = await supabase
       .from('students')
-      .select(`
-        *,
-        users!inner(*)
-      `)
+      .select('user_id, users(id, run, first_name, last_name)')
       .eq('id', id)
       .single();
 
-    if (fetchError || !currentStudent) {
+    if (!student) {
       return res.status(404).json({
         status: 'error',
         message: 'Estudiante no encontrado'
       });
     }
 
-    // Separar actualizaciones de user y student
-    const userUpdates = {};
-    const studentUpdates = {};
+    console.log('📋 Estudiante encontrado:', {
+      userId: student.user_id,
+      currentRUN: student.users.run,
+      currentName: `${student.users.first_name} ${student.users.last_name}`
+    });
 
-    const userFields = ['firstName', 'lastName', 'email', 'phone', 'balance', 'overdraftLimit', 'isActive'];
-    const studentFields = ['birthDate', 'institution', 'course', 'gender', 'status'];
+    // Verificar RUN duplicado si se está actualizando
+    if (updates.run && updates.run !== student.users.run) {
+      console.log('🔍 Verificando RUN duplicado...');
+      const { data: existingRUN } = await supabase
+        .from('users')
+        .select('id')
+        .eq('run', updates.run)
+        .neq('id', student.user_id)
+        .single();
 
-    // Validaciones
-    if (updates.email && updates.email !== currentStudent.users.email) {
+      if (existingRUN) {
+        console.log('❌ RUN duplicado encontrado:', updates.run);
+        return res.status(400).json({
+          status: 'error',
+          message: 'Ya existe un usuario con este RUN'
+        });
+      }
+      console.log('✅ RUN único, no hay duplicados');
+    }
+
+    // Verificar email duplicado si se está actualizando
+    if (updates.email) {
       const { data: existingEmail } = await supabase
         .from('users')
         .select('id')
         .eq('email', updates.email)
-        .neq('id', currentStudent.users.id)
+        .neq('id', student.user_id)
         .single();
 
       if (existingEmail) {
@@ -400,91 +432,73 @@ const updateStudent = async (req, res) => {
       }
     }
 
-    // Mapear campos de usuario
-    Object.keys(updates).forEach(key => {
-      if (userFields.includes(key)) {
-        switch (key) {
-          case 'firstName':
-            userUpdates.first_name = updates[key];
-            break;
-          case 'lastName':
-            userUpdates.last_name = updates[key];
-            break;
-          case 'overdraftLimit':
-            userUpdates.overdraft_limit = parseFloat(updates[key]);
-            break;
-          case 'isActive':
-            userUpdates.is_active = updates[key];
-            break;
-          case 'balance':
-            userUpdates.balance = parseFloat(updates[key]);
-            break;
-          default:
-            userUpdates[key] = updates[key];
-        }
-      }
-    });
-
-    // Mapear campos de estudiante
-    Object.keys(updates).forEach(key => {
-      if (studentFields.includes(key)) {
-        switch (key) {
-          case 'birthDate':
-            studentUpdates.birth_date = updates[key];
-            break;
-          default:
-            studentUpdates[key] = updates[key];
-        }
-      }
-    });
-
-    // Actualizar usuario si hay cambios
+    // ✅ ACTUALIZAR USUARIO si hay cambios
     if (Object.keys(userUpdates).length > 0) {
-      const { error: userUpdateError } = await supabase
+      console.log('🔄 EJECUTANDO ACTUALIZACIÓN DE USUARIO...');
+      userUpdates.updated_at = new Date().toISOString();
+      
+      console.log('📤 Enviando a Supabase userUpdates:', JSON.stringify(userUpdates, null, 2));
+      
+      const { data: updateResult, error: userError } = await supabase
         .from('users')
         .update(userUpdates)
-        .eq('id', currentStudent.users.id);
+        .eq('id', student.user_id)
+        .select();
 
-      if (userUpdateError) {
-        throw new Error('Error actualizando usuario: ' + userUpdateError.message);
+      if (userError) {
+        console.log('❌ ERROR EN ACTUALIZACIÓN DE USUARIO:', userError);
+        throw userError;
       }
+      
+      console.log('✅ USUARIO ACTUALIZADO EXITOSAMENTE');
+      console.log('📋 Resultado:', JSON.stringify(updateResult, null, 2));
+    } else {
+      console.log('⚠️ NO HAY CAMBIOS EN USUARIO - userUpdates está vacío');
     }
 
-    // Actualizar estudiante si hay cambios
+    // ✅ ACTUALIZAR ESTUDIANTE si hay cambios
     if (Object.keys(studentUpdates).length > 0) {
-      const { error: studentUpdateError } = await supabase
+      console.log('🔄 EJECUTANDO ACTUALIZACIÓN DE ESTUDIANTE...');
+      studentUpdates.updated_at = new Date().toISOString();
+      
+      console.log('📤 Enviando a Supabase studentUpdates:', JSON.stringify(studentUpdates, null, 2));
+      
+      const { data: studentUpdateResult, error: studentError } = await supabase
         .from('students')
         .update(studentUpdates)
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
-      if (studentUpdateError) {
-        throw new Error('Error actualizando estudiante: ' + studentUpdateError.message);
+      if (studentError) {
+        console.log('❌ ERROR EN ACTUALIZACIÓN DE ESTUDIANTE:', studentError);
+        throw studentError;
       }
+      
+      console.log('✅ ESTUDIANTE ACTUALIZADO EXITOSAMENTE');
+      console.log('📋 Resultado:', JSON.stringify(studentUpdateResult, null, 2));
+    } else {
+      console.log('⚠️ NO HAY CAMBIOS EN ESTUDIANTE - studentUpdates está vacío');
     }
 
     // Registrar actividad
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: req.user?.id,
+        user_id: req.user.id,
         action: 'update_student',
-        entity_type: 'students',
+        entity_type: 'student',
         entity_id: id,
+        metadata: { 
+          studentName: `${student.users.first_name} ${student.users.last_name}`,
+          run: student.users.run,
+          updatedFields: Object.keys({...userUpdates, ...studentUpdates}),
+          newRUN: updates.run
+        },
         ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        metadata: {
-          studentName: `${currentStudent.users.first_name} ${currentStudent.users.last_name}`,
-          run: currentStudent.users.run,
-          updatedFields: Object.keys(updates),
-          oldValues: {},
-          newValues: updates
-        }
+        user_agent: req.get('user-agent')
       });
 
-    logger.info(`Estudiante actualizado: ${id}`, {
-      updatedBy: req.user?.id,
-      updates: Object.keys(updates)
-    });
+    console.log('🎉 updateStudent COMPLETADO EXITOSAMENTE');
 
     res.status(200).json({
       status: 'success',
@@ -492,16 +506,15 @@ const updateStudent = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error en updateStudent:', error);
+    console.error('💥 ERROR EN updateStudent:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al actualizar estudiante',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al actualizar estudiante'
     });
   }
 };
 
-// 🔒 Cambiar contraseña de estudiante
+// Cambiar contraseña de estudiante
 const changeStudentPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -514,61 +527,52 @@ const changeStudentPassword = async (req, res) => {
       });
     }
 
-    // Verificar que el estudiante existe
-    const { data: student, error: fetchError } = await supabase
+    // Obtener información del estudiante
+    const { data: student, error: studentError } = await supabase
       .from('students')
-      .select(`
-        id,
-        users!inner(id, first_name, last_name, run)
-      `)
+      .select('user_id, users(run, first_name, last_name)')
       .eq('id', id)
       .single();
 
-    if (fetchError || !student) {
+    if (studentError || !student) {
       return res.status(404).json({
         status: 'error',
         message: 'Estudiante no encontrado'
       });
     }
 
-    // Hash de la nueva contraseña
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    // Encriptar nueva contraseña
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    // Actualizar contraseña
+    // Actualizar contraseña en la base de datos
     const { error: updateError } = await supabase
       .from('users')
       .update({ 
         password_hash: passwordHash,
-        failed_login_attempts: 0,
-        locked_until: null
+        updated_at: new Date().toISOString()
       })
-      .eq('id', student.users.id);
+      .eq('id', student.user_id);
 
     if (updateError) {
-      throw new Error('Error actualizando contraseña: ' + updateError.message);
+      throw updateError;
     }
 
     // Registrar actividad
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: req.user?.id,
+        user_id: req.user.id,
         action: 'change_student_password',
-        entity_type: 'students',
+        entity_type: 'student',
         entity_id: id,
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        metadata: {
+        metadata: { 
           studentName: `${student.users.first_name} ${student.users.last_name}`,
-          run: student.users.run,
-          changedBy: req.user?.run || req.user?.email
-        }
+          run: student.users.run
+        },
+        ip_address: req.ip,
+        user_agent: req.get('user-agent')
       });
-
-    logger.info(`Contraseña cambiada para estudiante: ${student.users.run}`, {
-      studentId: id,
-      changedBy: req.user?.id
-    });
 
     res.status(200).json({
       status: 'success',
@@ -576,82 +580,58 @@ const changeStudentPassword = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error en changeStudentPassword:', error);
+    console.error('Error cambiando contraseña de estudiante:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al cambiar contraseña',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al cambiar contraseña'
     });
   }
 };
 
-// 🗑️ Eliminar estudiante
+// Eliminar estudiante
 const deleteStudent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verificar que el estudiante existe
-    const { data: student, error: fetchError } = await supabase
+    // Obtener información del estudiante
+    const { data: student } = await supabase
       .from('students')
-      .select(`
-        id,
-        users!inner(id, first_name, last_name, run)
-      `)
+      .select('user_id, users(first_name, last_name, run)')
       .eq('id', id)
       .single();
 
-    if (fetchError || !student) {
+    if (!student) {
       return res.status(404).json({
         status: 'error',
         message: 'Estudiante no encontrado'
       });
     }
 
-    // Verificar si tiene transferencias pendientes
-    const { data: pendingTransfers } = await supabase
-      .from('transfers')
-      .select('id')
-      .or(`from_user_id.eq.${student.users.id},to_user_id.eq.${student.users.id}`)
-      .eq('status', 'pending');
-
-    if (pendingTransfers && pendingTransfers.length > 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No se puede eliminar el estudiante porque tiene transferencias pendientes'
-      });
-    }
-
-    // Eliminar estudiante (CASCADE eliminará el usuario)
-    const { error: deleteError } = await supabase
-      .from('students')
+    // Eliminar usuario (esto eliminará en cascada el registro de estudiante)
+    const { error } = await supabase
+      .from('users')
       .delete()
-      .eq('id', id);
+      .eq('id', student.user_id);
 
-    if (deleteError) {
-      throw new Error('Error eliminando estudiante: ' + deleteError.message);
+    if (error) {
+      throw error;
     }
 
     // Registrar actividad
     await supabase
       .from('activity_logs')
       .insert({
-        user_id: req.user?.id,
+        user_id: req.user.id,
         action: 'delete_student',
-        entity_type: 'students',
+        entity_type: 'student',
         entity_id: id,
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        metadata: {
+        metadata: { 
           studentName: `${student.users.first_name} ${student.users.last_name}`,
-          run: student.users.run,
-          deletedBy: req.user?.run || req.user?.email
-        }
+          run: student.users.run
+        },
+        ip_address: req.ip,
+        user_agent: req.get('user-agent')
       });
-
-    logger.info(`Estudiante eliminado: ${student.users.run}`, {
-      studentId: id,
-      deletedBy: req.user?.id
-    });
 
     res.status(200).json({
       status: 'success',
@@ -659,227 +639,19 @@ const deleteStudent = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error en deleteStudent:', error);
+    console.error('Error eliminando estudiante:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error al eliminar estudiante',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Error al eliminar estudiante'
     });
   }
 };
 
-// 🚀 NUEVO: Obtener datos optimizados para edición de estudiante
-const getStudentEditDataOptimized = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const startTime = Date.now();
-    
-    console.log('⚡ [OPTIMIZED] Iniciando carga optimizada para estudiante:', id);
-
-    // 🔥 EJECUTAR TODAS LAS QUERIES EN PARALELO
-    const [
-      studentResult,
-      institutionsResult,
-      coursesResult
-    ] = await Promise.all([
-      // Query 1: Datos del estudiante
-      supabase
-        .from('students')
-        .select(`
-          *,
-          users!inner(
-            id,
-            run,
-            first_name,
-            last_name,
-            email,
-            phone,
-            balance,
-            overdraft_limit,
-            is_active
-          )
-        `)
-        .eq('id', id)
-        .single(),
-
-      // Query 2: Todas las instituciones activas
-      supabase
-        .from('institutions')
-        .select('id, name, type')
-        .eq('is_active', true)
-        .order('name', { ascending: true }),
-
-      // Query 3: Todos los cursos activos (para cache completo)
-      supabase
-        .from('courses')
-        .select('id, name, level, institution_id')
-        .eq('is_active', true)
-        .order('name', { ascending: true })
-    ]);
-
-    // Validar estudiante
-    if (studentResult.error || !studentResult.data) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Estudiante no encontrado'
-      });
-    }
-
-    // Validar instituciones
-    if (institutionsResult.error) {
-      throw new Error('Error cargando instituciones: ' + institutionsResult.error.message);
-    }
-
-    // Validar cursos (no es crítico si falla)
-    if (coursesResult.error) {
-      console.warn('⚠️ Advertencia cargando cursos:', coursesResult.error.message);
-    }
-
-    const student = studentResult.data;
-    const institutions = institutionsResult.data || [];
-    const allCourses = coursesResult.data || [];
-
-    // 🎯 FORMATEAR DATOS DEL ESTUDIANTE
-    const formattedStudent = {
-      id: student.id,
-      userId: student.users.id,
-      run: student.users.run,
-      firstName: student.users.first_name,
-      lastName: student.users.last_name,
-      email: student.users.email,
-      phone: student.users.phone,
-      balance: parseFloat(student.users.balance),
-      overdraftLimit: parseFloat(student.users.overdraft_limit),
-      birthDate: student.birth_date,
-      institution: student.institution,
-      course: student.course,
-      gender: student.gender,
-      status: student.status,
-      isActive: student.users.is_active,
-      createdAt: student.created_at
-    };
-
-    // 🎯 FORMATEAR INSTITUCIONES PARA SELECT
-    const institutionOptions = institutions.map(inst => ({
-      value: inst.id,
-      label: inst.name,
-      type: inst.type
-    }));
-
-    // 🎯 BUSCAR INSTITUCIÓN ACTUAL DEL ESTUDIANTE
-    let currentInstitutionId = null;
-    let institutionMatch = false;
-    
-    const matchedInstitution = institutions.find(inst => 
-      inst.name.toLowerCase().trim() === student.institution.toLowerCase().trim()
-    );
-    
-    if (matchedInstitution) {
-      currentInstitutionId = matchedInstitution.id;
-      institutionMatch = true;
-      console.log('✅ Institución encontrada:', matchedInstitution.name);
-    } else {
-      console.log('⚠️ Institución no encontrada:', student.institution);
-      // Agregar institución actual como opción custom
-      const customInstitutionId = `custom_${Date.now()}`;
-      institutionOptions.unshift({
-        value: customInstitutionId,
-        label: student.institution,
-        type: 'custom'
-      });
-      currentInstitutionId = customInstitutionId;
-    }
-
-    // 🎯 AGRUPAR CURSOS POR INSTITUCIÓN
-    const coursesByInstitution = {};
-    institutions.forEach(inst => {
-      coursesByInstitution[inst.id] = allCourses
-        .filter(course => course.institution_id === inst.id)
-        .map(course => ({
-          value: course.id,
-          label: course.name,
-          level: course.level
-        }));
-    });
-
-    // 🎯 BUSCAR CURSO ACTUAL DEL ESTUDIANTE
-    let currentCourseId = null;
-    let courseMatch = false;
-
-    if (currentInstitutionId && !currentInstitutionId.startsWith('custom_')) {
-      const institutionCourses = coursesByInstitution[currentInstitutionId] || [];
-      const matchedCourse = institutionCourses.find(course =>
-        course.label.toLowerCase().trim() === student.course.toLowerCase().trim()
-      );
-
-      if (matchedCourse) {
-        currentCourseId = matchedCourse.value;
-        courseMatch = true;
-        console.log('✅ Curso encontrado:', matchedCourse.label);
-      } else {
-        console.log('⚠️ Curso no encontrado:', student.course);
-        // Agregar curso actual como opción custom
-        const customCourseId = `custom_${Date.now()}`;
-        if (!coursesByInstitution[currentInstitutionId]) {
-          coursesByInstitution[currentInstitutionId] = [];
-        }
-        coursesByInstitution[currentInstitutionId].unshift({
-          value: customCourseId,
-          label: student.course,
-          level: 'custom'
-        });
-        currentCourseId = customCourseId;
-      }
-    }
-
-    // 🎯 AGREGAR INSTITUCION_ID AL ESTUDIANTE FORMATEADO
-    formattedStudent.institutionId = currentInstitutionId;
-    formattedStudent.courseId = currentCourseId;
-
-    const endTime = Date.now();
-    const loadTime = endTime - startTime;
-
-    console.log(`🎉 [OPTIMIZED] Carga completada en ${loadTime}ms`);
-    console.log(`📊 Instituciones: ${institutions.length}, Cursos: ${allCourses.length}`);
-
-    // 🚀 RESPUESTA OPTIMIZADA COMPLETA
-    res.status(200).json({
-      status: 'success',
-      data: {
-        student: formattedStudent,
-        institutions: institutionOptions,
-        coursesByInstitution,
-        metadata: {
-          loadTime,
-          totalInstitutions: institutions.length,
-          totalCourses: allCourses.length,
-          institutionMatch,
-          courseMatch,
-          currentInstitutionId,
-          currentCourseId,
-          timestamp: new Date().toISOString()
-        }
-      },
-      loadTime // Para el frontend
-    });
-
-  } catch (error) {
-    console.error('💥 [OPTIMIZED] Error en carga optimizada:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error al cargar datos del estudiante',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-// ✅ EXPORTAR TODAS LAS FUNCIONES
 module.exports = {
   getAllStudents,
   getStudentById,
-  getStudentEditDataOptimized, // 🚀 NUEVA FUNCIÓN
   createStudent,
-  updateStudent,
+  updateStudent, // ✅ FUNCIÓN COMPLETAMENTE CORREGIDA
   changeStudentPassword,
   deleteStudent
 };
