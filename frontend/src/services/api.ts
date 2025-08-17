@@ -82,10 +82,10 @@ export interface OptimizedStudentEditResponse {
 }
 
 // ==========================================
-// INTERFACES LOCALES PARA API
+// INTERFACES EXPORTABLES PARA API
 // ==========================================
 
-interface InstitutionsResponse {
+export interface InstitutionsResponse {
   status: string;
   data: {
     institutions: Institution[];
@@ -98,7 +98,7 @@ interface InstitutionsResponse {
   };
 }
 
-interface CoursesResponse {
+export interface CoursesResponse {
   status: string;
   data: {
     courses: Course[];
@@ -111,7 +111,7 @@ interface CoursesResponse {
   };
 }
 
-interface SystemConfigResponse {
+export interface SystemConfigResponse {
   status: string;
   data: {
     configurations: SystemConfig[];
@@ -277,6 +277,12 @@ class ApiService {
   }
 
   private clearCacheByPattern(pattern: string): void {
+    // ✅ CORREGIDO: Validar que pattern no sea undefined
+    if (!pattern || typeof pattern !== 'string') {
+      console.warn('🗑️ [CACHE] Patrón inválido para limpiar cache');
+      return;
+    }
+    
     const keysToDelete: string[] = [];
     
     for (const key of this._cache.keys()) {
@@ -291,7 +297,7 @@ class ApiService {
 
   // Método público para limpiar cache
   clearCache(pattern?: string): void {
-    if (pattern) {
+    if (pattern && typeof pattern === 'string') {
       this.clearCacheByPattern(pattern);
     } else {
       this._cache.clear();
@@ -465,7 +471,7 @@ class ApiService {
    * Limpiar cache específico de datos de edición
    */
   clearStudentEditCache(id?: string): void {
-    if (id) {
+    if (id && typeof id === 'string') {
       const cacheKey = `edit-data:${id}`;
       delete this._editDataCache[cacheKey];
       console.log('🗑️ Cache de edición limpiado para estudiante:', id);
@@ -498,6 +504,10 @@ class ApiService {
   }
 
   async getStudentById(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de estudiante es requerido');
+    }
     return await this.request(`/students/${id}`);
   }
 
@@ -514,6 +524,11 @@ class ApiService {
   }
 
   async updateStudent(id: string, data: Partial<Student>): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de estudiante es requerido');
+    }
+    
     const response = await this.request(`/students/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -527,6 +542,11 @@ class ApiService {
   }
 
   async deleteStudent(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de estudiante es requerido');
+    }
+    
     const response = await this.request(`/students/${id}`, {
       method: 'DELETE',
     }, false);
@@ -539,6 +559,14 @@ class ApiService {
   }
 
   async changeStudentPassword(id: string, newPassword: string): Promise<any> {
+    // ✅ CORREGIDO: Validar parámetros
+    if (!id) {
+      throw new Error('ID de estudiante es requerido');
+    }
+    if (!newPassword) {
+      throw new Error('Nueva contraseña es requerida');
+    }
+    
     return await this.request(`/students/${id}/change-password`, {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
@@ -571,6 +599,10 @@ class ApiService {
   }
 
   async getTeacherById(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de docente es requerido');
+    }
     return await this.request(`/teachers/${id}`);
   }
 
@@ -585,6 +617,11 @@ class ApiService {
   }
 
   async updateTeacher(id: string, data: Partial<Teacher>): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de docente es requerido');
+    }
+    
     const response = await this.request(`/teachers/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -595,6 +632,11 @@ class ApiService {
   }
 
   async deleteTeacher(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de docente es requerido');
+    }
+    
     const response = await this.request(`/teachers/${id}`, {
       method: 'DELETE',
     }, false);
@@ -604,6 +646,14 @@ class ApiService {
   }
 
   async changeTeacherPassword(id: string, newPassword: string): Promise<any> {
+    // ✅ CORREGIDO: Validar parámetros
+    if (!id) {
+      throw new Error('ID de docente es requerido');
+    }
+    if (!newPassword) {
+      throw new Error('Nueva contraseña es requerida');
+    }
+    
     return await this.request(`/teachers/${id}/change-password`, {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
@@ -663,6 +713,11 @@ class ApiService {
   }
 
   async updateInstitution(id: string, data: Partial<Institution>): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de institución es requerido');
+    }
+    
     const response = await this.request(`/admin/institutions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -673,6 +728,11 @@ class ApiService {
   }
 
   async deleteInstitution(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de institución es requerido');
+    }
+    
     const response = await this.request(`/admin/institutions/${id}`, {
       method: 'DELETE',
     }, false);
@@ -716,6 +776,11 @@ class ApiService {
 
   // Método para cursos por institución (usando params)
   async getCoursesByInstitutionId(institutionId: string): Promise<CoursesResponse> {
+    // ✅ CORREGIDO: Validar que institutionId no sea undefined
+    if (!institutionId) {
+      throw new Error('ID de institución es requerido');
+    }
+    
     return await this.getCourses({ institution: institutionId });
   }
 
@@ -730,6 +795,11 @@ class ApiService {
   }
 
   async updateCourse(id: string, data: Partial<Course>): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de curso es requerido');
+    }
+    
     const response = await this.request(`/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -740,6 +810,11 @@ class ApiService {
   }
 
   async deleteCourse(id: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de curso es requerido');
+    }
+    
     const response = await this.request(`/admin/courses/${id}`, {
       method: 'DELETE',
     }, false);
@@ -764,12 +839,22 @@ class ApiService {
 
   // Helpers para nombres
   async getInstitutionNameById(id: string): Promise<string> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      return 'Desconocido';
+    }
+    
     const response = await this.getInstitutions();
     const institution = response.data.institutions.find(inst => inst.id === id);
     return institution ? institution.name : 'Desconocido';
   }
 
   async getCourseNameById(id: string): Promise<string> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      return 'Desconocido';
+    }
+    
     const response = await this.getCourses();
     const course = response.data.courses.find(c => c.id === id);
     return course ? course.name : 'Desconocido';
@@ -796,6 +881,11 @@ class ApiService {
   }
 
   async updateConfig(key: string, value: any): Promise<any> {
+    // ✅ CORREGIDO: Validar que key no sea undefined
+    if (!key) {
+      throw new Error('Clave de configuración es requerida');
+    }
+    
     return await this.request(`/admin/config/${key}`, {
       method: 'PATCH',
       body: JSON.stringify({ value }),
@@ -803,6 +893,11 @@ class ApiService {
   }
 
   async getConfigHistory(configKey: string, params?: { page?: number; limit?: number }): Promise<any> {
+    // ✅ CORREGIDO: Validar que configKey no sea undefined
+    if (!configKey) {
+      throw new Error('Clave de configuración es requerida');
+    }
+    
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -843,6 +938,11 @@ class ApiService {
   }
 
   async getTablePreview(tableName: string, params?: any): Promise<any> {
+    // ✅ CORREGIDO: Validar que tableName no sea undefined
+    if (!tableName) {
+      throw new Error('Nombre de tabla es requerido');
+    }
+    
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -871,6 +971,11 @@ class ApiService {
   }
 
   async createTableBackup(tableName: string, options?: any): Promise<Blob> {
+    // ✅ CORREGIDO: Validar que tableName no sea undefined
+    if (!tableName) {
+      throw new Error('Nombre de tabla es requerido');
+    }
+    
     return await this.request(`/admin/backup/tables/${tableName}`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -881,6 +986,11 @@ class ApiService {
   }
 
   async downloadBackup(id: string): Promise<Blob> {
+    // ✅ CORREGIDO: Validar que id no sea undefined
+    if (!id) {
+      throw new Error('ID de backup es requerido');
+    }
+    
     return await this.request(`/admin/backup/${id}/download`, {
       headers: {
         'Accept': 'application/sql',
@@ -1003,6 +1113,11 @@ class ApiService {
   }
 
   async getTransferDetails(transferId: string): Promise<any> {
+    // ✅ CORREGIDO: Validar que transferId no sea undefined
+    if (!transferId) {
+      throw new Error('ID de transferencia es requerido');
+    }
+    
     return await this.request(`/transfers/${transferId}`);
   }
 
@@ -1184,8 +1299,11 @@ export type {
   ActivityRole,
   AvailableUser,
   Institution,
+  InstitutionsResponse,  // ✅ AGREGADO
   Course,
+  CoursesResponse,       // ✅ AGREGADO
   SystemConfig,
+  SystemConfigResponse,  // ✅ AGREGADO
   MassUploadValidation,
   MassUploadResult,
   BackupStats
