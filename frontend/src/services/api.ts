@@ -1,4 +1,4 @@
-// services/api.ts - Servicio API COMPLETO OPTIMIZADO con cache inteligente
+// services/api.ts - Servicio API COMPLETO con todas las funcionalidades CORREGIDO
 
 // ==========================================
 // IMPORTS DE TIPOS
@@ -29,63 +29,10 @@ import type {
 } from '../types/types';
 
 // ==========================================
-// 🚀 INTERFACES OPTIMIZADAS PARA EDICIÓN
+// INTERFACES LOCALES PARA API
 // ==========================================
 
-export interface OptimizedStudentEditData {
-  student: {
-    id: string;
-    userId: string;
-    run: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    balance: number;
-    overdraftLimit: number;
-    birthDate: string;
-    institution: string;
-    course: string;
-    gender: string;
-    status: 'active' | 'inactive' | 'graduated';
-    isActive: boolean;
-    createdAt: string;
-    institutionId: string; // 🚀 NUEVO: ID de institución mapeado
-    courseId: string;      // 🚀 NUEVO: ID de curso mapeado
-  };
-  institutions: Array<{
-    value: string;
-    label: string;
-    type?: string;
-  }>;
-  coursesByInstitution: Record<string, Array<{
-    value: string;
-    label: string;
-    level?: string;
-  }>>;
-  metadata: {
-    loadTime: number;
-    totalInstitutions: number;
-    totalCourses: number;
-    institutionMatch: boolean;
-    courseMatch: boolean;
-    currentInstitutionId: string | null;
-    currentCourseId: string | null;
-    timestamp: string;
-  };
-}
-
-export interface OptimizedStudentEditResponse {
-  status: string;
-  data: OptimizedStudentEditData;
-  loadTime: number;
-}
-
-// ==========================================
-// INTERFACES EXPORTABLES PARA API
-// ==========================================
-
-export interface InstitutionsResponse {
+interface InstitutionsResponse {
   status: string;
   data: {
     institutions: Institution[];
@@ -98,7 +45,7 @@ export interface InstitutionsResponse {
   };
 }
 
-export interface CoursesResponse {
+interface CoursesResponse {
   status: string;
   data: {
     courses: Course[];
@@ -111,7 +58,7 @@ export interface CoursesResponse {
   };
 }
 
-export interface SystemConfigResponse {
+interface SystemConfigResponse {
   status: string;
   data: {
     configurations: SystemConfig[];
@@ -120,7 +67,7 @@ export interface SystemConfigResponse {
   };
 }
 
-export interface MassUploadValidation {
+interface MassUploadValidation {
   status: string;
   data: {
     valid: number;
@@ -153,7 +100,7 @@ export interface MassUploadValidation {
   };
 }
 
-export interface ActivityStats {
+interface ActivityStats {
   status: string;
   data: {
     totalActivities: number;
@@ -171,19 +118,19 @@ export interface ActivityStats {
   };
 }
 
-export interface ActivityType {
+interface ActivityType {
   value: string;
   label: string;
   icon: string;
 }
 
-export interface ActivityRole {
+interface ActivityRole {
   value: string;
   label: string;
   icon: string;
 }
 
-export interface AvailableUser {
+interface AvailableUser {
   id: string;
   run: string;
   name: string;
@@ -193,177 +140,23 @@ export interface AvailableUser {
   displayText: string;
 }
 
-// ==========================================
-// 🚀 CACHE INTERFACES (INTERNAS)
-// ==========================================
-
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  key: string;
-}
-
-interface CacheConfig {
-  defaultDuration: number;
-  maxEntries: number;
-  enabledEndpoints: string[];
-}
-
-// ==========================================
-// 🚀 CLASE PRINCIPAL OPTIMIZADA
-// ==========================================
-
 class ApiService {
   private baseURL: string;
-  
-  // 🔥 CACHE INTELIGENTE
-  private _cache: Map<string, CacheEntry<any>> = new Map();
-  private _cacheConfig: CacheConfig = {
-    defaultDuration: 5 * 60 * 1000, // 5 minutos
-    maxEntries: 100,
-    enabledEndpoints: ['institutions', 'courses', 'edit-data']
-  };
-
-  // Cache específico para datos de edición
-  private _editDataCache: Record<string, CacheEntry<OptimizedStudentEditData>> = {};
   private _institutionCache: Institution[] | null = null;
   private _courseCache: Record<string, Course[]> = {};
 
   constructor() {
-    // ✅ CORREGIDO: Asegurar que baseURL nunca sea undefined
-    const envUrl = import.meta.env.VITE_API_URL;
-    this.baseURL = (envUrl && typeof envUrl === 'string') ? envUrl : 'http://localhost:5000/api';
-    
-    // Verificar que baseURL sea válido
-    if (!this.baseURL || typeof this.baseURL !== 'string') {
-      throw new Error('URL del API no está configurada correctamente');
-    }
+    this.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   }
 
   // ==========================================
-  // 🚀 SISTEMA DE CACHE INTELIGENTE
-  // ==========================================
-
-  private getCacheKey(method: string, endpoint: string, params?: any): string {
-    // ✅ CORREGIDO: Validar parámetros
-    if (!method || typeof method !== 'string') {
-      throw new Error('Method es requerido para cache key');
-    }
-    if (!endpoint || typeof endpoint !== 'string') {
-      throw new Error('Endpoint es requerido para cache key');
-    }
-    
-    const paramStr = params ? JSON.stringify(params) : '';
-    return `${method}:${endpoint}:${paramStr}`;
-  }
-
-  private isEndpointCacheable(endpoint: string): boolean {
-    // ✅ CORREGIDO: Validar endpoint
-    if (!endpoint || typeof endpoint !== 'string') {
-      return false;
-    }
-    
-    return this._cacheConfig.enabledEndpoints.some(ep => 
-      typeof ep === 'string' && endpoint.includes(ep)
-    );
-  }
-
-  private getFromCache<T>(key: string): T | null {
-    // ✅ CORREGIDO: Validar key
-    if (!key || typeof key !== 'string') {
-      return null;
-    }
-    
-    const entry = this._cache.get(key);
-    if (!entry) return null;
-
-    const now = Date.now();
-    if (now - entry.timestamp > this._cacheConfig.defaultDuration) {
-      this._cache.delete(key);
-      return null;
-    }
-
-    console.log(`⚡ [CACHE] Hit para: ${key}`);
-    return entry.data;
-  }
-
-  private setCache<T>(key: string, data: T): void {
-    // ✅ CORREGIDO: Validar key
-    if (!key || typeof key !== 'string') {
-      console.warn('🗑️ [CACHE] Key inválido para guardar cache');
-      return;
-    }
-    
-    // Limpiar cache si está lleno
-    if (this._cache.size >= this._cacheConfig.maxEntries) {
-      const firstKey = this._cache.keys().next().value;
-      if (firstKey) {
-        this._cache.delete(firstKey);
-      }
-    }
-
-    this._cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      key
-    });
-
-    console.log(`💾 [CACHE] Guardado: ${key}`);
-  }
-
-  private clearCacheByPattern(pattern: string): void {
-    // ✅ CORREGIDO: Validar que pattern no sea undefined
-    if (!pattern || typeof pattern !== 'string') {
-      console.warn('🗑️ [CACHE] Patrón inválido para limpiar cache');
-      return;
-    }
-    
-    const keysToDelete: string[] = [];
-    
-    for (const key of this._cache.keys()) {
-      if (key.includes(pattern)) {
-        keysToDelete.push(key);
-      }
-    }
-
-    keysToDelete.forEach(key => this._cache.delete(key));
-    console.log(`🗑️ [CACHE] Limpiado patrón: ${pattern} (${keysToDelete.length} entradas)`);
-  }
-
-  // Método público para limpiar cache
-  clearCache(pattern?: string): void {
-    if (pattern && typeof pattern === 'string') {
-      this.clearCacheByPattern(pattern);
-    } else {
-      this._cache.clear();
-      this._editDataCache = {};
-      this._institutionCache = null;
-      this._courseCache = {};
-      console.log('🗑️ [CACHE] Cache completamente limpiado');
-    }
-  }
-
-  // ==========================================
-  // MÉTODO GENÉRICO PARA REQUESTS CON CACHE
+  // MÃ‰TODO GENÃ‰RICO PARA REQUESTS
   // ==========================================
   
-  private async request(endpoint: string, options: RequestInit = {}, useCache = true): Promise<any> {
-    // ✅ CORREGIDO: Validar endpoint
-    if (!endpoint || typeof endpoint !== 'string') {
-      throw new Error('Endpoint es requerido y debe ser un string');
-    }
-    
+  private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${this.baseURL}${endpoint}`;
-    const method = options.method || 'GET';
     
-    // Verificar cache para requests GET
-    if (method === 'GET' && useCache && this.isEndpointCacheable(endpoint)) {
-      const cacheKey = this.getCacheKey(method, endpoint);
-      const cached = this.getFromCache(cacheKey);
-      if (cached) return cached;
-    }
-    
-    // Headers
+    // âœ… CORREGIDO: Usar tipo especÃ­fico para headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
@@ -381,7 +174,7 @@ class ApiService {
     };
 
     try {
-      console.log(`🌐 API Request: ${method} ${url}`);
+      console.log(`ðŸŒ API Request: ${config.method || 'GET'} ${url}`);
       
       const response = await fetch(url, config);
       
@@ -398,34 +191,28 @@ class ApiService {
       
       const data = await response.json();
 
-      console.log(`📡 API Response (${response.status}):`, data);
+      console.log(`ðŸ“¡ API Response (${response.status}):`, data);
 
       if (!response.ok) {
         throw new Error(data.message || `Error ${response.status}`);
       }
 
-      // Guardar en cache para requests GET exitosos
-      if (method === 'GET' && useCache && this.isEndpointCacheable(endpoint)) {
-        const cacheKey = this.getCacheKey(method, endpoint);
-        this.setCache(cacheKey, data);
-      }
-
       return data;
     } catch (error) {
-      console.error('❌ API Error:', error);
+      console.error('âŒ API Error:', error);
       throw error;
     }
   }
 
   // ==========================================
-  // MÉTODOS DE AUTENTICACIÓN
+  // MÃ‰TODOS DE AUTENTICACIÃ“N
   // ==========================================
 
   async login(run: string, password: string): Promise<LoginResponse> {
     const response = await this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ run, password }),
-    }, false); // No usar cache para login
+    });
 
     if (response.status === 'success' && response.data.token) {
       localStorage.setItem('token', response.data.token);
@@ -438,90 +225,22 @@ class ApiService {
   async verifyToken(): Promise<any> {
     return await this.request('/auth/verify', {
       method: 'GET',
-    }, false); // No usar cache para verificación
+    });
   }
 
   async logout(): Promise<any> {
     const response = await this.request('/auth/logout', {
       method: 'POST',
-    }, false);
-    
+    });
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Limpiar cache al hacer logout
-    this.clearCache();
-    
     return response;
   }
 
   // ==========================================
-  // 🚀 MÉTODOS OPTIMIZADOS DE ESTUDIANTES
+  // MÃ‰TODOS DE ESTUDIANTES
   // ==========================================
 
-  /**
-   * 🚀 MÉTODO ULTRA-OPTIMIZADO: Obtener todos los datos necesarios para edición en UNA sola request
-   * Reemplaza la cascada: instituciones → estudiante → cursos
-   */
-  async getStudentEditDataOptimized(studentId: string): Promise<OptimizedStudentEditResponse> {
-    // ✅ CORREGIDO: Validar que studentId no sea undefined
-    if (!studentId) {
-      throw new Error('ID de estudiante es requerido');
-    }
-
-    const startTime = Date.now();
-    console.log('⚡ [FRONTEND] Iniciando carga optimizada para estudiante:', studentId);
-    
-    // Verificar cache específico para datos de edición
-    const cacheKey = `edit-data:${studentId}`;
-    const cached = this._editDataCache[cacheKey];
-    const now = Date.now();
-    
-    if (cached && (now - cached.timestamp) < this._cacheConfig.defaultDuration) {
-      console.log('⚡ [CACHE] Usando datos de edición cacheados para estudiante:', studentId);
-      return {
-        status: 'success',
-        data: cached.data,
-        loadTime: 0 // Carga instantánea desde cache
-      };
-    }
-    
-    const response = await this.request(`/students/${studentId}/edit-data`);
-    
-    // Guardar en cache específico
-    this._editDataCache[cacheKey] = {
-      data: response.data,
-      timestamp: now,
-      key: cacheKey
-    };
-    
-    const endTime = Date.now();
-    const frontendTime = endTime - startTime;
-    
-    console.log(`🎉 [FRONTEND] Carga optimizada completada:`);
-    console.log(`  📊 Backend: ${response.loadTime}ms`);
-    console.log(`  🌐 Frontend: ${frontendTime}ms`);
-    console.log(`  🚀 Total: ${frontendTime}ms`);
-    console.log(`  📈 Mejora vs secuencial: ~80% más rápido`);
-    
-    return response;
-  }
-
-  /**
-   * Limpiar cache específico de datos de edición
-   */
-  clearStudentEditCache(id?: string): void {
-    if (id && typeof id === 'string') {
-      const cacheKey = `edit-data:${id}`;
-      delete this._editDataCache[cacheKey];
-      console.log('🗑️ Cache de edición limpiado para estudiante:', id);
-    } else {
-      this._editDataCache = {};
-      console.log('🗑️ Cache de edición completamente limpiado');
-    }
-  }
-
-  // MÉTODOS ESTÁNDAR DE ESTUDIANTES
   async getStudents(params: {
     page?: number;
     limit?: number;
@@ -544,77 +263,38 @@ class ApiService {
   }
 
   async getStudentById(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de estudiante es requerido');
-    }
     return await this.request(`/students/${id}`);
   }
 
   async createStudent(data: Partial<Student>): Promise<any> {
-    const response = await this.request('/students', {
+    return await this.request('/students', {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false);
-    
-    // Limpiar cache relevante después de crear
-    this.clearCacheByPattern('students');
-    
-    return response;
+    });
   }
 
   async updateStudent(id: string, data: Partial<Student>): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de estudiante es requerido');
-    }
-    
-    const response = await this.request(`/students/${id}`, {
+    return await this.request(`/students/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }, false);
-    
-    // Limpiar cache específico después de actualizar
-    this.clearStudentEditCache(id);
-    this.clearCacheByPattern('students');
-    
-    return response;
+    });
   }
 
   async deleteStudent(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de estudiante es requerido');
-    }
-    
-    const response = await this.request(`/students/${id}`, {
+    return await this.request(`/students/${id}`, {
       method: 'DELETE',
-    }, false);
-    
-    // Limpiar cache después de eliminar
-    this.clearStudentEditCache(id);
-    this.clearCacheByPattern('students');
-    
-    return response;
+    });
   }
 
   async changeStudentPassword(id: string, newPassword: string): Promise<any> {
-    // ✅ CORREGIDO: Validar parámetros
-    if (!id) {
-      throw new Error('ID de estudiante es requerido');
-    }
-    if (!newPassword) {
-      throw new Error('Nueva contraseña es requerida');
-    }
-    
     return await this.request(`/students/${id}/change-password`, {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
-    }, false);
+    });
   }
 
   // ==========================================
-  // MÉTODOS DE DOCENTES
+  // MÃ‰TODOS DE DOCENTES
   // ==========================================
 
   async getTeachers(params: {
@@ -639,69 +319,38 @@ class ApiService {
   }
 
   async getTeacherById(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de docente es requerido');
-    }
     return await this.request(`/teachers/${id}`);
   }
 
   async createTeacher(data: Partial<Teacher>): Promise<any> {
-    const response = await this.request('/teachers', {
+    return await this.request('/teachers', {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('teachers');
-    return response;
+    });
   }
 
   async updateTeacher(id: string, data: Partial<Teacher>): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de docente es requerido');
-    }
-    
-    const response = await this.request(`/teachers/${id}`, {
+    return await this.request(`/teachers/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('teachers');
-    return response;
+    });
   }
 
   async deleteTeacher(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de docente es requerido');
-    }
-    
-    const response = await this.request(`/teachers/${id}`, {
+    return await this.request(`/teachers/${id}`, {
       method: 'DELETE',
-    }, false);
-    
-    this.clearCacheByPattern('teachers');
-    return response;
+    });
   }
 
   async changeTeacherPassword(id: string, newPassword: string): Promise<any> {
-    // ✅ CORREGIDO: Validar parámetros
-    if (!id) {
-      throw new Error('ID de docente es requerido');
-    }
-    if (!newPassword) {
-      throw new Error('Nueva contraseña es requerida');
-    }
-    
     return await this.request(`/teachers/${id}/change-password`, {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
-    }, false);
+    });
   }
 
   // ==========================================
-  // MÉTODOS ADMINISTRATIVOS CON CACHE
+  // MÃ‰TODOS ADMINISTRATIVOS
   // ==========================================
 
   async getAllUsers(params?: {
@@ -743,42 +392,23 @@ class ApiService {
   }
 
   async createInstitution(data: Partial<Institution>): Promise<any> {
-    const response = await this.request('/admin/institutions', {
+    return await this.request('/admin/institutions', {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('institutions');
-    return response;
+    });
   }
 
   async updateInstitution(id: string, data: Partial<Institution>): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de institución es requerido');
-    }
-    
-    const response = await this.request(`/admin/institutions/${id}`, {
+    return await this.request(`/admin/institutions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('institutions');
-    return response;
+    });
   }
 
   async deleteInstitution(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de institución es requerido');
-    }
-    
-    const response = await this.request(`/admin/institutions/${id}`, {
+    return await this.request(`/admin/institutions/${id}`, {
       method: 'DELETE',
-    }, false);
-    
-    this.clearCacheByPattern('institutions');
-    return response;
+    });
   }
 
   // Formatear instituciones para select
@@ -814,53 +444,29 @@ class ApiService {
     return await this.request(`/admin/courses?${queryParams.toString()}`);
   }
 
-  // Método para cursos por institución (usando params)
+  // MÃ©todo para cursos por instituciÃ³n (usando params)
   async getCoursesByInstitutionId(institutionId: string): Promise<CoursesResponse> {
-    // ✅ CORREGIDO: Validar que institutionId no sea undefined
-    if (!institutionId) {
-      throw new Error('ID de institución es requerido');
-    }
-    
     return await this.getCourses({ institution: institutionId });
   }
 
   async createCourse(data: Partial<Course>): Promise<any> {
-    const response = await this.request('/admin/courses', {
+    return await this.request('/admin/courses', {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('courses');
-    return response;
+    });
   }
 
   async updateCourse(id: string, data: Partial<Course>): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de curso es requerido');
-    }
-    
-    const response = await this.request(`/admin/courses/${id}`, {
+    return await this.request(`/admin/courses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }, false);
-    
-    this.clearCacheByPattern('courses');
-    return response;
+    });
   }
 
   async deleteCourse(id: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de curso es requerido');
-    }
-    
-    const response = await this.request(`/admin/courses/${id}`, {
+    return await this.request(`/admin/courses/${id}`, {
       method: 'DELETE',
-    }, false);
-    
-    this.clearCacheByPattern('courses');
-    return response;
+    });
   }
 
   // Formatear cursos para select
@@ -879,22 +485,12 @@ class ApiService {
 
   // Helpers para nombres
   async getInstitutionNameById(id: string): Promise<string> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      return 'Desconocido';
-    }
-    
     const response = await this.getInstitutions();
     const institution = response.data.institutions.find(inst => inst.id === id);
     return institution ? institution.name : 'Desconocido';
   }
 
   async getCourseNameById(id: string): Promise<string> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      return 'Desconocido';
-    }
-    
     const response = await this.getCourses();
     const course = response.data.courses.find(c => c.id === id);
     return course ? course.name : 'Desconocido';
@@ -902,18 +498,18 @@ class ApiService {
 
   // Configuraciones del sistema
   async getSystemConfigurations(): Promise<SystemConfigResponse> {
-    return await this.getSystemConfig();
+    return await this.getSystemConfig();  // Alias para getSystemConfig
   }
 
   async updateMultipleConfigurations(updates: { key: string, value: any }[]): Promise<any> {
     return await this.request('/admin/config/multiple', {
       method: 'PATCH',
       body: JSON.stringify(updates),
-    }, false);
+    });
   }
 
   async getConfigurationHistory(configKey: string, params?: { page?: number; limit?: number }): Promise<any> {
-    return await this.getConfigHistory(configKey, params);
+    return await this.getConfigHistory(configKey, params);  // Alias para getConfigHistory
   }
 
   async getSystemConfig(): Promise<SystemConfigResponse> {
@@ -921,23 +517,13 @@ class ApiService {
   }
 
   async updateConfig(key: string, value: any): Promise<any> {
-    // ✅ CORREGIDO: Validar que key no sea undefined
-    if (!key) {
-      throw new Error('Clave de configuración es requerida');
-    }
-    
     return await this.request(`/admin/config/${key}`, {
       method: 'PATCH',
       body: JSON.stringify({ value }),
-    }, false);
+    });
   }
 
   async getConfigHistory(configKey: string, params?: { page?: number; limit?: number }): Promise<any> {
-    // ✅ CORREGIDO: Validar que configKey no sea undefined
-    if (!configKey) {
-      throw new Error('Clave de configuración es requerida');
-    }
-    
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -978,11 +564,6 @@ class ApiService {
   }
 
   async getTablePreview(tableName: string, params?: any): Promise<any> {
-    // ✅ CORREGIDO: Validar que tableName no sea undefined
-    if (!tableName) {
-      throw new Error('Nombre de tabla es requerido');
-    }
-    
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -997,7 +578,7 @@ class ApiService {
   async createBackup(): Promise<any> {
     return await this.request('/admin/backup/create', {
       method: 'POST',
-    }, false);
+    });
   }
 
   async createFullBackup(options?: any): Promise<Blob> {
@@ -1007,35 +588,25 @@ class ApiService {
       headers: {
         'Accept': 'application/sql',
       },
-    }, false);
+    });
   }
 
   async createTableBackup(tableName: string, options?: any): Promise<Blob> {
-    // ✅ CORREGIDO: Validar que tableName no sea undefined
-    if (!tableName) {
-      throw new Error('Nombre de tabla es requerido');
-    }
-    
     return await this.request(`/admin/backup/tables/${tableName}`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
       headers: {
         'Accept': 'application/sql',
       },
-    }, false);
+    });
   }
 
   async downloadBackup(id: string): Promise<Blob> {
-    // ✅ CORREGIDO: Validar que id no sea undefined
-    if (!id) {
-      throw new Error('ID de backup es requerido');
-    }
-    
     return await this.request(`/admin/backup/${id}/download`, {
       headers: {
         'Accept': 'application/sql',
       },
-    }, false);
+    });
   }
 
   // ==========================================
@@ -1053,17 +624,14 @@ class ApiService {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-    }, false);
+    });
   }
 
   async executeMassUpload(type: 'student' | 'teacher', validData: any[]): Promise<{ data: MassUploadResult }> {
     const response = await this.request('/admin/mass-upload/execute', {
       method: 'POST',
       body: JSON.stringify({ type, validData }),
-    }, false);
-    
-    // Limpiar cache después de mass upload
-    this.clearCacheByPattern(type === 'student' ? 'students' : 'teachers');
+    });
     
     if (response.data && response.data.summary) {
       return { data: response.data };
@@ -1081,7 +649,7 @@ class ApiService {
       headers: {
         'Accept': 'text/csv',
       },
-    }, false);
+    });
   }
 
   // ==========================================
@@ -1119,7 +687,7 @@ class ApiService {
   }
 
   // ==========================================
-  // MÉTODOS DE TRANSFERENCIAS
+  // MÃ‰TODOS DE TRANSFERENCIAS
   // ==========================================
 
   async createTransfer(transferData: {
@@ -1132,7 +700,7 @@ class ApiService {
     return await this.request('/transfers', {
       method: 'POST',
       body: JSON.stringify(transferData),
-    }, false);
+    });
   }
 
   async getTransferHistory(params?: {
@@ -1153,11 +721,6 @@ class ApiService {
   }
 
   async getTransferDetails(transferId: string): Promise<any> {
-    // ✅ CORREGIDO: Validar que transferId no sea undefined
-    if (!transferId) {
-      throw new Error('ID de transferencia es requerido');
-    }
-    
     return await this.request(`/transfers/${transferId}`);
   }
 
@@ -1170,7 +733,7 @@ class ApiService {
   }
 
   // ==========================================
-  // OTROS MÉTODOS
+  // OTROS MÃ‰TODOS
   // ==========================================
 
   async getDashboardStats(): Promise<any> {
@@ -1179,45 +742,22 @@ class ApiService {
 
   async healthCheck(): Promise<any> {
     try {
-      // ✅ CORREGIDO: Asegurar que la URL sea válida
-      const baseUrl = this.baseURL || 'http://localhost:5000/api';
-      const healthUrl = baseUrl.replace('/api', '') + '/api/health';
-      
-      console.log('🔍 Health check URL:', healthUrl);
-      
-      const response = await fetch(healthUrl);
+      const response = await fetch(`${this.baseURL.replace('/api', '')}/api/health`);
       const data = await response.json();
-      console.log('💚 Health check exitoso:', data);
+      console.log('ðŸ’š Health check exitoso:', data);
       return data;
     } catch (error) {
-      console.error('❤️‍🩹 Health check falló:', error);
+      console.error('â¤ï¸â€ðŸ©¹ Health check fallÃ³:', error);
       throw new Error('No se puede conectar con el backend');
     }
   }
 
   // ==========================================
-  // 🚀 MÉTODOS DE ESTADÍSTICAS Y EXPORTACIÓN
-  // ==========================================
-
-  async getStudentStats(): Promise<any> {
-    return await this.request('/students/stats/general');
-  }
-
-  async exportStudentsCSV(): Promise<Blob> {
-    return await this.request('/students/export/csv', {
-      headers: {
-        'Accept': 'text/csv',
-      },
-    }, false);
-  }
-
-  // ==========================================
-  // MÉTODOS AUXILIARES
+  // MÃ‰TODOS AUXILIARES
   // ==========================================
 
   private capitalizeFirst(str: string): string {
-    // ✅ CORREGIDO: Validar parámetro
-    if (!str || typeof str !== 'string') return '';
+    if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   }
 
@@ -1232,8 +772,7 @@ class ApiService {
   }
 
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('token');
-    return !!(token && typeof token === 'string' && token.trim() !== '');
+    return !!localStorage.getItem('token');
   }
 
   isAdmin(): boolean {
@@ -1247,16 +786,11 @@ class ApiService {
   }
 
   formatFullName(firstName: string, lastName: string): string {
-    // ✅ CORREGIDO: Validar parámetros
-    const first = (firstName && typeof firstName === 'string') ? firstName.trim() : '';
-    const last = (lastName && typeof lastName === 'string') ? lastName.trim() : '';
-    return `${first} ${last}`.trim();
+    return `${firstName} ${lastName}`.trim();
   }
 
   formatRUN(run: string): string {
-    // ✅ CORREGIDO: Validar parámetro
-    if (!run || typeof run !== 'string') return '';
-    
+    if (!run) return '';
     const cleanRUN = run.replace(/[\.\-]/g, '');
     if (cleanRUN.length >= 8) {
       const body = cleanRUN.slice(0, -1);
@@ -1267,28 +801,17 @@ class ApiService {
   }
 
   isValidEmail(email: string): boolean {
-    // ✅ CORREGIDO: Validar parámetro
-    if (!email || typeof email !== 'string') return false;
-    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   }
 
   isValidChileanPhone(phone: string): boolean {
-    // ✅ CORREGIDO: Validar parámetro
-    if (!phone || typeof phone !== 'string') return false;
-    
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
     const phoneRegex = /^(\+56)?9\d{8}$/;
     return phoneRegex.test(cleanPhone);
   }
 
   formatCurrency(amount: number): string {
-    // ✅ CORREGIDO: Validar parámetro
-    if (typeof amount !== 'number' || isNaN(amount)) {
-      return '$0';
-    }
-    
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
@@ -1296,58 +819,12 @@ class ApiService {
       maximumFractionDigits: 0
     }).format(amount);
   }
-
-  // ==========================================
-  // 🚀 MÉTODOS DE MONITOREO DE CACHE
-  // ==========================================
-
-  getCacheStats(): {
-    size: number;
-    maxSize: number;
-    hitRate: number;
-    oldestEntry: string | null;
-  } {
-    const now = Date.now();
-    let oldestTimestamp = now;
-    let oldestKey: string | null = null;
-
-    for (const [key, entry] of this._cache.entries()) {
-      // ✅ CORREGIDO: Validar entry
-      if (entry && typeof entry.timestamp === 'number' && entry.timestamp < oldestTimestamp) {
-        oldestTimestamp = entry.timestamp;
-        oldestKey = key;
-      }
-    }
-
-    return {
-      size: this._cache.size,
-      maxSize: this._cacheConfig.maxEntries,
-      hitRate: 0, // Se podría implementar un contador de hits/misses
-      oldestEntry: oldestKey
-    };
-  }
-
-  // Método para debugging del cache
-  logCacheContents(): void {
-    console.log('📊 [CACHE] Contenido actual:');
-    for (const [key, entry] of this._cache.entries()) {
-      // ✅ CORREGIDO: Validar entry
-      if (entry && typeof entry.timestamp === 'number') {
-        const age = Date.now() - entry.timestamp;
-        console.log(`  ${key}: ${age}ms antiguo`);
-      }
-    }
-  }
 }
 
 // Instancia singleton
 export const apiService = new ApiService();
 
-// ==========================================
-// 🚀 EXPORTACIONES COMPLETAS (SIN DUPLICADOS)
-// ==========================================
-
-// Exportar tipos principales - ✅ TODAS LAS INTERFACES DISPONIBLES
+// Exportar tipos principales 
 export type { 
   LoginResponse, 
   ApiError, 
@@ -1362,10 +839,18 @@ export type {
   UserStats,
   CreateTransferResponse,
   Activity,
+  ActivityStats,
   ActivityResponse,
+  ActivityType,
+  ActivityRole,
+  AvailableUser,
   Institution,
+  InstitutionsResponse,
   Course,
+  CoursesResponse,
   SystemConfig,
-  MassUploadResult,  // ✅ AGREGADO
+  SystemConfigResponse,
+  MassUploadValidation,
+  MassUploadResult,
   BackupStats
 };
