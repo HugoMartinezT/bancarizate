@@ -417,17 +417,22 @@ class ApiService {
    * 🚀 MÉTODO ULTRA-OPTIMIZADO: Obtener todos los datos necesarios para edición en UNA sola request
    * Reemplaza la cascada: instituciones → estudiante → cursos
    */
-  async getStudentEditDataOptimized(id: string): Promise<OptimizedStudentEditResponse> {
+  async getStudentEditDataOptimized(studentId: string): Promise<OptimizedStudentEditResponse> {
+    // ✅ CORREGIDO: Validar que studentId no sea undefined
+    if (!studentId) {
+      throw new Error('ID de estudiante es requerido');
+    }
+
     const startTime = Date.now();
-    console.log('⚡ [FRONTEND] Iniciando carga optimizada para estudiante:', id);
+    console.log('⚡ [FRONTEND] Iniciando carga optimizada para estudiante:', studentId);
     
     // Verificar cache específico para datos de edición
-    const cacheKey = `edit-data:${id}`;
+    const cacheKey = `edit-data:${studentId}`;
     const cached = this._editDataCache[cacheKey];
     const now = Date.now();
     
     if (cached && (now - cached.timestamp) < this._cacheConfig.defaultDuration) {
-      console.log('⚡ [CACHE] Usando datos de edición cacheados para estudiante:', id);
+      console.log('⚡ [CACHE] Usando datos de edición cacheados para estudiante:', studentId);
       return {
         status: 'success',
         data: cached.data,
@@ -435,7 +440,7 @@ class ApiService {
       };
     }
     
-    const response = await this.request(`/students/${id}/edit-data`);
+    const response = await this.request(`/students/${studentId}/edit-data`);
     
     // Guardar en cache específico
     this._editDataCache[cacheKey] = {
@@ -1156,10 +1161,10 @@ class ApiService {
 export const apiService = new ApiService();
 
 // ==========================================
-// 🚀 EXPORTACIONES COMPLETAS
+// 🚀 EXPORTACIONES COMPLETAS (SIN DUPLICADOS)
 // ==========================================
 
-// Exportar tipos principales 
+// Exportar tipos principales - ✅ CORREGIDO: Solo una exportación
 export type { 
   LoginResponse, 
   ApiError, 
@@ -1174,21 +1179,14 @@ export type {
   UserStats,
   CreateTransferResponse,
   Activity,
-  ActivityStats,
   ActivityResponse,
   ActivityType,
   ActivityRole,
   AvailableUser,
   Institution,
-  InstitutionsResponse,
   Course,
-  CoursesResponse,
   SystemConfig,
-  SystemConfigResponse,
   MassUploadValidation,
   MassUploadResult,
-  BackupStats,
-  // 🚀 NUEVOS TIPOS OPTIMIZADOS
-  OptimizedStudentEditData,
-  OptimizedStudentEditResponse
+  BackupStats
 };
