@@ -1,4 +1,4 @@
-// server.js - BANCARIZATE API v2.0 - Versión Final Optimizada para Vercel
+// server.js - BANCARIZATE API v2.0 - Versión Final Optimizada para Vercel + Localhost
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -162,7 +162,7 @@ app.get('/', (req, res) => {
       transfers: '/api/transfers/*'
     },
     deployment_info: {
-      platform: 'Vercel Serverless',
+      platform: 'Dual: Vercel Serverless + Local Development',
       node_version: process.version,
       deployed_at: new Date().toISOString()
     }
@@ -306,7 +306,7 @@ app.get('/api/test', (req, res) => {
       version: '2.0.0',
       environment: process.env.NODE_ENV || 'development',
       node_version: process.version,
-      platform: 'Vercel Serverless'
+      platform: 'Dual: Vercel Serverless + Local Development'
     },
     routes_loaded: routeStatus,
     environment_variables: {
@@ -415,8 +415,55 @@ process.on('uncaughtException', (err) => {
 });
 
 logger.info('🏦 BANCARIZATE API v2.0 inicializado exitosamente');
-logger.info(`📝 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+logger.info(`🔍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 logger.info(`🚀 Todas las funcionalidades cargadas y listas para usar`);
 
-// ✅ EXPORT PARA VERCEL SERVERLESS
+// ✅ EXPORT PARA VERCEL SERVERLESS (SE MANTIENE IGUAL)
 module.exports = app;
+
+// ========================================
+// ✅ NUEVA CONFIGURACIÓN DUAL PARA LOCALHOST
+// ========================================
+// Solo se ejecuta si el archivo se corre directamente (node server.js)
+// En Vercel, esto NO se ejecuta porque el archivo se importa como módulo
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  
+  const server = app.listen(PORT, () => {
+    console.log('\n=====================================');
+    console.log('🏦 BANCARIZATE API - SERVIDOR LOCAL ACTIVO');
+    console.log('=====================================');
+    console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
+    console.log(`🌐 URL Local: http://localhost:${PORT}`);
+    console.log(`📚 API Info: http://localhost:${PORT}/api`);
+    console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
+    console.log(`🧪 Test Endpoint: http://localhost:${PORT}/api/test`);
+    console.log(`🔐 Login Test: POST http://localhost:${PORT}/api/auth/login`);
+    console.log('=====================================');
+    console.log(`📊 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🗃️ Base de datos: Supabase ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+    console.log(`🔑 JWT Secret: ${process.env.JWT_SECRET ? '✅' : '❌'}`);
+    console.log('=====================================\n');
+    
+    logger.info(`BANCARIZATE API iniciado en puerto ${PORT} (modo desarrollo local)`);
+    logger.info(`Vercel compatibility: ✅ Mantenida`);
+    logger.info(`Local development: ✅ Activado`);
+  });
+
+  // Manejo de cierre graceful para desarrollo local
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM recibido, cerrando servidor local...');
+    server.close(() => {
+      logger.info('Servidor local cerrado correctamente');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    logger.info('SIGINT recibido (Ctrl+C), cerrando servidor local...');
+    server.close(() => {
+      logger.info('Servidor local cerrado correctamente');
+      process.exit(0);
+    });
+  });
+}
