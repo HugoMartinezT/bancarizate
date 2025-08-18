@@ -1,4 +1,4 @@
-// routes/admin/adminRoutes.js
+// routes/admin/adminRoutes.js - RUTAS ADMINISTRATIVAS COMPLETAS
 // Conecta todos los controladores administrativos siguiendo el patrón establecido
 
 const express = require('express');
@@ -104,11 +104,17 @@ router.get('/config/:key', systemConfigController.getConfigurationByKey);
 // PUT /api/admin/config/:key - Actualizar configuración específica
 router.put('/config/:key', systemConfigController.updateConfiguration);
 
+// PATCH /api/admin/config/:key - Actualizar configuración específica (alternativo)
+router.patch('/config/:key', systemConfigController.updateConfiguration);
+
 // POST /api/admin/config/:key/reset - Resetear configuración a valor por defecto
 router.post('/config/:key/reset', systemConfigController.resetConfiguration);
 
 // GET /api/admin/config/:key/history - Historial de cambios de configuración
 router.get('/config/:key/history', systemConfigController.getConfigurationHistory);
+
+// PATCH /api/admin/config/multiple - Actualizar múltiples configuraciones (alternativo)
+router.patch('/config/multiple', systemConfigController.updateMultipleConfigurations);
 
 // ==========================================
 // RUTAS DE CARGA MASIVA (/api/admin/mass-upload)
@@ -123,30 +129,45 @@ router.post('/mass-upload/execute', massUploadController.executeMassUpload);
 // GET /api/admin/mass-upload/template/:userType - Descargar plantilla CSV
 router.get('/mass-upload/template/:userType', massUploadController.getCSVTemplate);
 
+// GET /api/admin/templates/:userType - Alias para plantillas CSV
+router.get('/templates/:userType', massUploadController.getCSVTemplate);
+
 // GET /api/admin/mass-upload/history - Historial de cargas masivas
 router.get('/mass-upload/history', massUploadController.getMassUploadHistory);
 
 // ==========================================
-// RUTAS DE BACKUP (/api/admin/backup)
+// RUTAS DE BACKUP (/api/admin/backup) - ✅ CORREGIDO
 // ==========================================
 
-// GET /api/admin/backup/full - Crear backup completo
+// ✅ GET para crear backup completo (descarga inmediata)
 router.get('/backup/full', backupController.createFullBackup);
 
-// GET /api/admin/backup/table/:tableName - Backup de tabla específica
+// ✅ GET para backup de tabla específica (descarga inmediata)
 router.get('/backup/table/:tableName', backupController.createTableBackup);
 
-// GET /api/admin/backup/table/:tableName/preview - Vista previa de tabla
+// GET para vista previa de tabla
 router.get('/backup/table/:tableName/preview', backupController.getTablePreview);
 
-// GET /api/admin/backup/stats - Estadísticas de backup
+// Alias más corto para vista previa
+router.get('/backup/tables/:tableName/preview', backupController.getTablePreview);
+
+// GET para estadísticas de backup
 router.get('/backup/stats', backupController.getBackupStats);
 
-// GET /api/admin/backup/history - Historial de backups
+// GET para historial de backups
 router.get('/backup/history', backupController.getBackupHistory);
 
-// POST /api/admin/backup/validate - Validar archivo de backup
+// POST para validar archivo de backup (acepta JSON en body)
 router.post('/backup/validate', backupController.validateBackupFile);
+
+// Rutas adicionales de backup para flexibilidad
+router.get('/backup/create', backupController.createFullBackup); // Alias
+router.get('/backup/download/:id', backupController.downloadBackup || ((req, res) => {
+    res.status(501).json({
+        status: 'error',
+        message: 'Función de descarga de backup por ID aún no implementada'
+    });
+}));
 
 // ==========================================
 // RUTA DE INFORMACIÓN GENERAL
@@ -169,9 +190,10 @@ router.get('/', (req, res) => {
                 description: 'Gestión de establecimientos educacionales',
                 endpoints: [
                     'GET /api/admin/institutions',
-                    'POST /api/admin/institutions',
+                    'POST /api/admin/institutions', 
                     'PUT /api/admin/institutions/:id',
-                    'DELETE /api/admin/institutions/:id'
+                    'DELETE /api/admin/institutions/:id',
+                    'GET /api/admin/institutions/stats'
                 ]
             },
             courses: {
@@ -180,7 +202,8 @@ router.get('/', (req, res) => {
                     'GET /api/admin/courses',
                     'POST /api/admin/courses',
                     'PUT /api/admin/courses/:id',
-                    'DELETE /api/admin/courses/:id'
+                    'DELETE /api/admin/courses/:id',
+                    'GET /api/admin/courses/stats'
                 ]
             },
             system_config: {
@@ -188,7 +211,9 @@ router.get('/', (req, res) => {
                 endpoints: [
                     'GET /api/admin/config',
                     'PUT /api/admin/config/:key',
-                    'PUT /api/admin/config/batch'
+                    'PATCH /api/admin/config/:key',
+                    'PUT /api/admin/config/batch',
+                    'GET /api/admin/config/:key/history'
                 ]
             },
             mass_upload: {
@@ -196,7 +221,8 @@ router.get('/', (req, res) => {
                 endpoints: [
                     'POST /api/admin/mass-upload/validate',
                     'POST /api/admin/mass-upload/execute',
-                    'GET /api/admin/mass-upload/template/:userType'
+                    'GET /api/admin/mass-upload/template/:userType',
+                    'GET /api/admin/templates/:userType'
                 ]
             },
             backup: {
@@ -204,10 +230,96 @@ router.get('/', (req, res) => {
                 endpoints: [
                     'GET /api/admin/backup/full',
                     'GET /api/admin/backup/table/:tableName',
-                    'GET /api/admin/backup/stats'
+                    'GET /api/admin/backup/stats',
+                    'GET /api/admin/backup/history',
+                    'GET /api/admin/backup/table/:tableName/preview',
+                    'POST /api/admin/backup/validate'
                 ]
             }
+        },
+        security_note: 'Todas las rutas requieren autenticación JWT y rol de administrador',
+        rate_limiting: {
+            general: '100 requests/15min',
+            backup: '5 backups/hour',
+            mass_upload: '10 uploads/hour'
         }
+    });
+});
+
+// ==========================================
+// MIDDLEWARE DE MANEJO DE ERRORES ESPECÍFICO PARA ADMIN
+// ==========================================
+
+// Error handler específico para rutas administrativas
+router.use((error, req, res, next) => {
+    console.error('❌ Error en ruta administrativa:', {
+        error: error.message,
+        stack: error.stack,
+        url: req.originalUrl,
+        method: req.method,
+        user: req.user ? `${req.user.first_name} ${req.user.last_name} (${req.user.run})` : 'Anónimo',
+        ip: req.ip
+    });
+
+    // Errores específicos de administración
+    if (error.code === '23505') { // Unique violation
+        return res.status(409).json({
+            status: 'error',
+            message: 'Ya existe un registro con estos datos únicos',
+            code: 'DUPLICATE_ENTRY'
+        });
+    }
+
+    if (error.code === '23503') { // Foreign key violation
+        return res.status(400).json({
+            status: 'error',
+            message: 'No se puede realizar la operación debido a dependencias existentes',
+            code: 'FOREIGN_KEY_CONSTRAINT'
+        });
+    }
+
+    if (error.code === '42P01') { // Undefined table
+        return res.status(500).json({
+            status: 'error',
+            message: 'Error en la estructura de la base de datos',
+            code: 'TABLE_NOT_FOUND'
+        });
+    }
+
+    // Error genérico
+    res.status(error.status || 500).json({
+        status: 'error',
+        message: process.env.NODE_ENV === 'production' 
+            ? 'Error interno del servidor administrativo' 
+            : error.message,
+        code: 'ADMIN_ERROR',
+        ...(process.env.NODE_ENV !== 'production' && { 
+            stack: error.stack,
+            details: error
+        })
+    });
+});
+
+// ==========================================
+// 404 HANDLER PARA RUTAS ADMINISTRATIVAS
+// ==========================================
+
+// Manejo de rutas no encontradas en el panel administrativo
+router.use('*', (req, res) => {
+    const availableRoutes = [
+        'GET /api/admin/institutions',
+        'GET /api/admin/courses', 
+        'GET /api/admin/config',
+        'GET /api/admin/backup/stats',
+        'POST /api/admin/mass-upload/validate'
+    ];
+
+    res.status(404).json({
+        status: 'error',
+        message: `Ruta administrativa no encontrada: ${req.method} ${req.originalUrl}`,
+        available_routes: availableRoutes,
+        note: 'Solo administradores pueden acceder a estas rutas',
+        documentation: 'Consulta la documentación de la API para más detalles'
     });
 });
 

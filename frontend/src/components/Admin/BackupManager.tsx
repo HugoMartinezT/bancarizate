@@ -54,13 +54,13 @@ const BackupManager = () => {
   const [selectedBackupType, setSelectedBackupType] = useState<string>('full');
   const [selectedTable, setSelectedTable] = useState<string>('');
 
-  // ✅ NUEVOS ESTADOS PARA VISTA PREVIA
+  // ✅ ESTADOS PARA VISTA PREVIA
   const [showTablePreview, setShowTablePreview] = useState(false);
   const [tablePreview, setTablePreview] = useState<TablePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // ✅ NUEVOS ESTADOS PARA HISTORIAL MEJORADO
+  // ✅ ESTADOS PARA HISTORIAL MEJORADO
   const [historyFilter, setHistoryFilter] = useState<string>('all');
   const [historySearch, setHistorySearch] = useState<string>('');
   const [expandedHistoryItem, setExpandedHistoryItem] = useState<string | null>(null);
@@ -126,6 +126,8 @@ const BackupManager = () => {
       
       if (error.message.includes('403') || error.message.includes('autorizado')) {
         setError('No tienes permisos para gestionar backups. Solo administradores pueden acceder.');
+      } else if (error.message.includes('404')) {
+        setError('Los endpoints de backup no están disponibles. Verifica la configuración del servidor.');
       } else {
         setError(error.message || 'Error al cargar estadísticas de backup');
       }
@@ -153,7 +155,7 @@ const BackupManager = () => {
     }
   };
 
-  // ✅ NUEVA FUNCIÓN: Cargar vista previa de tabla
+  // ✅ FUNCIÓN: Cargar vista previa de tabla
   const loadTablePreview = async (tableName: string) => {
     try {
       setLoadingPreview(true);
@@ -181,7 +183,7 @@ const BackupManager = () => {
     loadBackupStats();
   }, []);
 
-  // Crear backup completo
+  // ✅ CORREGIDO: Crear backup completo
   const handleCreateFullBackup = async (option: BackupOption) => {
     try {
       setIsCreatingBackup(true);
@@ -189,6 +191,7 @@ const BackupManager = () => {
       
       console.log(`💾 Creando backup: ${option.title}...`);
       
+      // ✅ Pasar opciones como objeto con propiedades booleanas
       const blob = await apiService.createFullBackup({
         includeData: option.includeData,
         includeLogs: option.includeLogs
@@ -220,13 +223,17 @@ const BackupManager = () => {
       
     } catch (error: any) {
       console.error('❌ Error creando backup:', error);
-      setError(error.message || 'Error al crear backup');
+      if (error.message.includes('404')) {
+        setError('El endpoint de backup no está disponible. Verifica que el servidor esté configurado correctamente.');
+      } else {
+        setError(error.message || 'Error al crear backup');
+      }
     } finally {
       setIsCreatingBackup(false);
     }
   };
 
-  // Crear backup de tabla específica
+  // ✅ CORREGIDO: Crear backup de tabla específica
   const handleCreateTableBackup = async () => {
     if (!selectedTable) {
       setError('Selecciona una tabla para respaldar');
@@ -239,6 +246,7 @@ const BackupManager = () => {
       
       console.log(`📋 Creando backup de tabla: ${selectedTable}...`);
       
+      // ✅ Pasar opciones como objeto con propiedades booleanas
       const blob = await apiService.createTableBackup(selectedTable, {
         includeData: true
       });
@@ -268,7 +276,11 @@ const BackupManager = () => {
       
     } catch (error: any) {
       console.error('❌ Error creando backup de tabla:', error);
-      setError(error.message || 'Error al crear backup de tabla');
+      if (error.message.includes('404')) {
+        setError('El endpoint de backup de tabla no está disponible. Verifica la configuración del servidor.');
+      } else {
+        setError(error.message || 'Error al crear backup de tabla');
+      }
     } finally {
       setIsCreatingBackup(false);
     }
@@ -295,7 +307,7 @@ const BackupManager = () => {
     }
   };
 
-  // ✅ NUEVA FUNCIÓN: Filtrar historial
+  // ✅ FUNCIÓN: Filtrar historial
   const filteredHistory = backupHistory.filter(backup => {
     const matchesFilter = historyFilter === 'all' || backup.action === historyFilter;
     const matchesSearch = historySearch === '' || 
@@ -306,7 +318,7 @@ const BackupManager = () => {
     return matchesFilter && matchesSearch;
   });
 
-  // ✅ NUEVA FUNCIÓN: Obtener detalles del backup
+  // ✅ FUNCIÓN: Obtener detalles del backup
   const getBackupTypeLabel = (action: string, metadata: any) => {
     if (action === 'create_backup') {
       if (metadata?.includeLogs && metadata?.includeData) return 'Backup Completo';

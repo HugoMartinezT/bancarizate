@@ -1,4 +1,4 @@
-// services/api.ts - Servicio API COMPLETO con OPTIMIZACIONES INTEGRADAS
+// services/api.ts - Servicio API COMPLETO con CORRECCIONES INTEGRADAS
 
 // ==========================================
 // IMPORTS DE TIPOS
@@ -144,7 +144,7 @@ class ApiService {
   private baseURL: string;
 
   // ==========================================
-  // 🚀 NUEVAS PROPIEDADES DE OPTIMIZACIÓN
+  // 🚀 PROPIEDADES DE OPTIMIZACIÓN
   // ==========================================
   private _institutionCache: {
     data: Institution[];
@@ -560,7 +560,7 @@ class ApiService {
   }
 
   // ==========================================
-  // BACKUP Y SISTEMA
+  // BACKUP Y SISTEMA - ✅ CORREGIDO
   // ==========================================
 
   async getBackupStats(): Promise<{ data: BackupStats }> {
@@ -588,7 +588,7 @@ class ApiService {
         }
       });
     }
-    return await this.request(`/admin/backup/tables/${tableName}/preview?${queryParams.toString()}`);
+    return await this.request(`/admin/backup/table/${tableName}/preview?${queryParams.toString()}`);
   }
 
   async createBackup(): Promise<any> {
@@ -597,20 +597,45 @@ class ApiService {
     });
   }
 
-  async createFullBackup(options?: any): Promise<Blob> {
-    return await this.request('/admin/backup/full', {
-      method: 'POST',
-      body: JSON.stringify(options || {}),
+  // ✅ CORREGIDO: Cambiar de POST a GET con query parameters
+  async createFullBackup(options?: {
+    includeData?: boolean;
+    includeLogs?: boolean;
+  }): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    
+    if (options?.includeData !== undefined) {
+      queryParams.append('includeData', options.includeData.toString());
+    }
+    
+    if (options?.includeLogs !== undefined) {
+      queryParams.append('includeLogs', options.includeLogs.toString());
+    }
+
+    const endpoint = `/admin/backup/full${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+    return await this.request(endpoint, {
+      method: 'GET',  // ✅ Cambiar a GET
       headers: {
         'Accept': 'application/sql',
       },
     });
   }
 
-  async createTableBackup(tableName: string, options?: any): Promise<Blob> {
-    return await this.request(`/admin/backup/tables/${tableName}`, {
-      method: 'POST',
-      body: JSON.stringify(options || {}),
+  // ✅ CORREGIDO: Cambiar de POST a GET con query parameters
+  async createTableBackup(tableName: string, options?: {
+    includeData?: boolean;
+  }): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    
+    if (options?.includeData !== undefined) {
+      queryParams.append('includeData', options.includeData.toString());
+    }
+
+    const endpoint = `/admin/backup/table/${tableName}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+    return await this.request(endpoint, {
+      method: 'GET',  // ✅ Cambiar a GET
       headers: {
         'Accept': 'application/sql',
       },
@@ -769,7 +794,7 @@ class ApiService {
   }
 
   // ==========================================
-  // 🚀 NUEVOS MÉTODOS OPTIMIZADOS
+  // 🚀 MÉTODOS OPTIMIZADOS
   // ==========================================
 
   /**
@@ -889,7 +914,7 @@ class ApiService {
     institutionMap: Map<string, string>;
     courseMap: Map<string, string>;
   }> {
-    console.log('🔄 Cargando datos del estudiante de forma optimizada...');
+    console.log('📄 Cargando datos del estudiante de forma optimizada...');
     
     try {
       // 1. Cargar instituciones y estudiante EN PARALELO
