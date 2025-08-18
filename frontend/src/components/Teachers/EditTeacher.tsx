@@ -13,8 +13,6 @@ interface FormData {
   birthDate: string;
   institutionId: string;    
   courseIds: string[];      
-  institutionName: string;  
-  courseNames: string[];    
   gender: string;
   status: 'active' | 'inactive' | 'retired';
   balance: number;
@@ -66,8 +64,6 @@ const EditTeacher = () => {
     birthDate: '',
     institutionId: '',
     courseIds: [''],
-    institutionName: '',
-    courseNames: [],
     gender: '',
     status: 'active',
     balance: 0,
@@ -80,6 +76,9 @@ const EditTeacher = () => {
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(true);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  
+  // ✅ NUEVO: Estado para tracking de carga del docente
+  const [teacherLoaded, setTeacherLoaded] = useState(false);
   
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -98,53 +97,119 @@ const EditTeacher = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'password' | 'financial'>('info');
 
-  // ✅ CORREGIDO: Secuencia de carga optimizada
+  // ✅ CORREGIDO: Cargar instituciones al montar
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        console.log('🚀 [Teacher] Iniciando carga de datos...');
-        
-        // 1. Cargar instituciones primero
-        await loadInstitutions();
-        
-        // 2. Si tenemos ID, cargar docente
-        if (id) {
-          await loadTeacher();
-        }
-      } catch (error) {
-        console.error('❌ [Teacher] Error en inicialización:', error);
-        setError('Error al cargar datos iniciales');
-      }
-    };
+    loadInstitutions();
+  }, []);
 
-    initializeData();
-  }, [id]);
+  // ✅ CORREGIDO: Cargar docente después de tener instituciones
+  useEffect(() => {
+    if (id && !isLoadingInstitutions && institutions.length > 0) {
+      loadTeacher();
+    }
+  }, [id, isLoadingInstitutions, institutions]);
 
   // ✅ CORREGIDO: Cargar cursos cuando cambia la institución
   useEffect(() => {
     if (formData.institutionId) {
-      console.log('🔄 [Teacher] Cargando cursos para institución:', formData.institutionId);
       loadCourses(formData.institutionId);
     } else {
       setCourses([]);
     }
   }, [formData.institutionId]);
 
+  // ✅ NUEVO: Mapear institución DESPUÉS de tener datos completos
+  useEffect(() => {
+    if (teacherLoaded && teacher && institutions.length > 0) {
+      // Encontrar y setear la institución
+      const institutionOption = institutions.find(inst => inst.label === teacher.institution);
+      
+      if (institutionOption) {
+        console.log('🏫 Mapeando institución:', teacher.institution, '→', institutionOption.value);
+        
+        setFormData(prev => ({
+          ...prev,
+          institutionId: institutionOption.value
+        }));
+      } else {
+        console.warn('⚠️ No se encontró la institución:', teacher.institution);
+        
+        // Agregar institución como opción custom
+        const customInstitution = { 
+          value: `custom_${Date.now()}`, 
+          label: teacher.institution 
+        };
+        setInstitutions(prev => [customInstitution, ...prev]);
+        setFormData(prev => ({ ...prev, institutionId: customInstitution.value }));
+      }
+    }
+  }, [teacherLoaded, teacher, institutions]);
+
+  // ✅ NUEVO: Mapear cursos DESPUÉS de que los cursos se carguen
+  useEffect(() => {
+    if (teacher && courses.length > 0 && formData.institutionId && teacher.courses) {
+      console.log('📚 Mapeando cursos del docente:', teacher.courses);
+      
+      const mappedCourseIds: string[] = [];
+      const notFoundCourses: string[] = [];
+      
+      teacher.courses.forEach(courseName => {
+        const courseOption = courses.find(course => 
+          course.label.toLowerCase().trim() === courseName.toLowerCase().trim()
+        );
+        
+        if (courseOption) {
+          mappedCourseIds.push(courseOption.value);
+          console.log('✅ Curso mapeado:', courseName, '→', courseOption.value);
+        } else {
+          notFoundCourses.push(courseName);
+          console.warn('⚠️ Curso no encontrado:', courseName);
+        }
+      });
+      
+      // Agregar cursos no encontrados como opciones custom
+      if (notFoundCourses.length > 0) {
+        const customCourses = notFoundCourses.map(courseName => ({
+          value: `custom_${Date.now()}_${Math.random()}`,
+          label: courseName
+        }));
+        
+        setCourses(prev => [...customCourses, ...prev]);
+        mappedCourseIds.push(...customCourses.map(c => c.value));
+      }
+      
+      // Asegurar al menos un elemento en el array
+      const finalCourseIds = mappedCourseIds.length > 0 ? mappedCourseIds : [''];
+      
+      setFormData(prev => ({
+        ...prev,
+        courseIds: finalCourseIds
+      }));
+      
+      console.log('🎯 Cursos finales mapeados:', finalCourseIds);
+    }
+  }, [teacher, courses, formData.institutionId]);
+
+  // ✅ NUEVO: Reset teacherLoaded cuando cambia el ID
+  useEffect(() => {
+    setTeacherLoaded(false);
+  }, [id]);
+
   // FUNCIÓN: Cargar instituciones activas
   const loadInstitutions = async () => {
     try {
       setIsLoadingInstitutions(true);
-      console.log('🏫 [Teacher] Cargando instituciones...');
+      console.log('🏫 Cargando instituciones...');
       
       const response = await apiService.getActiveInstitutions();
       
       if (response.status === 'success') {
         const institutionOptions = apiService.formatInstitutionsForSelect(response);
         setInstitutions(institutionOptions);
-        console.log('✅ [Teacher] Instituciones cargadas:', institutionOptions.length);
+        console.log('✅ Instituciones cargadas:', institutionOptions.length);
       }
     } catch (error: any) {
-      console.error('❌ [Teacher] Error cargando instituciones:', error);
+      console.error('❌ Error cargando instituciones:', error);
       setErrors(prev => ({ 
         ...prev, 
         general: 'Error al cargar instituciones. Verifique su conexión.' 
@@ -158,17 +223,17 @@ const EditTeacher = () => {
   const loadCourses = async (institutionId: string) => {
     try {
       setIsLoadingCourses(true);
-      console.log('📚 [Teacher] Cargando cursos para institución:', institutionId);
+      console.log('📚 Cargando cursos para institución:', institutionId);
       
       const response = await apiService.getCoursesByInstitutionId(institutionId);
       
       if (response.status === 'success') {
         const courseOptions = apiService.formatCoursesForSelect(response);
         setCourses(courseOptions);
-        console.log('✅ [Teacher] Cursos cargados:', courseOptions.length);
+        console.log('✅ Cursos cargados:', courseOptions.length);
       }
     } catch (error: any) {
-      console.error('❌ [Teacher] Error cargando cursos:', error);
+      console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ 
         ...prev, 
         courseIds: 'Error al cargar cursos disponibles' 
@@ -178,99 +243,45 @@ const EditTeacher = () => {
     }
   };
 
-  // ✅ CORREGIDO: Función de mapeo mejorada para docentes
-  const findInstitutionByName = (institutionName: string): InstitutionOption | undefined => {
-    if (!institutionName || !institutions.length) return undefined;
-    
-    const normalizedName = institutionName.trim().toLowerCase();
-    console.log('🔍 [Teacher] Buscando institución:', normalizedName);
-    
-    // Buscar coincidencia exacta primero
-    let found = institutions.find(inst => 
-      inst.label.trim().toLowerCase() === normalizedName
-    );
-    
-    // Si no encuentra, buscar contenido parcial
-    if (!found) {
-      found = institutions.find(inst => 
-        inst.label.trim().toLowerCase().includes(normalizedName) ||
-        normalizedName.includes(inst.label.trim().toLowerCase())
-      );
-    }
-    
-    console.log('🔍 [Teacher] Institución encontrada:', found);
-    return found;
-  };
-
-  const findCoursesByNames = (courseNames: string[]): string[] => {
-    if (!courseNames || !courseNames.length || !courses.length) return [];
-    
-    console.log('🔍 [Teacher] Buscando cursos:', courseNames);
-    
-    const foundCourseIds: string[] = [];
-    const notFoundCourses: string[] = [];
-    
-    courseNames.forEach(courseName => {
-      const normalizedName = courseName.trim().toLowerCase();
-      
-      // Buscar coincidencia exacta primero
-      let found = courses.find(course => 
-        course.label.trim().toLowerCase() === normalizedName
-      );
-      
-      // Si no encuentra, buscar contenido parcial
-      if (!found) {
-        found = courses.find(course => 
-          course.label.trim().toLowerCase().includes(normalizedName) ||
-          normalizedName.includes(course.label.trim().toLowerCase())
-        );
-      }
-      
-      if (found) {
-        foundCourseIds.push(found.value);
-      } else {
-        notFoundCourses.push(courseName);
-      }
-    });
-    
-    // Agregar cursos no encontrados como opciones custom
-    if (notFoundCourses.length > 0) {
-      console.log('⚠️ [Teacher] Cursos no encontrados, agregando como custom:', notFoundCourses);
-      const customCourses = notFoundCourses.map(courseName => ({
-        value: `custom_${Date.now()}_${Math.random()}`,
-        label: courseName
-      }));
-      
-      setCourses(prev => [...customCourses, ...prev]);
-      foundCourseIds.push(...customCourses.map(c => c.value));
-    }
-    
-    console.log('🔍 [Teacher] Cursos encontrados/mapeados:', foundCourseIds.length);
-    return foundCourseIds;
-  };
-
-  // Cargar docente
+  // ✅ CORREGIDO: Cargar docente sin mapear IDs inmediatamente
   const loadTeacher = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('📖 [Teacher] Cargando docente...', { id });
+      console.log('📖 Cargando docente...', { id });
       
       const response = await apiService.getTeacherById(id!);
       
       if (response.status === 'success') {
         const teacherData = response.data.teacher;
         setTeacher(teacherData);
-        console.log('📋 [Teacher] Datos del docente cargados:', teacherData);
         
-        // ✅ CORREGIDO: Esperar a que las instituciones estén cargadas
-        if (institutions.length === 0) {
-          console.log('⏳ [Teacher] Esperando instituciones...');
-          return;
-        }
-        
-        await mapTeacherDataToForm(teacherData);
+        // ✅ CORREGIDO: Solo setear datos básicos, NO mapear IDs todavía
+        setFormData({
+          run: teacherData.run,
+          firstName: teacherData.firstName,
+          lastName: teacherData.lastName,
+          email: teacherData.email,
+          phone: teacherData.phone || '',
+          birthDate: teacherData.birthDate,
+          institutionId: '', // ← Vacío por ahora
+          courseIds: [''],   // ← Solo un elemento vacío por ahora
+          gender: teacherData.gender,
+          status: teacherData.status,
+          balance: teacherData.balance,
+          overdraftLimit: teacherData.overdraftLimit,
+          isActive: teacherData.isActive
+        });
+
+        // Marcar que el docente se cargó
+        setTeacherLoaded(true);
+
+        console.log('✅ Datos del docente cargados:', {
+          run: teacherData.run,
+          institution: teacherData.institution,
+          courses: teacherData.courses
+        });
       }
     } catch (error: any) {
       console.error('Error cargando docente:', error);
@@ -279,78 +290,6 @@ const EditTeacher = () => {
       setIsLoading(false);
     }
   };
-
-  // ✅ NUEVO: Función separada para mapear datos de docente
-  const mapTeacherDataToForm = async (teacherData: TeacherData) => {
-    console.log('🗺️ [Teacher] Mapeando datos del docente a formulario...');
-    
-    // Buscar institución por nombre
-    const institutionOption = findInstitutionByName(teacherData.institution);
-    
-    let formUpdate: Partial<FormData> = {
-      run: teacherData.run,
-      firstName: teacherData.firstName,
-      lastName: teacherData.lastName,
-      email: teacherData.email,
-      phone: teacherData.phone || '',
-      birthDate: teacherData.birthDate,
-      institutionId: institutionOption?.value || '',
-      courseIds: [''], // Se llenará después de cargar cursos
-      gender: teacherData.gender,
-      status: teacherData.status,
-      balance: teacherData.balance,
-      overdraftLimit: teacherData.overdraftLimit,
-      isActive: teacherData.isActive
-    };
-
-    console.log('📊 [Teacher] FormData parcial:', formUpdate);
-    setFormData(prev => ({ ...prev, ...formUpdate }));
-
-    // Si encontramos institución, cargar cursos y buscar los cursos
-    if (institutionOption?.value) {
-      console.log('🔄 [Teacher] Cargando cursos para mapear cursos actuales...');
-      
-      try {
-        const response = await apiService.getCoursesByInstitutionId(institutionOption.value);
-        if (response.status === 'success') {
-          const courseOptions = apiService.formatCoursesForSelect(response);
-          setCourses(courseOptions);
-          
-          // Buscar cursos por nombres
-          const foundCourseIds = findCoursesByNames(teacherData.courses || []);
-          
-          if (foundCourseIds.length > 0) {
-            console.log('✅ [Teacher] Cursos encontrados y mapeados:', foundCourseIds);
-            setFormData(prev => ({ ...prev, courseIds: foundCourseIds }));
-          } else {
-            console.log('⚠️ [Teacher] No se encontraron cursos, manteniendo array con un elemento vacío');
-            setFormData(prev => ({ ...prev, courseIds: [''] }));
-          }
-        }
-      } catch (error) {
-        console.error('❌ [Teacher] Error cargando cursos para mapeo:', error);
-      }
-    } else {
-      console.log('⚠️ [Teacher] Institución no encontrada, agregando como custom:', teacherData.institution);
-      // Agregar institución actual como opción si no existe
-      const currentInstitutionOption = { 
-        value: `custom_${Date.now()}`, 
-        label: teacherData.institution 
-      };
-      setInstitutions(prev => [currentInstitutionOption, ...prev]);
-      setFormData(prev => ({ ...prev, institutionId: currentInstitutionOption.value }));
-    }
-
-    console.log('✅ [Teacher] Mapeo completado');
-  };
-
-  // ✅ CORREGIDO: Efecto para mapear cuando las instituciones estén listas
-  useEffect(() => {
-    if (teacher && institutions.length > 0) {
-      console.log('🔄 [Teacher] Instituciones cargadas, mapeando datos del docente...');
-      mapTeacherDataToForm(teacher);
-    }
-  }, [institutions, teacher]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -363,7 +302,7 @@ const EditTeacher = () => {
   // ✅ CORREGIDO: Manejar cambio de institución
   const handleInstitutionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
-    console.log('🏫 [Teacher] Institución seleccionada ID:', selectedId);
+    console.log('🏫 Institución seleccionada ID:', selectedId);
     
     setFormData(prev => ({ 
       ...prev, 
@@ -478,7 +417,7 @@ const EditTeacher = () => {
         courses: selectedCourses
       };
       
-      console.log('📤 [Teacher] Enviando datos al backend:', updateData);
+      console.log('📤 Enviando datos al backend:', updateData);
       
       const response = await apiService.updateTeacher(id!, updateData);
       if (response.status === 'success') {
