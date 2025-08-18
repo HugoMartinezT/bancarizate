@@ -77,6 +77,9 @@ const EditStudent = () => {
   const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(true);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   
+  // ✅ NUEVO: Estado para tracking de carga del estudiante
+  const [studentLoaded, setStudentLoaded] = useState(false);
+  
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: ''
@@ -156,7 +159,7 @@ const EditStudent = () => {
     }
   };
 
-  // ✅ CORREGIDO: Mapear correctamente los datos del estudiante
+  // ✅ CORREGIDO: Modificar loadStudent para NO mapear IDs inmediatamente
   const loadStudent = async () => {
     try {
       setIsLoading(true);
@@ -170,10 +173,7 @@ const EditStudent = () => {
         const studentData = response.data.student;
         setStudent(studentData);
         
-        // ✅ CORREGIDO: Mapear datos y encontrar IDs correspondientes
-        const institutionOption = institutions.find(inst => inst.label === studentData.institution);
-        const courseOption = courses.find(course => course.label === studentData.course);
-        
+        // ✅ CORREGIDO: Solo setear datos básicos, NO mapear IDs todavía
         setFormData({
           run: studentData.run,
           firstName: studentData.firstName,
@@ -181,8 +181,8 @@ const EditStudent = () => {
           email: studentData.email,
           phone: studentData.phone || '',
           birthDate: studentData.birthDate,
-          institutionId: institutionOption?.value || '',  // ✅ MAPEAR A ID
-          courseId: courseOption?.value || '',            // ✅ MAPEAR A ID
+          institutionId: '', // ← Vacío por ahora
+          courseId: '',      // ← Vacío por ahora
           gender: studentData.gender,
           status: studentData.status,
           balance: studentData.balance,
@@ -190,12 +190,13 @@ const EditStudent = () => {
           isActive: studentData.isActive
         });
 
+        // Marcar que el estudiante se cargó
+        setStudentLoaded(true);
+
         console.log('✅ Datos del estudiante cargados:', {
           run: studentData.run,
           institution: studentData.institution,
-          course: studentData.course,
-          institutionId: institutionOption?.value,
-          courseId: courseOption?.value
+          course: studentData.course
         });
       }
     } catch (error: any) {
@@ -212,6 +213,51 @@ const EditStudent = () => {
       loadStudent();
     }
   }, [id, isLoadingInstitutions, institutions]);
+
+  // ✅ NUEVO: Mapear institución DESPUÉS de tener datos completos
+  useEffect(() => {
+    if (studentLoaded && student && institutions.length > 0) {
+      // Encontrar y setear la institución
+      const institutionOption = institutions.find(inst => inst.label === student.institution);
+      
+      if (institutionOption) {
+        console.log('🏫 Mapeando institución:', student.institution, '→', institutionOption.value);
+        
+        setFormData(prev => ({
+          ...prev,
+          institutionId: institutionOption.value
+        }));
+        
+        // Los cursos se cargarán automáticamente por el useEffect existente
+        // y se mapearán en el siguiente useEffect
+      } else {
+        console.warn('⚠️ No se encontró la institución:', student.institution, 'en la lista:', institutions.map(i => i.label));
+      }
+    }
+  }, [studentLoaded, student, institutions]);
+
+  // ✅ NUEVO: Mapear curso DESPUÉS de que los cursos se carguen
+  useEffect(() => {
+    if (student && courses.length > 0 && formData.institutionId) {
+      const courseOption = courses.find(course => course.label === student.course);
+      
+      if (courseOption) {
+        console.log('📚 Mapeando curso:', student.course, '→', courseOption.value);
+        
+        setFormData(prev => ({
+          ...prev,
+          courseId: courseOption.value
+        }));
+      } else {
+        console.warn('⚠️ No se encontró el curso:', student.course, 'en la lista:', courses.map(c => c.label));
+      }
+    }
+  }, [student, courses, formData.institutionId]);
+
+  // ✅ NUEVO: Reset studentLoaded cuando cambia el ID
+  useEffect(() => {
+    setStudentLoaded(false);
+  }, [id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
