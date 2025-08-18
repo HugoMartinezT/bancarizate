@@ -111,14 +111,27 @@ app.use(helmet({
   contentSecurityPolicy: false, // Para desarrollo, ajustar en producción
 }));
 
+// ✅ CONFIGURACIÓN CORS MEJORADA PARA DUAL ENVIRONMENT
+const isLocalDevelopment = require.main === module; // Detecta si se ejecuta directamente
+const corsOrigins = isLocalDevelopment 
+  ? [
+      'http://localhost:3000',    // React default
+      'http://localhost:5173',    // Vite default  
+      'http://localhost:5174',    // Vite alternativo
+      'http://127.0.0.1:3000',    // Localhost alternativo
+      'http://127.0.0.1:5173'     // Vite alternativo
+    ]
+  : process.env.FRONTEND_URL || '*';
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'development' 
-    ? ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'] 
-    : process.env.FRONTEND_URL || '*',
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Log para debug de CORS
+logger.info(`🌐 CORS configurado para: ${JSON.stringify(corsOrigins)}`);
 
 // Morgan logging para HTTP requests (solo en desarrollo)
 if (process.env.NODE_ENV === 'development') {
