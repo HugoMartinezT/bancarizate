@@ -1,7 +1,7 @@
-// hooks/useStudentEdit.ts - Custom hook optimizado para edición
+// hooks/useStudentEdit.ts - CORREGIDO para usar api.ts integrado
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { apiServiceOptimized } from '../services/api-optimized';
+import { apiService } from '../services/api'; // ✅ CORREGIDO: usar api integrado
 
 interface UseStudentEditReturn {
   // Datos
@@ -75,7 +75,7 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
     }));
   }, [rawCourses]);
 
-  // ✅ OPTIMIZACIÓN: Cargar datos iniciales con Promise.all
+  // ✅ OPTIMIZACIÓN: Cargar datos iniciales con el método optimizado
   const loadInitialData = useCallback(async () => {
     if (!studentId) return;
 
@@ -86,8 +86,8 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       console.log('🚀 Iniciando carga optimizada para estudiante:', studentId);
       const startTime = performance.now();
 
-      // Usar el método optimizado que carga todo en paralelo
-      const data = await apiServiceOptimized.getStudentEditData(studentId);
+      // ✅ CORREGIDO: Usar método del api integrado
+      const data = await apiService.getStudentEditData(studentId);
       
       const endTime = performance.now();
       console.log(`⚡ Datos cargados en ${Math.round(endTime - startTime)}ms`);
@@ -138,7 +138,8 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       setIsLoadingCourses(true);
       console.log('📚 Cargando cursos para institución:', institutionId);
       
-      const response = await apiServiceOptimized.getCoursesByInstitutionOptimized(institutionId);
+      // ✅ CORREGIDO: Usar método optimizado del api integrado
+      const response = await apiService.getCoursesByInstitutionOptimized(institutionId);
       setRawCourses(response.data.courses);
       
       console.log('✅ Cursos cargados:', response.data.courses.length);
@@ -171,7 +172,8 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       
       console.log('💾 Actualizando estudiante:', updateData);
       
-      await apiServiceOptimized.updateStudent(studentId, updateData);
+      // ✅ CORREGIDO: Usar api integrado
+      await apiService.updateStudent(studentId, updateData);
       setSuccess('Estudiante actualizado exitosamente');
       
       // Recargar datos para mostrar cambios
@@ -195,7 +197,8 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
 
       console.log('🔑 Cambiando contraseña del estudiante');
       
-      await apiServiceOptimized.changeStudentPassword(studentId, newPassword);
+      // ✅ CORREGIDO: Usar api integrado
+      await apiService.changeStudentPassword(studentId, newPassword);
       setSuccess('Contraseña actualizada exitosamente');
       
     } catch (error: any) {
@@ -212,9 +215,9 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
 
     // Cleanup al desmontar
     return () => {
-      apiServiceOptimized.abortRequest(`student_edit_${studentId}`);
+      apiService.abortRequest(`student_edit_${studentId}`);
     };
-  }, [loadInitialData]);
+  }, [loadInitialData, studentId]);
 
   // ✅ LIMPIAR MENSAJES DE ÉXITO AUTOMÁTICAMENTE
   useEffect(() => {
