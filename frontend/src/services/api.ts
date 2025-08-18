@@ -1,4 +1,4 @@
-// services/api.ts - Servicio API COMPLETO con todas las funcionalidades CORREGIDO
+// services/api.ts - Servicio API COMPLETO con OPTIMIZACIONES INTEGRADAS
 
 // ==========================================
 // IMPORTS DE TIPOS
@@ -142,21 +142,37 @@ interface AvailableUser {
 
 class ApiService {
   private baseURL: string;
-  private _institutionCache: Institution[] | null = null;
-  private _courseCache: Record<string, Course[]> = {};
+
+  // ==========================================
+  // 🚀 NUEVAS PROPIEDADES DE OPTIMIZACIÓN
+  // ==========================================
+  private _institutionCache: {
+    data: Institution[];
+    timestamp: number;
+    expiry: number;
+  } | null = null;
+  
+  private _courseCache: Record<string, {
+    data: Course[];
+    timestamp: number;
+    expiry: number;
+  }> = {};
+  
+  private _abortControllers: Map<string, AbortController> = new Map();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   }
 
   // ==========================================
-  // MÃ‰TODO GENÃ‰RICO PARA REQUESTS
+  // MÉTODO GENÉRICO PARA REQUESTS
   // ==========================================
   
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${this.baseURL}${endpoint}`;
     
-    // âœ… CORREGIDO: Usar tipo especÃ­fico para headers
+    // ✅ CORREGIDO: Usar tipo específico para headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
@@ -174,7 +190,7 @@ class ApiService {
     };
 
     try {
-      console.log(`ðŸŒ API Request: ${config.method || 'GET'} ${url}`);
+      console.log(`🌐 API Request: ${config.method || 'GET'} ${url}`);
       
       const response = await fetch(url, config);
       
@@ -191,7 +207,7 @@ class ApiService {
       
       const data = await response.json();
 
-      console.log(`ðŸ“¡ API Response (${response.status}):`, data);
+      console.log(`📡 API Response (${response.status}):`, data);
 
       if (!response.ok) {
         throw new Error(data.message || `Error ${response.status}`);
@@ -199,13 +215,13 @@ class ApiService {
 
       return data;
     } catch (error) {
-      console.error('âŒ API Error:', error);
+      console.error('❌ API Error:', error);
       throw error;
     }
   }
 
   // ==========================================
-  // MÃ‰TODOS DE AUTENTICACIÃ“N
+  // MÉTODOS DE AUTENTICACIÓN
   // ==========================================
 
   async login(run: string, password: string): Promise<LoginResponse> {
@@ -238,7 +254,7 @@ class ApiService {
   }
 
   // ==========================================
-  // MÃ‰TODOS DE ESTUDIANTES
+  // MÉTODOS DE ESTUDIANTES
   // ==========================================
 
   async getStudents(params: {
@@ -294,7 +310,7 @@ class ApiService {
   }
 
   // ==========================================
-  // MÃ‰TODOS DE DOCENTES
+  // MÉTODOS DE DOCENTES
   // ==========================================
 
   async getTeachers(params: {
@@ -350,7 +366,7 @@ class ApiService {
   }
 
   // ==========================================
-  // MÃ‰TODOS ADMINISTRATIVOS
+  // MÉTODOS ADMINISTRATIVOS
   // ==========================================
 
   async getAllUsers(params?: {
@@ -444,7 +460,7 @@ class ApiService {
     return await this.request(`/admin/courses?${queryParams.toString()}`);
   }
 
-  // MÃ©todo para cursos por instituciÃ³n (usando params)
+  // Método para cursos por institución (usando params)
   async getCoursesByInstitutionId(institutionId: string): Promise<CoursesResponse> {
     return await this.getCourses({ institution: institutionId });
   }
@@ -687,7 +703,7 @@ class ApiService {
   }
 
   // ==========================================
-  // MÃ‰TODOS DE TRANSFERENCIAS
+  // MÉTODOS DE TRANSFERENCIAS
   // ==========================================
 
   async createTransfer(transferData: {
@@ -733,7 +749,7 @@ class ApiService {
   }
 
   // ==========================================
-  // OTROS MÃ‰TODOS
+  // OTROS MÉTODOS
   // ==========================================
 
   async getDashboardStats(): Promise<any> {
@@ -744,16 +760,207 @@ class ApiService {
     try {
       const response = await fetch(`${this.baseURL.replace('/api', '')}/api/health`);
       const data = await response.json();
-      console.log('ðŸ’š Health check exitoso:', data);
+      console.log('🩹 Health check exitoso:', data);
       return data;
     } catch (error) {
-      console.error('â¤ï¸â€ðŸ©¹ Health check fallÃ³:', error);
+      console.error('❤️‍🩹 Health check falló:', error);
       throw new Error('No se puede conectar con el backend');
     }
   }
 
   // ==========================================
-  // MÃ‰TODOS AUXILIARES
+  // 🚀 NUEVOS MÉTODOS OPTIMIZADOS
+  // ==========================================
+
+  /**
+   * 🚀 OPTIMIZADO: Cache inteligente para instituciones
+   * Evita requests repetitivos, cache de 5 minutos
+   */
+  async getActiveInstitutionsOptimized(): Promise<InstitutionsResponse> {
+    const cacheKey = 'institutions';
+    
+    // Verificar cache válido
+    if (this._institutionCache && 
+        Date.now() - this._institutionCache.timestamp < this._institutionCache.expiry) {
+      console.log('🚀 Cache hit - Instituciones');
+      return {
+        status: 'success',
+        data: {
+          institutions: this._institutionCache.data,
+          pagination: { 
+            page: 1, 
+            limit: 100, 
+            total: this._institutionCache.data.length, 
+            totalPages: 1 
+          }
+        }
+      };
+    }
+
+    // Cancelar request anterior si existe
+    if (this._abortControllers.has(cacheKey)) {
+      this._abortControllers.get(cacheKey)?.abort();
+    }
+
+    // Crear nuevo AbortController
+    const abortController = new AbortController();
+    this._abortControllers.set(cacheKey, abortController);
+
+    try {
+      console.log('📡 API Request - Instituciones (con cache)');
+      const response = await this.getInstitutions({ active: 'true' });
+      
+      // Guardar en cache
+      this._institutionCache = {
+        data: response.data.institutions,
+        timestamp: Date.now(),
+        expiry: this.CACHE_DURATION
+      };
+
+      this._abortControllers.delete(cacheKey);
+      return response;
+    } catch (error) {
+      this._abortControllers.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  /**
+   * 🚀 OPTIMIZADO: Cache inteligente para cursos por institución
+   * Cache individual por institución, evita recargas innecesarias
+   */
+  async getCoursesByInstitutionOptimized(institutionId: string): Promise<CoursesResponse> {
+    const cacheKey = `courses_${institutionId}`;
+    
+    // Verificar cache válido
+    if (this._courseCache[institutionId] && 
+        Date.now() - this._courseCache[institutionId].timestamp < this._courseCache[institutionId].expiry) {
+      console.log('🚀 Cache hit - Cursos:', institutionId);
+      return {
+        status: 'success',
+        data: {
+          courses: this._courseCache[institutionId].data,
+          pagination: { 
+            page: 1, 
+            limit: 100, 
+            total: this._courseCache[institutionId].data.length, 
+            totalPages: 1 
+          }
+        }
+      };
+    }
+
+    // Cancelar request anterior si existe
+    if (this._abortControllers.has(cacheKey)) {
+      this._abortControllers.get(cacheKey)?.abort();
+    }
+
+    // Crear nuevo AbortController
+    const abortController = new AbortController();
+    this._abortControllers.set(cacheKey, abortController);
+
+    try {
+      console.log('📡 API Request - Cursos:', institutionId);
+      const response = await this.getCoursesByInstitutionId(institutionId);
+      
+      // Guardar en cache
+      this._courseCache[institutionId] = {
+        data: response.data.courses,
+        timestamp: Date.now(),
+        expiry: this.CACHE_DURATION
+      };
+
+      this._abortControllers.delete(cacheKey);
+      return response;
+    } catch (error) {
+      this._abortControllers.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  /**
+   * 🚀 OPTIMIZADO: Carga paralela completa para edición de estudiantes
+   * Carga instituciones, estudiante y cursos de forma optimizada
+   */
+  async getStudentEditData(studentId: string): Promise<{
+    student: any;
+    institutions: Institution[];
+    courses: Course[];
+    institutionMap: Map<string, string>;
+    courseMap: Map<string, string>;
+  }> {
+    console.log('🔄 Cargando datos del estudiante de forma optimizada...');
+    
+    try {
+      // 1. Cargar instituciones y estudiante EN PARALELO
+      const [institutionsRes, studentRes] = await Promise.all([
+        this.getActiveInstitutionsOptimized(),
+        this.getStudentById(studentId)
+      ]);
+
+      const institutions = institutionsRes.data.institutions;
+      const student = studentRes.data.student;
+
+      console.log('✅ Instituciones y estudiante cargados');
+
+      // 2. Encontrar institución del estudiante
+      const studentInstitution = institutions.find(inst => 
+        inst.name === student.institution
+      );
+
+      // 3. Cargar cursos SOLO para la institución del estudiante
+      let courses: Course[] = [];
+      if (studentInstitution) {
+        const coursesRes = await this.getCoursesByInstitutionOptimized(studentInstitution.id);
+        courses = coursesRes.data.courses;
+        console.log('✅ Cursos cargados para institución:', studentInstitution.name);
+      }
+
+      // 4. Crear mapas optimizados para búsquedas O(1)
+      const institutionMap = new Map(institutions.map(inst => [inst.name, inst.id]));
+      const courseMap = new Map(courses.map(course => [course.name, course.id]));
+
+      console.log('🎯 Datos del estudiante optimizados listos');
+
+      return {
+        student,
+        institutions,
+        courses,
+        institutionMap,
+        courseMap
+      };
+
+    } catch (error) {
+      console.error('❌ Error cargando datos del estudiante:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🧹 UTILIDAD: Limpiar cache cuando sea necesario
+   * Útil para refrescar datos o liberar memoria
+   */
+  clearCache() {
+    this._institutionCache = null;
+    this._courseCache = {};
+    this._abortControllers.forEach(controller => controller.abort());
+    this._abortControllers.clear();
+    console.log('🧹 Cache limpiado');
+  }
+
+  /**
+   * 🛑 UTILIDAD: Abortar requests específicos
+   * Previene race conditions en navegación rápida
+   */
+  abortRequest(key: string) {
+    if (this._abortControllers.has(key)) {
+      this._abortControllers.get(key)?.abort();
+      this._abortControllers.delete(key);
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS AUXILIARES
   // ==========================================
 
   private capitalizeFirst(str: string): string {
