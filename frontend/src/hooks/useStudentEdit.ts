@@ -3,9 +3,42 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { apiService } from '../services/api';
 
+// ✅ INTERFACES BÁSICAS PARA TIPADO
+interface Institution {
+  id: string;
+  name: string;
+  type?: string;
+  is_active?: boolean;
+}
+
+interface Course {
+  id: string;
+  name: string;
+  institution_id?: string;
+  level?: string;
+  is_active?: boolean;
+}
+
+interface Student {
+  id: string;
+  run: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  birthDate: string;
+  institution: string;
+  course: string;
+  gender: string;
+  status: string;
+  balance: number;
+  overdraftLimit: number;
+  isActive: boolean;
+}
+
 interface UseStudentEditReturn {
   // Datos
-  student: any | null;
+  student: Student | null;
   institutions: Array<{value: string, label: string}>;
   courses: Array<{value: string, label: string}>;
   formData: any;
@@ -35,9 +68,9 @@ interface UseStudentEditReturn {
 
 export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
   // Estados principales
-  const [student, setStudent] = useState<any | null>(null);
-  const [rawInstitutions, setRawInstitutions] = useState<any[]>([]);
-  const [rawCourses, setRawCourses] = useState<any[]>([]);
+  const [student, setStudent] = useState<Student | null>(null);
+  const [rawInstitutions, setRawInstitutions] = useState<Institution[]>([]);
+  const [rawCourses, setRawCourses] = useState<Course[]>([]);
   const [formData, setFormData] = useState<any>({});
   
   // Estados de carga
@@ -53,23 +86,23 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
 
   // ✅ OPTIMIZACIÓN: Mapas memoizados para búsquedas O(1)
   const institutionMap = useMemo(() => {
-    return new Map(rawInstitutions.map(inst => [inst.name, inst.id]));
+    return new Map(rawInstitutions.map((inst: Institution) => [inst.name, inst.id]));
   }, [rawInstitutions]);
 
   const courseMap = useMemo(() => {
-    return new Map(rawCourses.map(course => [course.name, course.id]));
+    return new Map(rawCourses.map((course: Course) => [course.name, course.id]));
   }, [rawCourses]);
 
   // ✅ OPTIMIZACIÓN: Arrays formateados para selects (memoizados)
   const institutions = useMemo(() => {
-    return rawInstitutions.map(inst => ({
+    return rawInstitutions.map((inst: Institution) => ({
       value: inst.id,
       label: inst.name
     }));
   }, [rawInstitutions]);
 
   const courses = useMemo(() => {
-    return rawCourses.map(course => ({
+    return rawCourses.map((course: Course) => ({
       value: course.id,
       label: course.name
     }));
@@ -85,29 +118,29 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       
       console.log('🚀 Cargando datos del estudiante:', studentId);
 
-      // ✅ CORRECCIÓN: Usar métodos básicos del API que existen
+      // ✅ CORRECCIÓN: Usar métodos correctos del API Service
       const [studentResponse, institutionsResponse] = await Promise.all([
         apiService.getStudentById(studentId),
-        apiService.getAllInstitutions({ limit: 100 })
+        apiService.getInstitutions({ limit: 100 })
       ]);
 
       if (studentResponse.status === 'success' && institutionsResponse.status === 'success') {
-        const studentData = studentResponse.data.student;
-        const institutionsData = institutionsResponse.data.institutions;
+        const studentData = studentResponse.data.student as Student;
+        const institutionsData = institutionsResponse.data.institutions as Institution[];
 
         setStudent(studentData);
         setRawInstitutions(institutionsData);
 
         // Cargar cursos para la institución actual del estudiante
         if (studentData.institution) {
-          const institutionId = institutionsData.find(inst => inst.name === studentData.institution)?.id;
+          const institutionId = institutionsData.find((inst: Institution) => inst.name === studentData.institution)?.id;
           if (institutionId) {
             await loadCoursesForInstitution(institutionId);
           }
         }
 
         // Mapear form data
-        const institutionId = institutionsData.find(inst => inst.name === studentData.institution)?.id || '';
+        const institutionId = institutionsData.find((inst: Institution) => inst.name === studentData.institution)?.id || '';
 
         setFormData({
           run: studentData.run,
@@ -145,12 +178,13 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       setIsLoadingCourses(true);
       console.log('📚 Cargando cursos para institución:', institutionId);
       
-      // ✅ CORRECCIÓN: Usar método básico compatible
-      const response = await apiService.getAllCourses({ institution: institutionId, limit: 100 });
+      // ✅ CORRECCIÓN: Usar método correcto del API Service
+      const response = await apiService.getCourses({ institution: institutionId, limit: 100 });
       
       if (response.status === 'success') {
-        setRawCourses(response.data.courses);
-        console.log('✅ Cursos cargados:', response.data.courses.length);
+        const coursesData = response.data.courses as Course[];
+        setRawCourses(coursesData);
+        console.log('✅ Cursos cargados:', coursesData.length);
       }
     } catch (error: any) {
       console.error('❌ Error cargando cursos:', error);
@@ -170,8 +204,8 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       setSuccess(null);
 
       // Convertir IDs a nombres para el backend
-      const selectedInstitution = rawInstitutions.find(inst => inst.id === updates.institutionId);
-      const selectedCourse = rawCourses.find(course => course.id === updates.courseId);
+      const selectedInstitution = rawInstitutions.find((inst: Institution) => inst.id === updates.institutionId);
+      const selectedCourse = rawCourses.find((course: Course) => course.id === updates.courseId);
       
       const updateData = {
         ...updates,
