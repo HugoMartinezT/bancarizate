@@ -1,7 +1,7 @@
-// hooks/useStudentEdit.ts - CORREGIDO para usar api.ts integrado
+// hooks/useStudentEdit.ts - CORREGIDO para deployment
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { apiService } from '../services/api'; // ✅ CORREGIDO: usar api integrado
+import { apiService } from '../services/api';
 
 interface UseStudentEditReturn {
   // Datos
@@ -75,7 +75,7 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
     }));
   }, [rawCourses]);
 
-  // ✅ OPTIMIZACIÓN: Cargar datos iniciales con el método optimizado
+  // ✅ CARGAR DATOS INICIALES - Método alternativo compatible
   const loadInitialData = useCallback(async () => {
     if (!studentId) return;
 
@@ -83,41 +83,48 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       setIsLoading(true);
       setError(null);
       
-      console.log('🚀 Iniciando carga optimizada para estudiante:', studentId);
-      const startTime = performance.now();
+      console.log('🚀 Cargando datos del estudiante:', studentId);
 
-      // ✅ CORREGIDO: Usar método del api integrado
-      const data = await apiService.getStudentEditData(studentId);
-      
-      const endTime = performance.now();
-      console.log(`⚡ Datos cargados en ${Math.round(endTime - startTime)}ms`);
+      // ✅ CORRECCIÓN: Usar métodos básicos del API que existen
+      const [studentResponse, institutionsResponse] = await Promise.all([
+        apiService.getStudentById(studentId),
+        apiService.getAllInstitutions({ limit: 100 })
+      ]);
 
-      // Actualizar estados
-      setStudent(data.student);
-      setRawInstitutions(data.institutions);
-      setRawCourses(data.courses);
+      if (studentResponse.status === 'success' && institutionsResponse.status === 'success') {
+        const studentData = studentResponse.data.student;
+        const institutionsData = institutionsResponse.data.institutions;
 
-      // Mapear form data con IDs correctos
-      const institutionId = data.institutionMap.get(data.student.institution) || '';
-      const courseId = data.courseMap.get(data.student.course) || '';
+        setStudent(studentData);
+        setRawInstitutions(institutionsData);
 
-      setFormData({
-        run: data.student.run,
-        firstName: data.student.firstName,
-        lastName: data.student.lastName,
-        email: data.student.email,
-        phone: data.student.phone || '',
-        birthDate: data.student.birthDate,
-        institutionId,
-        courseId,
-        gender: data.student.gender,
-        status: data.student.status,
-        balance: data.student.balance,
-        overdraftLimit: data.student.overdraftLimit,
-        isActive: data.student.isActive
-      });
+        // Cargar cursos para la institución actual del estudiante
+        if (studentData.institution) {
+          const institutionId = institutionsData.find(inst => inst.name === studentData.institution)?.id;
+          if (institutionId) {
+            await loadCoursesForInstitution(institutionId);
+          }
+        }
 
-      console.log('✅ Datos del formulario mapeados:', { institutionId, courseId });
+        // Mapear form data
+        const institutionId = institutionsData.find(inst => inst.name === studentData.institution)?.id || '';
+
+        setFormData({
+          run: studentData.run,
+          firstName: studentData.firstName,
+          lastName: studentData.lastName,
+          email: studentData.email,
+          phone: studentData.phone || '',
+          birthDate: studentData.birthDate,
+          institutionId,
+          courseId: '', // Se cargará cuando se seleccione institución
+          gender: studentData.gender,
+          status: studentData.status,
+          balance: studentData.balance,
+          overdraftLimit: studentData.overdraftLimit,
+          isActive: studentData.isActive
+        });
+      }
 
     } catch (error: any) {
       console.error('❌ Error cargando datos:', error);
@@ -127,7 +134,7 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
     }
   }, [studentId]);
 
-  // ✅ OPTIMIZACIÓN: Cargar cursos para institución específica
+  // ✅ CARGAR CURSOS PARA INSTITUCIÓN ESPECÍFICA
   const loadCoursesForInstitution = useCallback(async (institutionId: string) => {
     if (!institutionId) {
       setRawCourses([]);
@@ -138,11 +145,13 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       setIsLoadingCourses(true);
       console.log('📚 Cargando cursos para institución:', institutionId);
       
-      // ✅ CORREGIDO: Usar método optimizado del api integrado
-      const response = await apiService.getCoursesByInstitutionOptimized(institutionId);
-      setRawCourses(response.data.courses);
+      // ✅ CORRECCIÓN: Usar método básico compatible
+      const response = await apiService.getAllCourses({ institution: institutionId, limit: 100 });
       
-      console.log('✅ Cursos cargados:', response.data.courses.length);
+      if (response.status === 'success') {
+        setRawCourses(response.data.courses);
+        console.log('✅ Cursos cargados:', response.data.courses.length);
+      }
     } catch (error: any) {
       console.error('❌ Error cargando cursos:', error);
       setErrors(prev => ({ ...prev, courseId: 'Error al cargar cursos' }));
@@ -151,7 +160,7 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
     }
   }, []);
 
-  // ✅ OPTIMIZACIÓN: Update con debouncing implícito
+  // ✅ UPDATE ESTUDIANTE
   const updateStudent = useCallback(async (updates: any) => {
     if (!studentId) return;
 
@@ -172,12 +181,14 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
       
       console.log('💾 Actualizando estudiante:', updateData);
       
-      // ✅ CORREGIDO: Usar api integrado
-      await apiService.updateStudent(studentId, updateData);
-      setSuccess('Estudiante actualizado exitosamente');
+      // ✅ CORRECCIÓN: Usar método básico del API
+      const response = await apiService.updateStudent(studentId, updateData);
       
-      // Recargar datos para mostrar cambios
-      setTimeout(() => loadInitialData(), 500);
+      if (response.status === 'success') {
+        setSuccess('Estudiante actualizado exitosamente');
+        // Recargar datos para mostrar cambios
+        setTimeout(() => loadInitialData(), 500);
+      }
       
     } catch (error: any) {
       console.error('❌ Error actualizando estudiante:', error);
@@ -187,7 +198,7 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
     }
   }, [studentId, rawInstitutions, rawCourses, loadInitialData]);
 
-  // ✅ OPTIMIZACIÓN: Cambio de contraseña optimizado
+  // ✅ CAMBIO DE CONTRASEÑA
   const changePassword = useCallback(async (newPassword: string) => {
     if (!studentId) return;
 
@@ -197,9 +208,12 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
 
       console.log('🔑 Cambiando contraseña del estudiante');
       
-      // ✅ CORREGIDO: Usar api integrado
-      await apiService.changeStudentPassword(studentId, newPassword);
-      setSuccess('Contraseña actualizada exitosamente');
+      // ✅ CORRECCIÓN: Usar método básico del API
+      const response = await apiService.changeStudentPassword(studentId, newPassword);
+      
+      if (response.status === 'success') {
+        setSuccess('Contraseña actualizada exitosamente');
+      }
       
     } catch (error: any) {
       console.error('❌ Error cambiando contraseña:', error);
@@ -213,11 +227,12 @@ export const useStudentEdit = (studentId: string): UseStudentEditReturn => {
   useEffect(() => {
     loadInitialData();
 
-    // Cleanup al desmontar
+    // ✅ CORRECCIÓN: Eliminar abortRequest que no existe
+    // Cleanup básico sin métodos no implementados
     return () => {
-      apiService.abortRequest(`student_edit_${studentId}`);
+      console.log('🧹 Cleanup del hook useStudentEdit');
     };
-  }, [loadInitialData, studentId]);
+  }, [loadInitialData]);
 
   // ✅ LIMPIAR MENSAJES DE ÉXITO AUTOMÁTICAMENTE
   useEffect(() => {
