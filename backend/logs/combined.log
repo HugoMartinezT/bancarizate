@@ -349,3 +349,20 @@
 {"level":"info","message":"Ambiente: development","service":"bancarizate-api","timestamp":"2025-08-11T14:12:29.046Z"}
 {"level":"info","message":"Sistema de actividades: HABILITADO","service":"bancarizate-api","timestamp":"2025-08-11T14:12:29.047Z"}
 {"level":"info","message":"Panel administrativo: HABILITADO","service":"bancarizate-api","timestamp":"2025-08-11T14:12:29.047Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:54:48.114Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:54:48.116Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:55:40.929Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:55:40.930Z"}
+{"level":"warn","message":"Ruta no encontrada: GET /favicon.ico","service":"bancarizate-api","timestamp":"2025-08-19T20:55:46.849Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:56:36.271Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:56:36.272Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:56:39.579Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:56:39.581Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:56:42.460Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:56:42.462Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:56:45.203Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:56:45.207Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T20:56:47.830Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T20:56:47.833Z"}
+{"level":"info","message":"Servidor BANCARIZATE iniciado en puerto 5000","service":"bancarizate-api","timestamp":"2025-08-19T21:03:34.900Z"}
+{"level":"info","message":"Ambiente: production","service":"bancarizate-api","timestamp":"2025-08-19T21:03:34.902Z"}

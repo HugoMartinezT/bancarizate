@@ -1,4 +1,4 @@
-// services/api.ts - Servicio API COMPLETO con CORRECCIONES INTEGRADAS
+// services/api.ts - Servicio API COMPLETO con CORRECCIONES INTEGRADAS y NUEVO MÉTODO DE VERIFICACIÓN DE CONTRASEÑA
 
 // ==========================================
 // IMPORTS DE TIPOS
@@ -27,6 +27,58 @@ import type {
   ActivityResponse,
   ActivityFilters
 } from '../types/types';
+
+// ==========================================
+// NUEVOS TIPOS PARA RATE LIMITERS
+// ==========================================
+interface RateLimiterRefreshResponse {
+  status: string;
+  message: string;
+  data: {
+    refreshResult: {
+      status: string;
+      message: string;
+      config: Record<string, number>;
+      timestamp: string;
+    };
+    appliedAt: string;
+    adminUser: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  };
+}
+
+interface RateLimiterStatusResponse {
+  status: string;
+  message: string;
+  data: {
+    configuration: Record<string, number | string>;
+    timestamp: string;
+    requestedBy: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  };
+}
+
+interface RateLimiterTestResponse {
+  status: string;
+  message: string;
+  data: {
+    rateLimitInfo: {
+      limit: string | number;
+      remaining: string | number;
+      reset: string | number;
+      used: string | number;
+    };
+    testType: string;
+    timestamp: string;
+    message: string;
+  };
+}
 
 // ==========================================
 // INTERFACES LOCALES PARA API
@@ -251,6 +303,37 @@ class ApiService {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     return response;
+  }
+
+  /**
+   * 🔑 Verificar contraseña actual del usuario autenticado
+   * Solo para verificación - NO actualiza la contraseña
+   * Usado para confirmar cambios críticos como rate limiters
+   */
+  async verifyCurrentPassword(password: string): Promise<any> {
+    console.log('🔑 Verificando contraseña actual del usuario...');
+ 
+    try {
+      const response = await this.request('/auth/verify-current-password', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+      console.log('✅ Contraseña verificada exitosamente');
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error verificando contraseña:', error);
+   
+      // Manejar errores específicos para mejor UX
+      if (error.message.includes('401')) {
+        throw new Error('Contraseña incorrecta');
+      } else if (error.message.includes('429')) {
+        throw new Error('Demasiados intentos fallidos. Espera antes de intentar nuevamente.');
+      } else if (error.message.includes('403')) {
+        throw new Error('Cuenta temporalmente bloqueada por seguridad');
+      }
+   
+      throw error;
+    }
   }
 
   // ==========================================
@@ -794,6 +877,226 @@ class ApiService {
   }
 
   // ==========================================
+  // MÉTODOS PARA GESTIÓN DE RATE LIMITERS
+  // ==========================================
+
+  /**
+   * 🔄 Refrescar rate limiters desde configuración de BD
+   * Solo admins pueden ejecutar este endpoint
+   */
+  async refreshRateLimiters(): Promise<RateLimiterRefreshResponse> {
+    console.log('🔄 Solicitando refresh de rate limiters...');
+ 
+    try {
+      const response = await this.request('/admin/config/rate-limiters/refresh', {
+        method: 'POST',
+      });
+   
+      console.log('✅ Rate limiters refrescados exitosamente:', response);
+      return response;
+   
+    } catch (error) {
+      console.error('❌ Error refrescando rate limiters:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 📊 Obtener estado actual de rate limiters
+   * Solo admins pueden consultar este endpoint
+   */
+  async getRateLimiterStatus(): Promise<RateLimiterStatusResponse> {
+    console.log('📊 Consultando estado de rate limiters...');
+ 
+    try {
+      const response = await this.request('/admin/config/rate-limiters/status', {
+        method: 'GET',
+      });
+   
+      console.log('✅ Estado de rate limiters obtenido:', response);
+      return response;
+   
+    } catch (error) {
+      console.error('❌ Error obteniendo estado de rate limiters:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🧪 Probar funcionamiento de rate limiters
+   * Solo admins pueden ejecutar este test
+   */
+  async testRateLimiters(): Promise<RateLimiterTestResponse> {
+    console.log('🧪 Probando funcionamiento de rate limiters...');
+ 
+    try {
+      const response = await this.request('/admin/config/rate-limiters/test', {
+        method: 'GET',
+      });
+   
+      console.log('✅ Test de rate limiters exitoso:', response);
+      return response;
+   
+    } catch (error) {
+      console.error('❌ Error en test de rate limiters:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🔧 Método combinado: Actualizar configuración + Refrescar rate limiters
+   * Flujo completo para cambios de rate limiting
+   */
+  async updateRateLimiterConfigs(updates: { key: string, value: any }[]): Promise<{
+    configUpdate: any;
+    rateLimiterRefresh: RateLimiterRefreshResponse;
+  }> {
+    console.log('🔧 Actualizando configuraciones de rate limiting:', updates);
+ 
+    try {
+      // 1. Actualizar configuraciones en BD
+      console.log('📝 Paso 1: Actualizando configuraciones...');
+      const configUpdate = await this.updateMultipleConfigurations(updates);
+   
+      // 2. Refrescar rate limiters para aplicar cambios
+      console.log('🔄 Paso 2: Refrescando rate limiters...');
+      const rateLimiterRefresh = await this.refreshRateLimiters();
+   
+      console.log('✅ Configuraciones y rate limiters actualizados exitosamente');
+   
+      return {
+        configUpdate,
+        rateLimiterRefresh
+      };
+   
+    } catch (error) {
+      console.error('❌ Error en actualización completa de rate limiters:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 📋 Obtener configuraciones específicas de rate limiting
+   * Filtra solo las configuraciones relacionadas con rate limiting
+   */
+  async getRateLimitingConfigurations(): Promise<SystemConfigResponse> {
+    console.log('📋 Obteniendo configuraciones de rate limiting...');
+ 
+    try {
+      const response = await this.getSystemConfig();
+   
+      // Filtrar solo configuraciones de rate limiting
+      const rateLimitConfigs = response.data.configurations.filter(config =>
+        config.category === 'security' && config.configKey.includes('_limit_')
+      );
+   
+      console.log(`✅ ${rateLimitConfigs.length} configuraciones de rate limiting encontradas`);
+   
+      return {
+        status: response.status,
+        data: {
+          configurations: rateLimitConfigs,
+          grouped: { security: rateLimitConfigs },
+          categories: ['security']
+        }
+      };
+   
+    } catch (error) {
+      console.error('❌ Error obteniendo configuraciones de rate limiting:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🎯 Validar configuración de rate limiting antes de aplicar
+   * Verifica que los valores estén en rangos seguros
+   */
+  validateRateLimitConfig(key: string, value: number): {
+    isValid: boolean;
+    error?: string;
+    recommendation?: string;
+  } {
+    const validationRules: Record<string, { min: number; max: number; recommended: number }> = {
+      // Login limits
+      'login_limit_max': { min: 3, max: 20, recommended: 5 },
+      'login_limit_window_ms': { min: 300000, max: 3600000, recommended: 900000 }, // 5min - 1h
+   
+      // Transfer limits
+      'transfer_limit_max': { min: 5, max: 50, recommended: 10 },
+      'transfer_limit_window_ms': { min: 60000, max: 1800000, recommended: 300000 }, // 1min - 30min
+   
+      // General API limits
+      'general_limit_max': { min: 50, max: 1000, recommended: 100 },
+      'general_limit_window_ms': { min: 300000, max: 3600000, recommended: 900000 }, // 5min - 1h
+   
+      // User search limits
+      'user_search_limit_max': { min: 10, max: 100, recommended: 30 },
+      'user_search_limit_window_ms': { min: 30000, max: 300000, recommended: 60000 }, // 30s - 5min
+   
+      // History limits
+      'history_limit_max': { min: 20, max: 200, recommended: 60 },
+      'history_limit_window_ms': { min: 30000, max: 300000, recommended: 60000 }, // 30s - 5min
+   
+      // Password change limits
+      'password_change_limit_max': { min: 1, max: 10, recommended: 3 },
+      'password_change_limit_window_ms': { min: 1800000, max: 7200000, recommended: 3600000 }, // 30min - 2h
+   
+      // User creation limits
+      'create_user_limit_max': { min: 5, max: 50, recommended: 10 },
+      'create_user_limit_window_ms': { min: 1800000, max: 7200000, recommended: 3600000 }, // 30min - 2h
+    };
+ 
+    const rule = validationRules[key];
+    if (!rule) {
+      return {
+        isValid: false,
+        error: `Configuración desconocida: ${key}`
+      };
+    }
+ 
+    if (value < rule.min) {
+      return {
+        isValid: false,
+        error: `Valor demasiado bajo (mínimo: ${rule.min})`,
+        recommendation: `Se recomienda: ${rule.recommended}`
+      };
+    }
+ 
+    if (value > rule.max) {
+      return {
+        isValid: false,
+        error: `Valor demasiado alto (máximo: ${rule.max})`,
+        recommendation: `Se recomienda: ${rule.recommended}`
+      };
+    }
+ 
+    return { isValid: true };
+  }
+
+  /**
+   * 🔍 Formatear configuración de rate limiting para mostrar en UI
+   * Convierte milisegundos a formato legible
+   */
+  formatRateLimitDisplay(key: string, value: number): string {
+    if (key.includes('_window_ms')) {
+      // Convertir milisegundos a formato legible
+      const minutes = Math.floor(value / 60000);
+      const seconds = Math.floor((value % 60000) / 1000);
+   
+      if (minutes > 0) {
+        return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes} minutos`;
+      }
+      return `${seconds} segundos`;
+    }
+ 
+    if (key.includes('_limit_max')) {
+      return `${value} requests`;
+    }
+ 
+    return value.toString();
+  }
+
+  // ==========================================
   // 🚀 MÉTODOS OPTIMIZADOS
   // ==========================================
 
@@ -961,29 +1264,6 @@ class ApiService {
     }
   }
 
-  /**
-   * 🧹 UTILIDAD: Limpiar cache cuando sea necesario
-   * Útil para refrescar datos o liberar memoria
-   */
-  clearCache() {
-    this._institutionCache = null;
-    this._courseCache = {};
-    this._abortControllers.forEach(controller => controller.abort());
-    this._abortControllers.clear();
-    console.log('🧹 Cache limpiado');
-  }
-
-  /**
-   * 🛑 UTILIDAD: Abortar requests específicos
-   * Previene race conditions en navegación rápida
-   */
-  abortRequest(key: string) {
-    if (this._abortControllers.has(key)) {
-      this._abortControllers.get(key)?.abort();
-      this._abortControllers.delete(key);
-    }
-  }
-
   // ==========================================
   // MÉTODOS AUXILIARES
   // ==========================================
@@ -1084,5 +1364,8 @@ export type {
   SystemConfigResponse,
   MassUploadValidation,
   MassUploadResult,
-  BackupStats
+  BackupStats,
+  RateLimiterRefreshResponse,
+  RateLimiterStatusResponse,
+  RateLimiterTestResponse
 };
