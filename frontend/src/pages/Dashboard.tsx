@@ -20,6 +20,22 @@ import type { Transfer, UserStats } from '../services/api';
 import type { User } from '../types/types';
 
 // ==========================
+// Detección de entorno (evita usar `process` directamente en front)
+// ==========================
+const isProduction = (() => {
+  try {
+    // Vite / ESM
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) {
+      return (import.meta as any).env.MODE === 'production';
+    }
+    // CRA / Webpack (fallback sin tipos de Node)
+    return ((globalThis as any).process?.env?.NODE_ENV) === 'production';
+  } catch {
+    return false;
+  }
+})();
+
+// ==========================
 // Tipos & Props
 // ==========================
 interface DashboardProps {
@@ -192,7 +208,7 @@ const Dashboard = ({ user }: DashboardProps) => {
       const response = await apiService.getUserStats();
       setUserStats(response.data);
     } catch (error: any) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (!isProduction) {
         console.error('Error cargando estadísticas:', error);
       }
     } finally {
@@ -207,7 +223,7 @@ const Dashboard = ({ user }: DashboardProps) => {
       const response = await apiService.getTransferHistory({ limit: 5, type: 'all' });
       setRecentTransfers(response.data.transfers);
     } catch (error: any) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (!isProduction) {
         console.error('Error cargando actividad reciente:', error);
       }
     } finally {
@@ -576,9 +592,7 @@ const Dashboard = ({ user }: DashboardProps) => {
                                           {transfer.recipientCount} personas
                                         </span>
                                       )}
-                                      {String(transfer.id).includes('demo') && (
-                                        <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded font-medium">DEMO</span>
-                                      )}
+                                      
                                     </div>
                                     <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                       <span>{transfer.description || 'Movimiento'}</span>
