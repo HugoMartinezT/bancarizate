@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Send, ArrowUpRight, ArrowDownLeft, Clock, XCircle, User, DollarSign, Search, X,
   UserCircle, Star, School, TrendingUp, Shield, Wallet, AlertCircle, Users,

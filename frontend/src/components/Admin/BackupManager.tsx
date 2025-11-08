@@ -743,19 +743,7 @@ const BackupManager = () => {
         </div>
       </div>
 
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+      {/* CSS Animations handled via Tailwind animate-fadeInUp utility classes */}
 
       {/* Backup de tabla específica */}
       <div className="bg-white rounded-lg shadow border border-gray-100 mb-6">
