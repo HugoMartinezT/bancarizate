@@ -134,7 +134,12 @@ const getAllUsers = async (req, res) => {
     // Aplicar otros filtros
     if (search) {
       console.log(`🔍 Aplicando filtro de búsqueda: "${search}"`);
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,run.ilike.%${search}%,email.ilike.%${search}%`);
+      query = query.or(
+        `first_name.ilike.%${search}%,` +
+        `last_name.ilike.%${search}%,` +
+        `run.ilike.%${search}%,` +
+        `email.ilike.%${search}%`
+      );
     }
 
     if (role !== 'all') {
@@ -184,9 +189,9 @@ const getAllUsers = async (req, res) => {
         institution: institutionInfo,
         course: courseInfo,
         displayRole: {
-          'student': 'Estudiante',
-          'teacher': 'Docente', 
-          'admin': 'Administrador'
+          student: 'Estudiante',
+          teacher: 'Docente',
+          admin: 'Administrador'
         }[user.role] || user.role
       };
     });
@@ -194,7 +199,7 @@ const getAllUsers = async (req, res) => {
     // Filtro adicional de institución (si se especifica)
     let filteredUsers = formattedUsers;
     if (institution !== 'all') {
-      filteredUsers = formattedUsers.filter(user => 
+      filteredUsers = formattedUsers.filter(user =>
         user.institution.toLowerCase().includes(institution.toLowerCase())
       );
     }
@@ -208,7 +213,9 @@ const getAllUsers = async (req, res) => {
       students: filteredUsers.filter(u => u.role === 'student').length,
       teachers: filteredUsers.filter(u => u.role === 'teacher').length,
       admins: filteredUsers.filter(u => u.role === 'admin').length,
-      institutions: [...new Set(filteredUsers.map(u => u.institution).filter(Boolean))]
+      institutions: [
+        ...new Set(filteredUsers.map(u => u.institution).filter(Boolean))
+      ]
     };
 
     console.log(`📊 Estadísticas finales:`);
@@ -221,12 +228,12 @@ const getAllUsers = async (req, res) => {
       status: 'success',
       data: {
         users: filteredUsers,
-        stats: stats,
-        filters: { 
-          search, 
-          role, 
-          institution, 
-          limit: parseInt(limit) 
+        stats,
+        filters: {
+          search,
+          role,
+          institution,
+          limit: parseInt(limit)
         }
       }
     };
@@ -252,8 +259,8 @@ const getAllUsers = async (req, res) => {
     console.error('❌ [getAllUsers] Error crítico:', error);
     console.error('🔍 Stack trace:', error.stack);
     
-    res.status(500).json({ 
-      status: 'error', 
+    res.status(500).json({
+      status: 'error',
       message: 'Error al obtener lista de usuarios disponibles para transferencia',
       details: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del servidor',
       debug: process.env.NODE_ENV === 'development' ? {
@@ -275,22 +282,24 @@ const formatTransferForUser = (transfer, currentUserId) => {
 
   let userAmount = parseFloat(transfer.amount);
   if (!isSent && transfer.type === 'multiple') {
-    const myRecipientInfo = transfer.transfer_recipients?.find(r => r.user_id === currentUserId);
+    const myRecipientInfo = transfer.transfer_recipients?.find(
+      r => r.user_id === currentUserId
+    );
     userAmount = myRecipientInfo ? parseFloat(myRecipientInfo.amount) : 0;
   }
 
-  const translateRole = (role) => {
+  const translateRole = role => {
     const translations = {
-      'student': 'Estudiante',
-      'teacher': 'Docente', 
-      'admin': 'Administrador'
+      student: 'Estudiante',
+      teacher: 'Docente',
+      admin: 'Administrador'
     };
     return translations[role] || role;
   };
 
   return {
     id: transfer.id,
-    direction: direction,
+    direction,
     amount: userAmount,
     totalAmount: parseFloat(transfer.amount),
     description: transfer.description,
@@ -298,30 +307,35 @@ const formatTransferForUser = (transfer, currentUserId) => {
     date: transfer.created_at,
     completedAt: transfer.completed_at,
     isMultiple: transfer.type === 'multiple',
-    otherPerson: isSent 
-      ? (transfer.recipient ? { 
-          id: transfer.recipient.id, 
-          name: `${transfer.recipient.first_name} ${transfer.recipient.last_name}`, 
-          run: transfer.recipient.run, 
-          role: transfer.recipient.role,
-          displayRole: translateRole(transfer.recipient.role)
-        } : null) 
-      : (transfer.sender ? { 
-          id: transfer.sender.id, 
-          name: `${transfer.sender.first_name} ${transfer.sender.last_name}`, 
-          run: transfer.sender.run, 
-          role: transfer.sender.role,
-          displayRole: translateRole(transfer.sender.role)
-        } : null),
-    recipients: transfer.transfer_recipients?.map(r => ({
-      id: r.recipient.id,
-      name: `${r.recipient.first_name} ${r.recipient.last_name}`,
-      run: r.recipient.run,
-      role: r.recipient.role,
-      displayRole: translateRole(r.recipient.role),
-      amount: parseFloat(r.amount),
-      status: r.status
-    })) || [],
+    otherPerson: isSent
+      ? (transfer.recipient
+          ? {
+              id: transfer.recipient.id,
+              name: `${transfer.recipient.first_name} ${transfer.recipient.last_name}`,
+              run: transfer.recipient.run,
+              role: transfer.recipient.role,
+              displayRole: translateRole(transfer.recipient.role)
+            }
+          : null)
+      : (transfer.sender
+          ? {
+              id: transfer.sender.id,
+              name: `${transfer.sender.first_name} ${transfer.sender.last_name}`,
+              run: transfer.sender.run,
+              role: transfer.sender.role,
+              displayRole: translateRole(transfer.sender.role)
+            }
+          : null),
+    recipients:
+      transfer.transfer_recipients?.map(r => ({
+        id: r.recipient.id,
+        name: `${r.recipient.first_name} ${r.recipient.last_name}`,
+        run: r.recipient.run,
+        role: r.recipient.role,
+        displayRole: translateRole(r.recipient.role),
+        amount: parseFloat(r.amount),
+        status: r.status
+      })) || [],
     recipientCount: transfer.transfer_recipients?.length || 0
   };
 };
@@ -329,10 +343,10 @@ const formatTransferForUser = (transfer, currentUserId) => {
 const getTransferHistory = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { 
-      page = 1, 
-      limit = 10, 
-      type = 'all', 
+    const {
+      page = 1,
+      limit = 10,
+      type = 'all',
       status = 'all',
       search = '',
       role = 'all',
@@ -347,7 +361,7 @@ const getTransferHistory = async (req, res) => {
     let allTransfers = [];
     let totalCount = 0;
 
-    const buildDateFilter = (query) => {
+    const buildDateFilter = query => {
       if (dateFrom) {
         query = query.gte('created_at', `${dateFrom}T00:00:00.000Z`);
       }
@@ -357,7 +371,7 @@ const getTransferHistory = async (req, res) => {
       return query;
     };
 
-    const buildStatusFilter = (query) => {
+    const buildStatusFilter = query => {
       if (status !== 'all') {
         query = query.eq('status', status);
       }
@@ -367,12 +381,15 @@ const getTransferHistory = async (req, res) => {
     if (type === 'sent') {
       let query = supabase
         .from('transfers')
-        .select(`
+        .select(
+          `
           *, 
           sender:from_user_id(*), 
           recipient:to_user_id(*), 
           transfer_recipients(*, recipient:user_id(*))
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' }
+        )
         .eq('from_user_id', userId);
 
       query = buildDateFilter(query);
@@ -386,6 +403,7 @@ const getTransferHistory = async (req, res) => {
       totalCount = count || 0;
 
     } else if (type === 'received') {
+      // Recibidas simples
       let singleQuery = supabase
         .from('transfers')
         .select(`
@@ -404,6 +422,7 @@ const getTransferHistory = async (req, res) => {
       const { data: singleReceived, error: singleError } = await singleQuery;
       if (singleError) throw singleError;
 
+      // Recibidas múltiples
       let multipleQuery = supabase
         .from('transfers')
         .select(`
@@ -431,6 +450,7 @@ const getTransferHistory = async (req, res) => {
       totalCount = combinedReceived.length;
 
     } else {
+      // Todas: enviadas + recibidas (simples y múltiples)
       let sentQuery = supabase
         .from('transfers')
         .select(`
@@ -487,16 +507,16 @@ const getTransferHistory = async (req, res) => {
         ...(multipleReceived || [])
       ];
 
-      const uniqueTransfers = allCombined
-        .filter((transfer, index, self) => 
+      const uniqueTransfers = allCombined.filter(
+        (transfer, index, self) =>
           index === self.findIndex(t => t.id === transfer.id)
-        );
+      );
 
       allTransfers = uniqueTransfers;
       totalCount = uniqueTransfers.length;
     }
 
-    let formattedTransfers = allTransfers.map(transfer => 
+    let formattedTransfers = allTransfers.map(transfer =>
       formatTransferForUser(transfer, userId)
     );
 
@@ -504,8 +524,10 @@ const getTransferHistory = async (req, res) => {
       const searchLower = search.toLowerCase();
       formattedTransfers = formattedTransfers.filter(transfer => {
         if (transfer.otherPerson) {
-          return transfer.otherPerson.name.toLowerCase().includes(searchLower) ||
-                 transfer.otherPerson.run.includes(searchLower);
+          return (
+            transfer.otherPerson.name.toLowerCase().includes(searchLower) ||
+            transfer.otherPerson.run.includes(searchLower)
+          );
         }
         return transfer.description.toLowerCase().includes(searchLower);
       });
@@ -522,8 +544,10 @@ const getTransferHistory = async (req, res) => {
 
     const filteredTotal = formattedTransfers.length;
 
+    // Ordenamiento en memoria
     formattedTransfers.sort((a, b) => {
-      let aValue, bValue;
+      let aValue;
+      let bValue;
       
       switch (sortBy) {
         case 'date':
@@ -550,46 +574,52 @@ const getTransferHistory = async (req, res) => {
       }
     });
 
-    const paginatedTransfers = formattedTransfers.slice(offset, offset + parseInt(limit));
+    const paginatedTransfers = formattedTransfers.slice(
+      offset,
+      offset + parseInt(limit)
+    );
 
-    console.log(`✅ Historial cargado: ${paginatedTransfers.length}/${filteredTotal} transferencias (${type})`);
+    console.log(
+      `✅ Historial cargado: ${paginatedTransfers.length}/${filteredTotal} transferencias (${type})`
+    );
 
     res.status(200).json({
       status: 'success',
       data: {
         transfers: paginatedTransfers,
-        pagination: { 
-          page: parseInt(page), 
-          limit: parseInt(limit), 
-          total: filteredTotal, 
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: filteredTotal,
           totalPages: Math.ceil(filteredTotal / parseInt(limit)),
           hasNextPage: parseInt(page) < Math.ceil(filteredTotal / parseInt(limit)),
           hasPrevPage: parseInt(page) > 1
         },
-        filters: { 
-          type, 
-          status, 
-          search, 
-          role, 
-          dateFrom, 
-          dateTo, 
-          sortBy, 
-          sortOrder 
+        filters: {
+          type,
+          status,
+          search,
+          role,
+          dateFrom,
+          dateTo,
+          sortBy,
+          sortOrder
         },
         summary: {
           totalTransfers: filteredTotal,
           sent: formattedTransfers.filter(t => t.direction === 'sent').length,
-          received: formattedTransfers.filter(t => t.direction === 'received').length
+          received: formattedTransfers.filter(
+            t => t.direction === 'received'
+          ).length
         }
       }
     });
-
   } catch (error) {
     console.error('❌ Error obteniendo historial:', error);
-    res.status(500).json({ 
-      status: 'error', 
+    res.status(500).json({
+      status: 'error',
       message: 'Error al obtener historial de transferencias',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -659,17 +689,20 @@ const getRecentActivity = async (req, res) => {
     ];
 
     const uniqueTransfers = allCombined
-      .filter((transfer, index, self) => 
-        index === self.findIndex(t => t.id === transfer.id)
+      .filter(
+        (transfer, index, self) =>
+          index === self.findIndex(t => t.id === transfer.id)
       )
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, parseInt(limit));
 
-    const formattedTransfers = uniqueTransfers.map(transfer => 
+    const formattedTransfers = uniqueTransfers.map(transfer =>
       formatTransferForUser(transfer, userId)
     );
 
-    console.log(`✅ Actividad reciente cargada: ${formattedTransfers.length} movimientos`);
+    console.log(
+      `✅ Actividad reciente cargada: ${formattedTransfers.length} movimientos`
+    );
 
     res.status(200).json({
       status: 'success',
@@ -678,17 +711,18 @@ const getRecentActivity = async (req, res) => {
         summary: {
           total: formattedTransfers.length,
           sent: formattedTransfers.filter(t => t.direction === 'sent').length,
-          received: formattedTransfers.filter(t => t.direction === 'received').length
+          received: formattedTransfers.filter(
+            t => t.direction === 'received'
+          ).length
         }
       }
     });
-
   } catch (error) {
     console.error('❌ Error obteniendo actividad reciente:', error);
-    res.status(500).json({ 
-      status: 'error', 
+    res.status(500).json({
+      status: 'error',
       message: 'Error al obtener actividad reciente',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -699,10 +733,10 @@ const getRecentActivity = async (req, res) => {
 
 const createTransfer = async (req, res) => {
   try {
-    const { 
-      recipientIds, 
-      amount, 
-      description, 
+    const {
+      recipientIds,
+      amount,
+      description,
       distributionMode = 'equal',
       recipientAmounts = []
     } = req.body;
@@ -711,15 +745,27 @@ const createTransfer = async (req, res) => {
     const isMultiple = recipientIds.length > 1;
 
     if (recipientIds.includes(fromUserId)) {
-      return res.status(400).json({ status: 'error', message: 'No puedes transferir dinero a ti mismo' });
+      return res.status(400).json({
+        status: 'error',
+        message: 'No puedes transferir dinero a ti mismo'
+      });
     }
 
-    const { data: sender } = await supabase.from('users').select('balance, overdraft_limit, first_name, last_name, run').eq('id', fromUserId).single();
+    const { data: sender } = await supabase
+      .from('users')
+      .select('balance, overdraft_limit, first_name, last_name, run')
+      .eq('id', fromUserId)
+      .single();
+
     if (!sender) {
-      return res.status(400).json({ status: 'error', message: 'Usuario remitente no encontrado' });
+      return res.status(400).json({
+        status: 'error',
+        message: 'Usuario remitente no encontrado'
+      });
     }
 
-    const availableBalance = parseFloat(sender.balance) + parseFloat(sender.overdraft_limit);
+    const availableBalance =
+      parseFloat(sender.balance) + parseFloat(sender.overdraft_limit);
     let totalAmount = 0;
     let recipientDetails = [];
 
@@ -727,9 +773,15 @@ const createTransfer = async (req, res) => {
       if (distributionMode === 'equal') {
         const amountPerPerson = Math.floor(amount / recipientIds.length);
         totalAmount = amountPerPerson * recipientIds.length;
-        recipientDetails = recipientIds.map(id => ({ id, amount: amountPerPerson }));
+        recipientDetails = recipientIds.map(id => ({
+          id,
+          amount: amountPerPerson
+        }));
       } else {
-        recipientDetails = recipientIds.map((id, index) => ({ id, amount: parseInt(recipientAmounts[index]) || 0 }));
+        recipientDetails = recipientIds.map((id, index) => ({
+          id,
+          amount: parseInt(recipientAmounts[index]) || 0
+        }));
         totalAmount = recipientDetails.reduce((sum, r) => sum + r.amount, 0);
       }
     } else {
@@ -737,54 +789,148 @@ const createTransfer = async (req, res) => {
       recipientDetails = [{ id: recipientIds[0], amount: totalAmount }];
     }
 
-    if (totalAmount <= 0) return res.status(400).json({ status: 'error', message: 'El monto total debe ser mayor a 0' });
-    if (totalAmount > 5000000) return res.status(400).json({ status: 'error', message: 'El monto máximo por transferencia es $5.000.000' });
-    if (totalAmount > availableBalance) return res.status(400).json({ status: 'error', message: `Saldo insuficiente. Disponible: $${availableBalance.toLocaleString()}, Requerido: $${totalAmount.toLocaleString()}` });
+    if (totalAmount <= 0)
+      return res.status(400).json({
+        status: 'error',
+        message: 'El monto total debe ser mayor a 0'
+      });
+    if (totalAmount > 5000000)
+      return res.status(400).json({
+        status: 'error',
+        message: 'El monto máximo por transferencia es $5.000.000'
+      });
+    if (totalAmount > availableBalance)
+      return res.status(400).json({
+        status: 'error',
+        message: `Saldo insuficiente. Disponible: $${availableBalance.toLocaleString()}, Requerido: $${totalAmount.toLocaleString()}`
+      });
 
     const today = new Date().toISOString().split('T')[0];
-    const { data: todayTransfers } = await supabase.from('transfers').select('amount').eq('from_user_id', fromUserId).gte('created_at', `${today}T00:00:00.000Z`).lt('created_at', `${today}T23:59:59.999Z`).eq('status', 'completed');
-    const transferredToday = todayTransfers?.reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
+
+    const { data: todayTransfers } = await supabase
+      .from('transfers')
+      .select('amount')
+      .eq('from_user_id', fromUserId)
+      .gte('created_at', `${today}T00:00:00.000Z`)
+      .lt('created_at', `${today}T23:59:59.999Z`)
+      .eq('status', 'completed');
+
+    const transferredToday =
+      todayTransfers?.reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
     const dailyLimit = 10000000;
 
-    if (transferredToday + totalAmount > dailyLimit) return res.status(400).json({ status: 'error', message: `Límite diario excedido. Límite: $${dailyLimit.toLocaleString()}, Usado: $${transferredToday.toLocaleString()}` });
+    if (transferredToday + totalAmount > dailyLimit)
+      return res.status(400).json({
+        status: 'error',
+        message: `Límite diario excedido. Límite: $${dailyLimit.toLocaleString()}, Usado: $${transferredToday.toLocaleString()}`
+      });
 
-    const { data: recipients, error: recipientsError } = await supabase.from('users').select('id, run, first_name, last_name, role, is_active').in('id', recipientIds).eq('is_active', true);
-    if (recipientsError || recipients.length !== recipientIds.length) return res.status(400).json({ status: 'error', message: 'Uno o más destinatarios no son válidos o están inactivos' });
+    const { data: recipients, error: recipientsError } = await supabase
+      .from('users')
+      .select('id, run, first_name, last_name, role, is_active')
+      .in('id', recipientIds)
+      .eq('is_active', true);
+
+    if (recipientsError || recipients.length !== recipientIds.length)
+      return res.status(400).json({
+        status: 'error',
+        message: 'Uno o más destinatarios no son válidos o están inactivos'
+      });
 
     const transferId = uuidv4();
-    const { error: transferError } = await supabase.from('transfers').insert({ id: transferId, from_user_id: fromUserId, to_user_id: isMultiple ? null : recipientIds[0], amount: totalAmount, description, type: isMultiple ? 'multiple' : 'single', status: 'pending' });
-    if (transferError) throw new Error('Error al crear el registro de transferencia');
+
+    const { error: transferError } = await supabase
+      .from('transfers')
+      .insert({
+        id: transferId,
+        from_user_id: fromUserId,
+        to_user_id: isMultiple ? null : recipientIds[0],
+        amount: totalAmount,
+        description,
+        type: isMultiple ? 'multiple' : 'single',
+        status: 'pending'
+      });
+
+    if (transferError)
+      throw new Error('Error al crear el registro de transferencia');
 
     if (isMultiple) {
-      const recipientRecords = recipientDetails.map(r => ({ transfer_id: transferId, user_id: r.id, amount: r.amount, status: 'pending' }));
-      const { error: recipientsInsertError } = await supabase.from('transfer_recipients').insert(recipientRecords);
-      if (recipientsInsertError) throw new Error('Error al registrar destinatarios');
+      const recipientRecords = recipientDetails.map(r => ({
+        transfer_id: transferId,
+        user_id: r.id,
+        amount: r.amount,
+        status: 'pending'
+      }));
+      const { error: recipientsInsertError } = await supabase
+        .from('transfer_recipients')
+        .insert(recipientRecords);
+      if (recipientsInsertError)
+        throw new Error('Error al registrar destinatarios');
     }
 
     try {
       const newBalance = parseFloat(sender.balance) - totalAmount;
-      await supabase.from('users').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('id', fromUserId);
+
+      await supabase
+        .from('users')
+        .update({
+          balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', fromUserId);
+
       for (const recipient of recipientDetails) {
-        const { data: recipientUser } = await supabase.from('users').select('balance').eq('id', recipient.id).single();
-        const newRecipientBalance = parseFloat(recipientUser.balance) + recipient.amount;
-        await supabase.from('users').update({ balance: newRecipientBalance, updated_at: new Date().toISOString() }).eq('id', recipient.id);
+        const { data: recipientUser } = await supabase
+          .from('users')
+          .select('balance')
+          .eq('id', recipient.id)
+          .single();
+
+        const newRecipientBalance =
+          parseFloat(recipientUser.balance) + recipient.amount;
+
+        await supabase
+          .from('users')
+          .update({
+            balance: newRecipientBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', recipient.id);
+
         if (isMultiple) {
-          await supabase.from('transfer_recipients').update({ status: 'completed' }).eq('transfer_id', transferId).eq('user_id', recipient.id);
+          await supabase
+            .from('transfer_recipients')
+            .update({ status: 'completed' })
+            .eq('transfer_id', transferId)
+            .eq('user_id', recipient.id);
         }
       }
-      await supabase.from('transfers').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', transferId);
-      
+
+      await supabase
+        .from('transfers')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', transferId);
+
       // Logging mejorado
-      await supabase.from('activity_logs').insert({ 
-        user_id: fromUserId, 
-        action: 'transfer_sent', 
-        entity_type: 'transfer', 
-        entity_id: transferId, 
-        metadata: { 
+      await supabase.from('activity_logs').insert({
+        user_id: fromUserId,
+        action: 'transfer_sent',
+        entity_type: 'transfer',
+        entity_id: transferId,
+        metadata: {
           amount: totalAmount,
-          description: description,
-          recipient: recipients.length === 1 ? `${recipients[0].first_name} ${recipients[0].last_name}` : null,
-          recipientName: recipients.length === 1 ? `${recipients[0].first_name} ${recipients[0].last_name}` : null,
+          description,
+          recipient:
+            recipients.length === 1
+              ? `${recipients[0].first_name} ${recipients[0].last_name}`
+              : null,
+          recipientName:
+            recipients.length === 1
+              ? `${recipients[0].first_name} ${recipients[0].last_name}`
+              : null,
           recipientRun: recipients.length === 1 ? recipients[0].run : null,
           recipientCount: recipients.length,
           recipients: recipients.map(r => ({
@@ -795,13 +941,15 @@ const createTransfer = async (req, res) => {
           })),
           transferType: isMultiple ? 'multiple' : 'single',
           distributionMode: isMultiple ? distributionMode : 'single'
-        }, 
-        ip_address: req.ip, 
-        user_agent: req.get('user-agent') 
+        },
+        ip_address: req.ip,
+        user_agent: req.get('user-agent')
       });
 
       for (const recipient of recipients) {
-        const recipientAmount = recipientDetails.find(rd => rd.id === recipient.id).amount;
+        const recipientAmount = recipientDetails.find(
+          rd => rd.id === recipient.id
+        ).amount;
         await supabase.from('activity_logs').insert({
           user_id: recipient.id,
           action: 'transfer_received',
@@ -809,7 +957,7 @@ const createTransfer = async (req, res) => {
           entity_id: transferId,
           metadata: {
             amount: recipientAmount,
-            description: description,
+            description,
             sender: `${sender.first_name} ${sender.last_name}`,
             senderName: `${sender.first_name} ${sender.last_name}`,
             senderRun: sender.run,
@@ -820,33 +968,43 @@ const createTransfer = async (req, res) => {
         });
       }
 
-      console.log(`✅ Transferencia completada: ${totalAmount} a ${recipients.length} destinatarios`);
-      
-      res.status(201).json({ 
-        status: 'success', 
-        message: isMultiple ? `Transferencia múltiple realizada exitosamente a ${recipientIds.length} personas` : 'Transferencia realizada exitosamente', 
-        data: { 
-          transferId, 
-          amount: totalAmount, 
-          newBalance: newBalance, 
-          recipients: recipients.map(r => ({ 
-            id: r.id, 
-            name: `${r.first_name} ${r.last_name}`, 
-            run: r.run, 
-            role: r.role, 
-            amount: recipientDetails.find(rd => rd.id === r.id).amount 
-          })), 
-          transferredToday: transferredToday + totalAmount, 
-          dailyLimit: dailyLimit 
-        } 
+      console.log(
+        `✅ Transferencia completada: ${totalAmount} a ${recipients.length} destinatarios`
+      );
+
+      res.status(201).json({
+        status: 'success',
+        message: isMultiple
+          ? `Transferencia múltiple realizada exitosamente a ${recipientIds.length} personas`
+          : 'Transferencia realizada exitosamente',
+        data: {
+          transferId,
+          amount: totalAmount,
+          newBalance,
+          recipients: recipients.map(r => ({
+            id: r.id,
+            name: `${r.first_name} ${r.last_name}`,
+            run: r.run,
+            role: r.role,
+            amount: recipientDetails.find(rd => rd.id === r.id).amount
+          })),
+          transferredToday: transferredToday + totalAmount,
+          dailyLimit
+        }
       });
     } catch (processError) {
-      await supabase.from('transfers').update({ status: 'failed', error_message: processError.message }).eq('id', transferId);
+      await supabase
+        .from('transfers')
+        .update({ status: 'failed', error_message: processError.message })
+        .eq('id', transferId);
       throw processError;
     }
   } catch (error) {
     console.error('Error en createTransfer:', error);
-    res.status(500).json({ status: 'error', message: error.message || 'Error al procesar la transferencia' });
+    res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error al procesar la transferencia'
+    });
   }
 };
 
@@ -857,17 +1015,61 @@ const createTransfer = async (req, res) => {
 const getUserStats = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { data: user } = await supabase.from('users').select('balance, overdraft_limit, first_name, last_name').eq('id', userId).single();
-    if (!user) return res.status(404).json({ status: 'error', message: 'Usuario no encontrado' });
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('balance, overdraft_limit, first_name, last_name')
+      .eq('id', userId)
+      .single();
+
+    if (!user)
+      return res
+        .status(404)
+        .json({ status: 'error', message: 'Usuario no encontrado' });
+
     const today = new Date().toISOString().split('T')[0];
-    const { data: todayTransfers } = await supabase.from('transfers').select('amount, type').eq('from_user_id', userId).gte('created_at', `${today}T00:00:00.000Z`).lt('created_at', `${today}T23:59:59.999Z`).eq('status', 'completed');
-    const transferredToday = todayTransfers?.reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
+
+    const { data: todayTransfers } = await supabase
+      .from('transfers')
+      .select('amount, type')
+      .eq('from_user_id', userId)
+      .gte('created_at', `${today}T00:00:00.000Z`)
+      .lt('created_at', `${today}T23:59:59.999Z`)
+      .eq('status', 'completed');
+
+    const transferredToday =
+      todayTransfers?.reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
     const dailyLimit = 10000000;
-    const availableBalance = parseFloat(user.balance) + parseFloat(user.overdraft_limit);
-    res.status(200).json({ status: 'success', data: { user: { name: `${user.first_name} ${user.last_name}`, balance: parseFloat(user.balance), overdraftLimit: parseFloat(user.overdraft_limit), availableBalance: availableBalance }, limits: { dailyLimit: dailyLimit, transferredToday: transferredToday, remainingToday: dailyLimit - transferredToday, maxPerTransfer: 5000000, usagePercentage: (transferredToday / dailyLimit) * 100 }, stats: { transfersToday: todayTransfers?.length || 0 } } });
+    const availableBalance =
+      parseFloat(user.balance) + parseFloat(user.overdraft_limit);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user: {
+          name: `${user.first_name} ${user.last_name}`,
+          balance: parseFloat(user.balance),
+          overdraftLimit: parseFloat(user.overdraft_limit),
+          availableBalance
+        },
+        limits: {
+          dailyLimit,
+          transferredToday,
+          remainingToday: dailyLimit - transferredToday,
+          maxPerTransfer: 5000000,
+          usagePercentage: (transferredToday / dailyLimit) * 100
+        },
+        stats: {
+          transfersToday: todayTransfers?.length || 0
+        }
+      }
+    });
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
-    res.status(500).json({ status: 'error', message: 'Error al obtener estadísticas del usuario' });
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al obtener estadísticas del usuario'
+    });
   }
 };
 
@@ -969,7 +1171,6 @@ const getTransferDetails = async (req, res) => {
         responseData.recipients = [];
         responseData.totalAmount = 0;
       }
-
     } else {
       // 4B. TRANSFERENCIA SIMPLE
       if (transfer.to_user_id) {
@@ -1026,8 +1227,8 @@ const getTransferDetails = async (req, res) => {
   }
 };
 
-
 const getClassmates = async (req, res) => {
+  // Forzamos role=student y usamos la misma lógica de getAllUsers
   req.query.role = 'student';
   return getAllUsers(req, res);
 };
@@ -1040,5 +1241,5 @@ module.exports = {
   getUserStats,
   getTransferDetails,
   getClassmates,
-  getRecentActivity,
+  getRecentActivity
 };

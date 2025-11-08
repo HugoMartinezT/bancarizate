@@ -860,8 +860,51 @@ class ApiService {
   // OTROS MÉTODOS
   // ==========================================
 
-  async getDashboardStats(): Promise<any> {
-    return await this.request('/dashboard/stats');
+  /**
+   * 📊 Obtener estadísticas globales del dashboard
+   * Incluye: usuarios, transferencias, actividad por rango de tiempo
+   * 
+   * @param range - Rango de tiempo: '7d', '30d', '90d', 'all'
+   * @param groupBy - Agrupación de series temporales: 'day' o 'month'
+   * @returns Estadísticas globales con usuarios por rol, transferencias, etc.
+   * 
+   * @example
+   * // Obtener estadísticas de los últimos 30 días agrupadas por día
+   * const stats = await apiService.getDashboardStats('30d', 'day');
+   * console.log(stats.data.users.byRole); // { admin: 2, student: 45, teacher: 8 }
+   */
+  async getDashboardStats(
+    range: '7d' | '30d' | '90d' | 'all' = '30d',
+    groupBy: 'day' | 'month' = 'day'
+  ): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('range', range);
+    queryParams.append('groupBy', groupBy);
+    
+    console.log(`📊 Solicitando estadísticas globales: range=${range}, groupBy=${groupBy}`);
+    
+    return await this.request(`/dashboard/stats?${queryParams.toString()}`);
+  }
+
+  /**
+   * 💸 Obtener estadísticas de transferencias del usuario actual
+   * Incluye: recibido, enviado, flujo neto, series temporales
+   * 
+   * @param range - Rango de tiempo: '7d', '30d', '90d', 'all'
+   * @returns Estadísticas personales de transferencias
+   * 
+   * @example
+   * // Obtener estadísticas personales de los últimos 30 días
+   * const stats = await apiService.getTransferStats('30d');
+   * console.log(stats.data.received.total_amount); // $1,250,000
+   */
+  async getTransferStats(range: '7d' | '30d' | '90d' | 'all' = '30d'): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('range', range);
+    
+    console.log(`💸 Solicitando estadísticas de transferencias: range=${range}`);
+    
+    return await this.request(`/transfers/stats?${queryParams.toString()}`);
   }
 
   async healthCheck(): Promise<any> {

@@ -1,78 +1,41 @@
-// routes/transferRoutes.js - CON NUEVAS RUTAS PARA FILTROS Y DASHBOARD
-
+// routes/transferRoutes.js - Orden de rutas optimizado y endpoints de estadísticas individuales
 const express = require('express');
 const router = express.Router();
 
-// Importamos el controlador y los middlewares
+// Controlador y middlewares
 const transferController = require('../controllers/transferController');
 const { auth } = require('../middleware/auth');
-const { 
-    validateTransfer, 
-    validateTransferHistory, 
-    validateGetUsers, 
-    validateIdParam 
+const {
+  validateTransfer,
+  validateTransferHistory,
+  validateGetUsers,
+  validateIdParam
 } = require('../middleware/validation');
-const { 
-    transferLimiter, 
-    historyLimiter, 
-    userSearchLimiter 
+const {
+  transferLimiter,
+  historyLimiter,
+  userSearchLimiter
 } = require('../middleware/rateLimiter');
 
-// Aplicamos autenticación a todas las rutas de este archivo
+// Autenticación para todas
 router.use(auth);
 
-// ==========================================
-// RUTAS DE TRANSFERENCIAS
-// ==========================================
+// ============ POST (creación) ============
+router.post('/', transferLimiter, validateTransfer, transferController.createTransfer);
 
-// Crear una nueva transferencia
-router.post(
-  '/', 
-  transferLimiter, // Límite de velocidad estricto
-  validateTransfer, 
-  transferController.createTransfer
-);
+// ============ GET específicos (antes de :id) ============
+router.get('/history', historyLimiter, validateTransferHistory, transferController.getTransferHistory);
+router.get('/recent-activity', historyLimiter, transferController.getRecentActivity);
+router.get('/users', userSearchLimiter, validateGetUsers, transferController.getAllUsers);
 
-// Obtener el historial de transferencias del usuario CON FILTROS AVANZADOS
-router.get(
-  '/history', 
-  historyLimiter,
-  validateTransferHistory, 
-  transferController.getTransferHistory
-);
+// ✅ Estadísticas individuales (usuario autenticado)
+// Soporta ?range=7d|30d|90d|all
+router.get('/stats', historyLimiter, transferController.getUserStats);
 
-// NUEVA RUTA: Obtener actividad reciente para el dashboard
-router.get(
-  '/recent-activity',
-  historyLimiter,
-  transferController.getRecentActivity
-);
+// Alias heredado (compañeros de clase)
+router.get('/classmates', userSearchLimiter, transferController.getClassmates);
 
-// Obtener la lista de usuarios a los que se puede transferir
-router.get(
-  '/users', 
-  userSearchLimiter,
-  validateGetUsers, 
-  transferController.getAllUsers
-);
-
-// Obtener estadísticas de transferencias del usuario
-router.get(
-  '/stats',
-  transferController.getUserStats
-);
-
-// Obtener los detalles de una transferencia específica por su ID
-router.get(
-  '/:id', 
-  validateIdParam, 
-  transferController.getTransferDetails
-);
-
-// Ruta heredada para obtener compañeros de clase (redirige a /users)
-router.get(
-  '/classmates',
-  transferController.getClassmates
-);
+// ============ GET dinámico (al final) ============
+router.get('/:id', historyLimiter, validateIdParam, transferController.getTransferDetails);
 
 module.exports = router;

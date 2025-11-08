@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Settings, Save, RefreshCw, AlertCircle, CheckCircle, XCircle, Loader2, DollarSign, Users, Shield, Globe, Eye, History, X, Clock, Zap, TestTube, AlertTriangle } from 'lucide-react';
 import { apiService, SystemConfig, SystemConfigResponse } from '../../services/api';
@@ -235,21 +234,38 @@ const SystemSettings = () => {
     let validatedValue = newValue;
  
     if (config.dataType === 'number') {
+      // ✅ MEJORADO: Permitir strings vacías temporalmente durante edición
+      if (newValue === '' || newValue === null || newValue === undefined) {
+        // Guardar temporalmente el valor vacío sin validar
+        setPendingChanges(prev => ({
+          ...prev,
+          [key]: {
+            key,
+            value: '', // Guardar string vacío temporalmente
+            originalValue: config.configValue
+          }
+        }));
+        return;
+      }
+      
       validatedValue = parseFloat(newValue);
    
       if (isNaN(validatedValue)) {
         setError('El valor debe ser un número válido');
+        setTimeout(() => setError(null), 3000);
         return;
       }
    
       // Validaciones de base de datos
       if (config.minValue !== null && config.minValue !== undefined && validatedValue < config.minValue) {
         setError(`El valor debe ser mayor o igual a ${config.minValue}`);
+        setTimeout(() => setError(null), 3000);
         return;
       }
    
       if (config.maxValue !== null && config.maxValue !== undefined && validatedValue > config.maxValue) {
         setError(`El valor debe ser menor o igual a ${config.maxValue}`);
+        setTimeout(() => setError(null), 3000);
         return;
       }
    
@@ -355,6 +371,14 @@ const SystemSettings = () => {
   const handleSaveChanges = async () => {
     const updates = Object.values(pendingChanges);
     if (updates.length === 0) return;
+    
+    // ✅ NUEVO: Validar que no haya valores vacíos antes de guardar
+    const emptyValues = updates.filter(update => update.value === '' || update.value === null || update.value === undefined);
+    if (emptyValues.length > 0) {
+      setError(`Por favor completa todos los campos antes de guardar. Campos vacíos: ${emptyValues.map(u => u.key).join(', ')}`);
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
     
     // Verificar si hay cambios de rate limiting
     const rateLimitUpdates = updates.filter(update =>
@@ -638,7 +662,26 @@ const SystemSettings = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {config.isEditable ? (
+                      {/* ✅ DEBUGGING: Log del valor de isEditable */}
+                      {(() => {
+                        const isEditableRaw = config.isEditable;
+                        const isEditableBool = config.isEditable === true || config.isEditable === 'true' || config.isEditable === 1;
+                        
+                        // Solo hacer console.log si estamos en desarrollo
+                        if (import.meta.env.DEV && config.configKey.includes('limit')) {
+                          console.log(`🔍 ${config.configKey}:`, {
+                            isEditableRaw,
+                            tipo: typeof isEditableRaw,
+                            isEditableBool,
+                            dataType: config.dataType
+                          });
+                        }
+                        
+                        return null;
+                      })()}
+                      
+                      {/* ✅ CORREGIDO: Conversión de boolean explícita y robusta */}
+                      {(config.isEditable === true || config.isEditable === 'true' || config.isEditable === 1 || config.isEditable === '1') ? (
                         <div className="flex flex-col">
                           {config.dataType === 'boolean' ? (
                             <select
@@ -650,15 +693,27 @@ const SystemSettings = () => {
                               <option value="true">Habilitado</option>
                             </select>
                           ) : config.dataType === 'number' ? (
-                            <input
-                              type="number"
-                              value={displayValue || ''}
-                              onChange={(e) => handleValueChange(config, e.target.value)}
-                              min={config.minValue || undefined}
-                              max={config.maxValue || undefined}
-                              step={config.configKey.includes('amount') ? '1000' : '1'}
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
-                            />
+                            <div className="space-y-1">
+                              <input
+                                type="number"
+                                value={displayValue || ''}
+                                onChange={(e) => handleValueChange(config, e.target.value)}
+                                min={config.minValue || undefined}
+                                max={config.maxValue || undefined}
+                                step={config.configKey.includes('amount') ? '1000' : '1'}
+                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                placeholder={`Ej: ${config.configValue}`}
+                              />
+                              {/* ✅ NUEVO: Ayuda visual para rate limiters */}
+                              {config.configKey.includes('_limit_') && (config.minValue || config.maxValue) && (
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>
+                                    Rango seguro: {config.minValue || '0'} - {config.maxValue || '∞'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <input
                               type="text"
@@ -677,9 +732,17 @@ const SystemSettings = () => {
                           )}
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-700">
-                          {formatDisplayValue(config, config.configValue)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700">
+                            {formatDisplayValue(config, config.configValue)}
+                          </span>
+                          {/* ✅ DEBUGGING: Mostrar por qué no es editable */}
+                          {import.meta.env.DEV && config.configKey.includes('limit') && (
+                            <span className="text-xs text-red-500 mt-1">
+                              🔒 No editable (isEditable={JSON.stringify(config.isEditable)})
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">

@@ -13,6 +13,8 @@ import {
   Users,
   Loader2,
   RefreshCw,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -192,6 +194,7 @@ const Dashboard = ({ user }: DashboardProps) => {
   const [userStats, setUserStats] = useState<UserStats['data'] | null>(null);
   const [isLoadingTransfers, setIsLoadingTransfers] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [expandedTransfers, setExpandedTransfers] = useState<Set<string>>(new Set());
 
   const handleTransition = (callback: () => void) => {
     if (typeof document !== 'undefined' && 'startViewTransition' in document) {
@@ -230,6 +233,17 @@ const Dashboard = ({ user }: DashboardProps) => {
       setIsLoadingTransfers(false);
     }
   }, []);
+
+  // Toggle expand/collapse de transferencias múltiples
+  const toggleTransferExpanded = (transferId: string) => {
+    const next = new Set(expandedTransfers);
+    if (next.has(transferId)) {
+      next.delete(transferId);
+    } else {
+      next.add(transferId);
+    }
+    setExpandedTransfers(next);
+  };
 
   useEffect(() => {
     loadUserStats();
@@ -317,7 +331,11 @@ const Dashboard = ({ user }: DashboardProps) => {
       if (t.direction === dir) {
         // normalizar a medianoche para cálculo de índice
         const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        const idx = Math.floor((dd.getTime() - new Date(start7.getFullYear(), start7.getMonth(), start7.getDate()).getTime()) / (1000 * 60 * 60 * 24));
+        const idx = Math.floor(
+          (dd.getTime() -
+            new Date(start7.getFullYear(), start7.getMonth(), start7.getDate()).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
         if (idx >= 0 && idx < 7) arr[idx] += t.amount;
       }
     });
@@ -336,7 +354,11 @@ const Dashboard = ({ user }: DashboardProps) => {
     let total = 0;
     mixedTransfers.forEach((t: any) => {
       const d = new Date(t.date);
-      if (t.direction === dir && d >= new Date(startPrev.getFullYear(), startPrev.getMonth(), startPrev.getDate()) && d < new Date(endPrev.getFullYear(), endPrev.getMonth(), endPrev.getDate() + 1)) {
+      if (
+        t.direction === dir &&
+        d >= new Date(startPrev.getFullYear(), startPrev.getMonth(), startPrev.getDate()) &&
+        d < new Date(endPrev.getFullYear(), endPrev.getMonth(), endPrev.getDate() + 1)
+      ) {
         total += t.amount;
       }
     });
@@ -348,7 +370,8 @@ const Dashboard = ({ user }: DashboardProps) => {
 
   const incomePrev = getPrev7Sum('received');
   const expensePrev = getPrev7Sum('sent');
-  const pctChange = (curr: number, prev: number) => (prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100));
+  const pctChange = (curr: number, prev: number) =>
+    prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
 
   // ==========================
   // Sobregiro: % usado (si balance < 0)
@@ -389,7 +412,9 @@ const Dashboard = ({ user }: DashboardProps) => {
           </div>
           <div className="text-right">
             <p className="text-blue-200 text-xs mb-0.5">Última actualización</p>
-            <p className="text-sm font-bold">{isLoadingStats || isLoadingTransfers ? 'Cargando...' : 'Hace 2 min'}</p>
+            <p className="text-sm font-bold">
+              {isLoadingStats || isLoadingTransfers ? 'Cargando...' : 'Hace 2 min'}
+            </p>
           </div>
         </div>
       </div>
@@ -407,7 +432,9 @@ const Dashboard = ({ user }: DashboardProps) => {
               ) : showBalance ? (
                 <span aria-live="polite">{formatCurrency(balance || user.balance)}</span>
               ) : (
-                <span className="select-none tracking-widest" aria-label="Saldo oculto">••••••</span>
+                <span className="select-none tracking-widest" aria-label="Saldo oculto">
+                  ••••••
+                </span>
               )
             }
             subtitle="Cuenta corriente"
@@ -441,7 +468,9 @@ const Dashboard = ({ user }: DashboardProps) => {
           >
             <div className="min-w-[84px] mt-1">
               <ProgressBar value={overdraftUsed} max={overdraftLimit || 1} />
-              <p className="text-[10px] text-gray-400 mt-1">{Math.round(Math.min(100, (overdraftUsed / (overdraftLimit || 1)) * 100))}% utilizado</p>
+              <p className="text-[10px] text-gray-400 mt-1">
+                {Math.round(Math.min(100, (overdraftUsed / (overdraftLimit || 1)) * 100))}% utilizado
+              </p>
             </div>
           </StatCard>
 
@@ -491,9 +520,14 @@ const Dashboard = ({ user }: DashboardProps) => {
                   disabled={isLoadingTransfers}
                   title="Refrescar"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTransfers ? 'animate-spin' : ''}`} />
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${isLoadingTransfers ? 'animate-spin' : ''}`}
+                  />
                 </button>
-                <button onClick={() => navigate('/transfers')} className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium">
+                <button
+                  onClick={() => navigate('/transfers')}
+                  className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium"
+                >
                   Ver historial completo
                 </button>
               </div>
@@ -560,63 +594,169 @@ const Dashboard = ({ user }: DashboardProps) => {
                       {items.map((transfer: any) => {
                         const isIncoming = transfer.direction === 'received';
                         const otherPerson = transfer.otherPerson;
-                        const colors = otherPerson ? getAvatarColors(otherPerson.name) : getAvatarColors('Múltiple');
+                        const colors = otherPerson
+                          ? getAvatarColors(otherPerson.name)
+                          : getAvatarColors('Múltiple');
+                        const isExpanded = expandedTransfers.has(transfer.id);
+                        const hasRecipients =
+                          transfer.isMultiple &&
+                          transfer.recipients &&
+                          transfer.recipients.length > 0;
+
                         return (
-                          <div key={transfer.id} className="px-3 py-3 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className={`p-1.5 rounded-full ${isIncoming ? 'bg-green-100' : 'bg-red-100'}`}>
-                                  {isIncoming ? (
-                                    <ArrowDownLeft className="w-3.5 h-3.5 text-green-600" />
-                                  ) : (
-                                    <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
+                          <div key={transfer.id}>
+                            <div
+                              className={`px-3 py-3 hover:bg-gray-50 transition-colors ${
+                                hasRecipients ? 'cursor-pointer' : ''
+                              }`}
+                              onClick={() =>
+                                hasRecipients && toggleTransferExpanded(transfer.id)
+                              }
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {hasRecipients && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleTransferExpanded(transfer.id);
+                                      }}
+                                      className="p-1 rounded hover:bg-gray-100 -ml-2"
+                                      aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-4 h-4 text-gray-600" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 text-gray-600" />
+                                      )}
+                                    </button>
                                   )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {otherPerson ? (
-                                    <div className={`w-8 h-8 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}>
-                                      <span className={`text-xs font-bold ${colors.text}`}>{getInitials(otherPerson.name)}</span>
-                                    </div>
-                                  ) : (
-                                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center shadow-sm">
-                                      <Users className="w-3.5 h-3.5 text-gray-400" />
-                                    </div>
-                                  )}
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-xs font-semibold text-gray-900">
-                                        {otherPerson ? otherPerson.name : 'Transferencia múltiple'}
-                                      </p>
-                                      {transfer.isMultiple && (
-                                        <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
-                                          {transfer.recipientCount} personas
+                                  <div
+                                    className={`p-1.5 rounded-full ${
+                                      isIncoming ? 'bg-green-100' : 'bg-red-100'
+                                    }`}
+                                  >
+                                    {isIncoming ? (
+                                      <ArrowDownLeft className="w-3.5 h-3.5 text-green-600" />
+                                    ) : (
+                                      <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {otherPerson ? (
+                                      <div
+                                        className={`w-8 h-8 ${colors.bg} rounded-full flex items-center justify-center shadow-sm`}
+                                      >
+                                        <span
+                                          className={`text-xs font-bold ${colors.text}`}
+                                        >
+                                          {getInitials(otherPerson.name)}
                                         </span>
-                                      )}
-                                      
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[11px] text-gray-500">
-                                      <span>{transfer.description || 'Movimiento'}</span>
-                                      {otherPerson && (
-                                        <>
-                                          <span>•</span>
-                                          <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${getRoleBadgeColor(otherPerson.role)}`}>
-                                            {otherPerson.role === 'student' ? 'Estudiante' : otherPerson.role === 'teacher' ? 'Docente' : 'Admin'}
+                                      </div>
+                                    ) : (
+                                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                                        <Users className="w-3.5 h-3.5 text-gray-400" />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-xs font-semibold text-gray-900">
+                                          {otherPerson
+                                            ? otherPerson.name
+                                            : 'Transferencia múltiple'}
+                                        </p>
+                                        {transfer.isMultiple && (
+                                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
+                                            {transfer.recipientCount} personas
                                           </span>
-                                        </>
-                                      )}
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                                        <span>{transfer.description || 'Movimiento'}</span>
+                                        {otherPerson && (
+                                          <>
+                                            <span>•</span>
+                                            <span
+                                              className={`px-1 py-0.5 rounded text-[10px] font-medium ${getRoleBadgeColor(
+                                                otherPerson.role
+                                              )}`}
+                                            >
+                                              {otherPerson.role === 'student'
+                                                ? 'Estudiante'
+                                                : otherPerson.role === 'teacher'
+                                                ? 'Docente'
+                                                : 'Admin'}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <p className={`text-sm font-bold ${isIncoming ? 'text-green-600' : 'text-red-600'}`}>
-                                  {isIncoming ? '+' : '-'}{formatCurrency(transfer.amount)}
-                                </p>
-                                {transfer.amount !== transfer.totalAmount && (
-                                  <p className="text-xs text-gray-500">Total: {formatCurrency(transfer.totalAmount)}</p>
-                                )}
+                                <div className="text-right">
+                                  <p
+                                    className={`text-sm font-bold ${
+                                      isIncoming ? 'text-green-600' : 'text-red-600'
+                                    }`}
+                                  >
+                                    {isIncoming ? '+' : '-'}
+                                    {formatCurrency(transfer.amount)}
+                                  </p>
+                                  {transfer.amount !== transfer.totalAmount && (
+                                    <p className="text-xs text-gray-500">
+                                      Total: {formatCurrency(transfer.totalAmount)}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </div>
+
+                            {isExpanded && hasRecipients && (
+                              <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">
+                                  Destinatarios:
+                                </p>
+                                <div className="divide-y divide-gray-100 rounded-lg border border-gray-100 bg-white">
+                                  {transfer.recipients!.map((r: any) => {
+                                    const recipientColors = getAvatarColors(r.name);
+                                    return (
+                                      <div
+                                        key={r.id}
+                                        className="flex items-center justify-between p-2"
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div
+                                            className={`w-6 h-6 ${recipientColors.bg} rounded-full flex items-center justify-center`}
+                                          >
+                                            <span
+                                              className={`text-xs font-bold ${recipientColors.text}`}
+                                            >
+                                              {r.name
+                                                .split(' ')
+                                                .map((n: string) => n[0])
+                                                .join('')
+                                                .toUpperCase()
+                                                .slice(0, 2)}
+                                            </span>
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-gray-900 truncate">
+                                              {r.name}
+                                            </p>
+                                            <span className="text-xxs text-gray-500">
+                                              {r.run}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <p className="text-xs font-bold text-gray-800">
+                                          {formatCurrency(r.amount)}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -625,7 +765,10 @@ const Dashboard = ({ user }: DashboardProps) => {
                 })}
                 {/* CTA ver más */}
                 <div className="p-3 text-center border-t border-gray-100">
-                  <button onClick={() => navigate('/transfers')} className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium inline-flex items-center gap-1">
+                  <button
+                    onClick={() => navigate('/transfers')}
+                    className="text-xs text-[#193cb8] hover:text-[#0e2167] font-medium inline-flex items-center gap-1"
+                  >
                     Ver historial completo
                     <ArrowUpRight className="w-3 h-3" />
                   </button>
