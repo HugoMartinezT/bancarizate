@@ -239,7 +239,6 @@ export interface MassUploadValidationError {
   data: MassUploadRow;
 }
 
-// ✅ CORREGIDO: MassUploadResult ahora incluye status al nivel raíz
 export interface MassUploadResult {
   status: string;
   data: {
@@ -273,12 +272,22 @@ export interface MassUploadResult {
   };
 }
 
-// ✅ CORREGIDO: BackupStats con estructura completa
+// ✅ ACTUALIZADO: BackupStats adaptada al backend actual
 export interface BackupStats {
+  // Datos originales del servidor
+  totalUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalTransfers: number;
+  totalInstitutions: number;
+  totalCourses: number;
+  lastUpdated: string;
+  
+  // Propiedades computadas para compatibilidad con frontend
   summary: {
     totalTables: number;
     totalRecords: number;
-    estimatedSizeMB: number | string;
+    estimatedSizeMB: number;
   };
   recentBackups: Array<{
     id: string;

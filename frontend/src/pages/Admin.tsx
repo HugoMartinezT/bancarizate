@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { 
   Settings, 
   Building, 
   BookOpen, 
   Upload, 
-  Database, 
-  BarChart3, 
-  Users, 
-  AlertCircle, 
-  CheckCircle, 
-  Shield, 
+  Database,
+  Shield,
   ArrowLeft,
-  Plus,
-  Edit,
-  Trash2,
-  FileText
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { apiService } from '../services/api';
 
@@ -33,10 +27,6 @@ interface AdminModule {
   icon: any;
   color: string;
   requiresAdmin: boolean;
-  stats?: {
-    value: string;
-    label: string;
-  };
 }
 
 interface User {
@@ -54,14 +44,53 @@ interface AdminProps {
   user?: User;
 }
 
+// Componente de tarjeta de módulo mejorada
+const AdminModuleCard: React.FC<{
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  iconBgColor: string;
+  iconColor: string;
+  onClick: () => void;
+}> = ({ icon: Icon, title, description, iconBgColor, iconColor, onClick }) => (
+  <div 
+    className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+    onClick={onClick}
+  >
+    {/* Fondo decorativo sutil */}
+    <div className={`absolute top-0 right-0 w-24 h-24 ${iconBgColor} opacity-5 rounded-full -translate-y-8 translate-x-8 group-hover:scale-110 transition-transform duration-300`} />
+    
+    <div className="relative z-10">
+      <div className="flex items-center gap-3 mb-4">
+        <div className={`p-3 rounded-xl ${iconBgColor} group-hover:scale-105 transition-all duration-200 shadow-sm`}>
+          <Icon className={`w-5 h-5 ${iconColor}`} />
+        </div>
+        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+      </div>
+      
+      <p className="text-sm text-gray-600">{description}</p>
+    </div>
+
+    {/* Efecto de brillo en hover */}
+    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-all duration-700" />
+    
+    {/* Indicador de acción */}
+    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+    </div>
+  </div>
+);
+
 const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState<any>({});
   
   const navigate = useNavigate();
-  const location = useLocation();
 
   // Módulos administrativos disponibles
   const adminModules: AdminModule[] = [
@@ -71,11 +100,7 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       description: 'Gestiona establecimientos educacionales del sistema',
       icon: Building,
       color: 'blue',
-      requiresAdmin: true,
-      stats: {
-        value: stats.institutions || '...',
-        label: 'Instituciones'
-      }
+      requiresAdmin: true
     },
     {
       id: 'courses',
@@ -83,11 +108,7 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       description: 'Administra cursos y carreras disponibles',
       icon: BookOpen,
       color: 'green',
-      requiresAdmin: true,
-      stats: {
-        value: stats.courses || '...',
-        label: 'Cursos'
-      }
+      requiresAdmin: true
     },
     {
       id: 'mass-upload',
@@ -95,11 +116,7 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       description: 'Importa múltiples usuarios desde archivos CSV',
       icon: Upload,
       color: 'purple',
-      requiresAdmin: true,
-      stats: {
-        value: stats.users || '...',
-        label: 'Usuarios'
-      }
+      requiresAdmin: true
     },
     {
       id: 'system-settings',
@@ -107,11 +124,7 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       description: 'Ajusta parámetros y límites del sistema',
       icon: Settings,
       color: 'orange',
-      requiresAdmin: true,
-      stats: {
-        value: stats.configs || '...',
-        label: 'Configuraciones'
-      }
+      requiresAdmin: true
     },
     {
       id: 'backup',
@@ -119,13 +132,21 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       description: 'Crea copias de seguridad de la base de datos',
       icon: Database,
       color: 'red',
-      requiresAdmin: true,
-      stats: {
-        value: stats.backups || '...',
-        label: 'Backups'
-      }
+      requiresAdmin: true
     }
   ];
+
+  // Mapeo de colores para iconos
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, { bg: string; text: string }> = {
+      blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
+      green: { bg: 'bg-green-100', text: 'text-green-600' },
+      purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
+      orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
+      red: { bg: 'bg-red-100', text: 'text-red-600' }
+    };
+    return colorMap[color] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+  };
 
   // Verificar autenticación y permisos
   useEffect(() => {
@@ -143,18 +164,6 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
           setTimeout(() => navigate('/'), 3000);
           return;
         }
-
-        // Cargar stats
-        const [institutionStats, courseStats] = await Promise.all([
-          apiService.getInstitutionStats(),
-          apiService.getCourseStats()
-        ]);
-
-        setStats({
-          institutions: institutionStats.data.total,
-          courses: courseStats.data.total,
-          // Agrega más stats si es necesario
-        });
       } catch (err: any) {
         setError(err.message || 'Error al verificar permisos');
       } finally {
@@ -165,61 +174,62 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     checkAuth();
   }, [navigate]);
 
-  if (loading) return <div>Cargando...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Cargando panel de administración...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-md text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Error de acceso</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-sm text-gray-500">Redirigiendo al inicio...</p>
+        </div>
+      </div>
+    );
+  }
 
   const renderDashboard = () => (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Panel de Administración</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {adminModules.map(module => (
-          <div key={module.id} className="bg-white p-4 rounded-lg shadow border border-gray-100">
-            <div className="flex items-center gap-3 mb-2">
-              <module.icon className={`w-5 h-5 text-${module.color}-600`} />
-              <h2 className="text-lg font-bold">{module.title}</h2>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">{module.description}</p>
-            {module.stats && (
-              <div className="bg-gray-50 p-2 rounded text-center">
-                <div className="text-lg font-bold text-{module.color}-600">{module.stats.value}</div>
-                <div className="text-xs text-gray-500">{module.stats.label}</div>
-              </div>
-            )}
-            <button
-              onClick={() => navigate(`/admin/${module.id}`)}
-              className="w-full mt-4 bg-blue-600 text-white py-2 rounded"
-            >
-              Acceder
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  // Componente placeholder para módulos no implementados aún
-  const ModulePlaceholder = ({ title, description }: { title: string; description: string }) => (
     <div className="max-w-7xl mx-auto px-3 py-4">
-      <div className="mb-4">
-        <button
-          onClick={() => navigate('/admin')}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Volver al Panel de Administración
-        </button>
-      </div>
-      
-      <div className="bg-white rounded-lg shadow border border-gray-100 p-8 text-center">
-        <div className="p-4 bg-blue-100 rounded-full w-fit mx-auto mb-4">
-          <Settings className="w-8 h-8 text-blue-600" />
+      {/* Header compacto con diseño gradiente */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-4 mb-6 text-white shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-white/20 rounded-lg">
+            <Shield className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Panel de Administración</h1>
+            <p className="text-blue-200 text-sm">Gestiona todos los aspectos del sistema</p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">{title}</h1>
-        <p className="text-gray-600 mb-6">{description}</p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 text-sm">
-            🚧 Este módulo está en desarrollo. Próximamente estará disponible.
-          </p>
+      </div>
+
+      <div className="space-y-6">
+        {/* Tarjetas de módulos mejoradas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {adminModules.map(module => {
+            const colors = getColorClasses(module.color);
+            return (
+              <AdminModuleCard
+                key={module.id}
+                icon={module.icon}
+                title={module.title}
+                description={module.description}
+                iconBgColor={colors.bg}
+                iconColor={colors.text}
+                onClick={() => navigate(`/admin/${module.id}`)}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

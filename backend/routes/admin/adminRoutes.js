@@ -16,6 +16,15 @@ const {
   getCurrentConfig
 } = require('../../middleware/rateLimiter');
 
+// ✅ NUEVO: Importar controlador de backup
+const {
+  createFullBackup,
+  createTableBackup, 
+  getBackupHistory,
+  getTablePreview,
+  validateBackupFile
+} = require('../../controllers/admin/backupController');
+
 // Aplicar autenticación a todas las rutas admin
 router.use(auth);
 router.use(authorize('admin')); // Solo administradores
@@ -886,10 +895,10 @@ router.get('/config/rate-limiters/test',
 );
 
 // ==========================================
-// 💾 RUTAS DE BACKUP
+// 💾 RUTAS DE BACKUP - ✅ NUEVAS RUTAS AGREGADAS
 // ==========================================
 
-// GET /api/admin/backup/stats - Estadísticas de backup
+// GET /api/admin/backup/stats - Estadísticas de backup (YA EXISTE)
 router.get('/backup/stats',
   async (req, res) => {
     try {
@@ -932,6 +941,46 @@ router.get('/backup/stats',
         message: 'Error al obtener estadísticas de backup'
       });
     }
+  }
+);
+
+// ✅ NUEVO: GET /api/admin/backup/history - Historial de backups
+router.get('/backup/history',
+  async (req, res) => {
+    console.log('📋 Admin solicitó historial de backups');
+    await getBackupHistory(req, res);
+  }
+);
+
+// ✅ NUEVO: GET /api/admin/backup/table/:tableName/preview - Vista previa de tabla
+router.get('/backup/table/:tableName/preview',
+  async (req, res) => {
+    console.log(`👁️ Admin solicitó vista previa de tabla: ${req.params.tableName}`);
+    await getTablePreview(req, res);
+  }
+);
+
+// ✅ NUEVO: GET /api/admin/backup/full - Crear y descargar backup completo
+router.get('/backup/full',
+  async (req, res) => {
+    console.log('📦 Admin solicitó backup completo');
+    await createFullBackup(req, res);
+  }
+);
+
+// ✅ NUEVO: GET /api/admin/backup/table/:tableName - Crear y descargar backup de tabla
+router.get('/backup/table/:tableName',
+  async (req, res) => {
+    console.log(`📦 Admin solicitó backup de tabla: ${req.params.tableName}`);
+    await createTableBackup(req, res);
+  }
+);
+
+// ✅ NUEVO: POST /api/admin/backup/validate - Validar archivo de backup
+router.post('/backup/validate',
+  async (req, res) => {
+    console.log('🔍 Admin solicitó validación de archivo backup');
+    await validateBackupFile(req, res);
   }
 );
 

@@ -4,7 +4,7 @@ import {
   Loader2, HardDrive, Calendar, X, Eye, Shield, RefreshCw, Table, 
   Columns, BarChart3, Search, Filter, ChevronRight, ChevronDown
 } from 'lucide-react';
-import { apiService, BackupStats } from '../../services/api';
+import { apiService } from '../../services/api';
 
 interface BackupOption {
   id: string;
@@ -40,6 +40,23 @@ interface TablePreview {
   };
 }
 
+interface BackupStats {
+  totalUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalTransfers: number;
+  totalInstitutions: number;
+  totalCourses: number;
+  lastUpdated: string;
+  summary?: {
+    totalTables: number;
+    totalRecords: number;
+    estimatedSizeMB: number;
+  };
+  recentBackups?: any[];
+  tableStats?: Record<string, { count: number }>;
+}
+
 const BackupManager = () => {
   const [backupStats, setBackupStats] = useState<BackupStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,17 +67,14 @@ const BackupManager = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
-  // Estados de backup específico
   const [selectedBackupType, setSelectedBackupType] = useState<string>('full');
   const [selectedTable, setSelectedTable] = useState<string>('');
 
-  // ✅ ESTADOS PARA VISTA PREVIA
   const [showTablePreview, setShowTablePreview] = useState(false);
   const [tablePreview, setTablePreview] = useState<TablePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // ✅ ESTADOS PARA HISTORIAL MEJORADO
   const [historyFilter, setHistoryFilter] = useState<string>('all');
   const [historySearch, setHistorySearch] = useState<string>('');
   const [expandedHistoryItem, setExpandedHistoryItem] = useState<string | null>(null);
@@ -108,22 +122,83 @@ const BackupManager = () => {
     { value: 'activity_logs', label: 'Logs de Actividad', icon: '📝', description: 'Registro de actividades' }
   ];
 
-  // Cargar estadísticas de backup
+  const safeFormatNumber = (value: any): string => {
+    if (typeof value === 'number') {
+      return value.toLocaleString();
+    }
+    if (typeof value === 'string' && !isNaN(Number(value))) {
+      return Number(value).toLocaleString();
+    }
+    return '0';
+  };
+
+  const safeFormatSize = (value: any): string => {
+    if (typeof value === 'number') {
+      return `${value}`;
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    return '0';
+  };
+
+  const getValidBackupHistory = () => {
+    if (!backupHistory || !Array.isArray(backupHistory)) {
+      return [];
+    }
+    return backupHistory;
+  };
+
+  // ✅ ACTUALIZADO: Cargar estadísticas reales
   const loadBackupStats = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+     
       console.log('📊 Cargando estadísticas de backup...');
-      
+     
       const response = await apiService.getBackupStats();
+     
+      if (!response?.data) {
+        throw new Error('Respuesta del servidor inválida');
+      }
+      const { data } = response;
+     
+      console.log('🔍 ESTRUCTURA REAL del servidor:', JSON.stringify(data, null, 2));
+     
+      // Adaptación mejorada con datos reales
+      const adaptedBackupStats: BackupStats = {
+        totalUsers: data.totalUsers || 0,
+        totalStudents: data.totalStudents || 0,
+        totalTeachers: data.totalTeachers || 0,
+        totalTransfers: data.totalTransfers || 0,
+        totalInstitutions: data.totalInstitutions || 0,
+        totalCourses: data.totalCourses || 0,
+        lastUpdated: data.lastUpdated || new Date().toISOString(),
+       
+        summary: {
+          totalTables: 6,
+          totalRecords: (data.totalUsers || 0) + (data.totalStudents || 0) + (data.totalTeachers || 0) + (data.totalTransfers || 0) + (data.totalInstitutions || 0) + (data.totalCourses || 0),
+          estimatedSizeMB: Math.round(((data.totalUsers || 0) + (data.totalStudents || 0) + (data.totalTeachers || 0) + (data.totalTransfers || 0) + (data.totalInstitutions || 0) + (data.totalCourses || 0)) / 1000 * 100) / 100
+        },
+       
+        recentBackups: [],
+        tableStats: {
+          users: { count: data.totalUsers || 0 },
+          students: { count: data.totalStudents || 0 },
+          teachers: { count: data.totalTeachers || 0 },
+          transfers: { count: data.totalTransfers || 0 },
+          institutions: { count: data.totalInstitutions || 0 },
+          courses: { count: data.totalCourses || 0 }
+        }
+      };
       
-      console.log('✅ Estadísticas cargadas:', response.data);
-      setBackupStats(response.data);
-      
+      console.log('✅ Estadísticas adaptadas:', adaptedBackupStats);
+      setBackupStats(adaptedBackupStats);
+     
     } catch (error: any) {
       console.error('❌ Error cargando estadísticas:', error);
-      
+     
       if (error.message.includes('403') || error.message.includes('autorizado')) {
         setError('No tienes permisos para gestionar backups. Solo administradores pueden acceder.');
       } else if (error.message.includes('404')) {
@@ -131,31 +206,57 @@ const BackupManager = () => {
       } else {
         setError(error.message || 'Error al cargar estadísticas de backup');
       }
+     
+      // Estado de fallback
+      setBackupStats({
+        totalUsers: 0,
+        totalStudents: 0,
+        totalTeachers: 0,
+        totalTransfers: 0,
+        totalInstitutions: 0,
+        totalCourses: 0,
+        lastUpdated: new Date().toISOString(),
+        summary: {
+          totalTables: 0,
+          totalRecords: 0,
+          estimatedSizeMB: 0
+        },
+        recentBackups: [],
+        tableStats: {}
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // Cargar historial de backups
+  // ✅ ACTUALIZADO: Cargar historial real de backups
   const loadBackupHistory = async () => {
     try {
       setLoadingHistory(true);
+      setError(null);
       
-      const response = await apiService.getBackupHistory({
-        page: 1,
-        limit: 50
-      });
+      console.log('📋 Cargando historial de backups...');
       
-      setBackupHistory(response.data.backups || response.data.history || []);
+      const response = await apiService.getBackupHistory();
       
+      if (response.status === 'success' && response.data) {
+        setBackupHistory(response.data.backups || []);
+        console.log('✅ Historial de backups cargado:', response.data.backups?.length || 0, 'registros');
+      } else {
+        console.warn('⚠️ Respuesta inesperada del historial:', response);
+        setBackupHistory([]);
+      }
+     
     } catch (error: any) {
       console.error('❌ Error cargando historial:', error);
+      setError('Error al cargar el historial de backups: ' + error.message);
+      setBackupHistory([]);
     } finally {
       setLoadingHistory(false);
     }
   };
 
-  // ✅ FUNCIÓN: Cargar vista previa de tabla
+  // ✅ ACTUALIZADO: Cargar vista previa real de tabla
   const loadTablePreview = async (tableName: string) => {
     try {
       setLoadingPreview(true);
@@ -163,49 +264,47 @@ const BackupManager = () => {
       
       console.log('👁️ Cargando vista previa de tabla:', tableName);
       
-      const response = await apiService.getTablePreview(tableName, {
-        limit: 10 // Mostrar solo 10 filas de muestra
-      });
+      const response = await apiService.getTablePreview(tableName);
       
-      setTablePreview(response.data);
-      setShowTablePreview(true);
+      if (response.status === 'success' && response.data) {
+        setTablePreview(response.data);
+        setShowTablePreview(true);
+        console.log('✅ Vista previa cargada para:', tableName);
+      } else {
+        throw new Error('Respuesta inválida del servidor');
+      }
       
     } catch (error: any) {
       console.error('❌ Error cargando vista previa:', error);
-      setPreviewError(error.message || 'Error al cargar vista previa de la tabla');
+      setPreviewError('Error al cargar vista previa: ' + error.message);
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  // Cargar datos al montar
   useEffect(() => {
     loadBackupStats();
   }, []);
 
-  // ✅ CORREGIDO: Crear backup completo
+  // ✅ ACTUALIZADO: Crear backup completo real
   const handleCreateFullBackup = async (option: BackupOption) => {
     try {
       setIsCreatingBackup(true);
       setError(null);
       
-      console.log(`💾 Creando backup: ${option.title}...`);
+      console.log('🔄 Creando backup completo:', option.title);
       
-      // ✅ Pasar opciones como objeto con propiedades booleanas
+      // Llamar al endpoint real de backup
       const blob = await apiService.createFullBackup({
         includeData: option.includeData,
         includeLogs: option.includeLogs
       });
       
-      // Crear nombre de archivo con timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `bancarizate_${option.id}_${timestamp}.sql`;
-      
-      // Descargar archivo
+      // Crear descarga
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename;
+      link.download = `bancarizate_backup_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.sql`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -213,74 +312,58 @@ const BackupManager = () => {
       
       setSuccess(`Backup "${option.title}" creado y descargado exitosamente`);
       
-      // Recargar estadísticas y historial
-      loadBackupStats();
+      // Recargar estadísticas e historial
+      await loadBackupStats();
       if (showHistory) {
-        loadBackupHistory();
+        await loadBackupHistory();
       }
-      
-      setTimeout(() => setSuccess(null), 3000);
       
     } catch (error: any) {
       console.error('❌ Error creando backup:', error);
-      if (error.message.includes('404')) {
-        setError('El endpoint de backup no está disponible. Verifica que el servidor esté configurado correctamente.');
-      } else {
-        setError(error.message || 'Error al crear backup');
-      }
+      setError('Error al crear backup: ' + error.message);
     } finally {
       setIsCreatingBackup(false);
     }
   };
 
-  // ✅ CORREGIDO: Crear backup de tabla específica
+  // ✅ ACTUALIZADO: Crear backup de tabla específica real
   const handleCreateTableBackup = async () => {
     if (!selectedTable) {
-      setError('Selecciona una tabla para respaldar');
+      setError('Debes seleccionar una tabla');
       return;
     }
-
+    
     try {
       setIsCreatingBackup(true);
       setError(null);
       
-      console.log(`📋 Creando backup de tabla: ${selectedTable}...`);
+      console.log('🔄 Creando backup de tabla:', selectedTable);
       
-      // ✅ Pasar opciones como objeto con propiedades booleanas
       const blob = await apiService.createTableBackup(selectedTable, {
         includeData: true
       });
       
-      // Crear nombre de archivo
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `bancarizate_${selectedTable}_${timestamp}.sql`;
-      
-      // Descargar archivo
+      // Crear descarga
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filename;
+      link.download = `bancarizate_${selectedTable}_backup_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.sql`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      setSuccess(`Backup de tabla "${selectedTable}" creado exitosamente`);
+      setSuccess(`Backup de tabla "${selectedTable}" creado y descargado exitosamente`);
       
-      // Recargar historial si está visible
+      // Recargar estadísticas e historial
+      await loadBackupStats();
       if (showHistory) {
-        loadBackupHistory();
+        await loadBackupHistory();
       }
-      
-      setTimeout(() => setSuccess(null), 3000);
       
     } catch (error: any) {
       console.error('❌ Error creando backup de tabla:', error);
-      if (error.message.includes('404')) {
-        setError('El endpoint de backup de tabla no está disponible. Verifica la configuración del servidor.');
-      } else {
-        setError(error.message || 'Error al crear backup de tabla');
-      }
+      setError('Error al crear backup de tabla: ' + error.message);
     } finally {
       setIsCreatingBackup(false);
     }
@@ -307,8 +390,8 @@ const BackupManager = () => {
     }
   };
 
-  // ✅ FUNCIÓN: Filtrar historial
-  const filteredHistory = backupHistory.filter(backup => {
+  // Filtrar historial
+  const filteredHistory = getValidBackupHistory().filter(backup => {
     const matchesFilter = historyFilter === 'all' || backup.action === historyFilter;
     const matchesSearch = historySearch === '' || 
       backup.action.toLowerCase().includes(historySearch.toLowerCase()) ||
@@ -318,7 +401,7 @@ const BackupManager = () => {
     return matchesFilter && matchesSearch;
   });
 
-  // ✅ FUNCIÓN: Obtener detalles del backup
+  // Obtener detalles del backup
   const getBackupTypeLabel = (action: string, metadata: any) => {
     if (action === 'create_backup') {
       if (metadata?.includeLogs && metadata?.includeData) return 'Backup Completo';
@@ -348,7 +431,10 @@ const BackupManager = () => {
           <div className="text-right">
             <p className="text-blue-200 text-xs mb-0.5">Total registros</p>
             <p className="text-base font-bold">
-              {loading ? '...' : backupStats?.summary.totalRecords.toLocaleString()}
+              {loading
+                ? '...'
+                : safeFormatNumber(backupStats?.summary?.totalRecords || 0)
+              }
             </p>
           </div>
         </div>
@@ -359,6 +445,12 @@ const BackupManager = () => {
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-800 text-xs shadow-sm">
           <CheckCircle className="w-4 h-4" />
           <p>{success}</p>
+          <button
+            onClick={() => setSuccess(null)}
+            className="ml-auto text-green-600 hover:text-green-800"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -377,70 +469,159 @@ const BackupManager = () => {
         </div>
       )}
 
-      {/* Estadísticas generales */}
+      {/* Estadísticas del sistema - DISEÑO MEJORADO */}
       {!loading && backupStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Card Usuarios */}
+          <div className="group bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600 font-medium">Tablas</p>
-                <p className="text-lg font-bold text-gray-900">{backupStats.summary.totalTables}</p>
-              </div>
-              <Database className="w-5 h-5 text-blue-600" />
-            </div>
-          </div>
-          
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-medium">Registros</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {backupStats.summary.totalRecords.toLocaleString()}
+                <p className="text-xs text-blue-700 font-semibold uppercase tracking-wide">Usuarios</p>
+                <p className="text-2xl font-black text-blue-900 mt-1">
+                  {safeFormatNumber(backupStats.totalUsers)}
                 </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full mt-2"></div>
               </div>
-              <FileText className="w-5 h-5 text-green-600" />
+              <div className="p-3 bg-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Database className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+         
+          {/* Card Estudiantes */}
+          <div className="group bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-xl border border-emerald-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Estudiantes</p>
+                <p className="text-2xl font-black text-emerald-900 mt-1">
+                  {safeFormatNumber(backupStats.totalStudents)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full mt-2"></div>
+              </div>
+              <div className="p-3 bg-emerald-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+         
+          {/* Card Docentes */}
+          <div className="group bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-purple-700 font-semibold uppercase tracking-wide">Docentes</p>
+                <p className="text-2xl font-black text-purple-900 mt-1">
+                  {safeFormatNumber(backupStats.totalTeachers)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full mt-2"></div>
+              </div>
+              <div className="p-3 bg-purple-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <HardDrive className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+         
+          {/* Card Transferencias */}
+          <div className="group bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-xl border border-amber-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-amber-700 font-semibold uppercase tracking-wide">Transferencias</p>
+                <p className="text-2xl font-black text-amber-900 mt-1">
+                  {safeFormatNumber(backupStats.totalTransfers)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full mt-2"></div>
+              </div>
+              <div className="p-3 bg-amber-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Archive className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+         
+          {/* Card Instituciones */}
+          <div className="group bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-xl border border-indigo-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-indigo-700 font-semibold uppercase tracking-wide">Instituciones</p>
+                <p className="text-2xl font-black text-indigo-900 mt-1">
+                  {safeFormatNumber(backupStats.totalInstitutions)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full mt-2"></div>
+              </div>
+              <div className="p-3 bg-indigo-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </div>
+         
+          {/* Card Cursos */}
+          <div className="group bg-gradient-to-br from-cyan-50 to-cyan-100 p-4 rounded-xl border border-cyan-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-cyan-700 font-semibold uppercase tracking-wide">Cursos</p>
+                <p className="text-2xl font-black text-cyan-900 mt-1">
+                  {safeFormatNumber(backupStats.totalCourses)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-cyan-400 to-cyan-600 rounded-full mt-2"></div>
+              </div>
+              <div className="p-3 bg-cyan-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
           
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+          {/* Card Total Registros */}
+          <div className="group bg-gradient-to-br from-rose-50 to-rose-100 p-4 rounded-xl border border-rose-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600 font-medium">Tamaño Est.</p>
-                <p className="text-lg font-bold text-gray-900">{backupStats.summary.estimatedSizeMB} MB</p>
+                <p className="text-xs text-rose-700 font-semibold uppercase tracking-wide">Total Registros</p>
+                <p className="text-2xl font-black text-rose-900 mt-1">
+                  {safeFormatNumber(backupStats.summary?.totalRecords || 0)}
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-rose-400 to-rose-600 rounded-full mt-2"></div>
               </div>
-              <HardDrive className="w-5 h-5 text-purple-600" />
+              <div className="p-3 bg-rose-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
           
-          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+          {/* Card Tamaño */}
+          <div className="group bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-xl border border-slate-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-600 font-medium">Backups</p>
-                <p className="text-lg font-bold text-gray-900">{backupStats.recentBackups.length}</p>
+                <p className="text-xs text-slate-700 font-semibold uppercase tracking-wide">Tamaño Est.</p>
+                <p className="text-2xl font-black text-slate-900 mt-1">
+                  {safeFormatSize(backupStats.summary?.estimatedSizeMB || 0)} MB
+                </p>
+                <div className="w-8 h-1 bg-gradient-to-r from-slate-400 to-slate-600 rounded-full mt-2"></div>
               </div>
-              <Archive className="w-5 h-5 text-orange-600" />
+              <div className="p-3 bg-slate-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <HardDrive className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Opciones de backup completo */}
-      <div className="bg-white rounded-lg shadow border border-gray-100 mb-6">
-        <div className="p-3 border-b border-gray-100">
+      {/* Opciones de backup completo - DISEÑO MEJORADO Y MÁS COMPACTO */}
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200/50 mb-8 overflow-hidden">
+        <div className="p-4 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-md">
-                <Database className="w-3.5 h-3.5 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg shadow-md">
+                <Database className="w-4 h-4 text-white" />
               </div>
-              <h2 className="text-sm font-bold text-gray-800">Backup Completo</h2>
+              <div>
+                <h2 className="text-base font-bold text-gray-800">Backup Completo</h2>
+                <p className="text-xs text-gray-600">Elige el tipo de backup que necesitas crear</p>
+              </div>
             </div>
             <button
               onClick={loadBackupStats}
               disabled={loading}
-              className="p-1.5 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+              className="group p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-white transition-all duration-200 shadow-sm"
               title="Recargar estadísticas"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 group-hover:scale-110 transition-transform ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -448,79 +629,112 @@ const BackupManager = () => {
         <div className="p-4">
           {loading ? (
             <div className="text-center py-8">
-              <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
-              <p className="text-sm text-gray-500">Cargando opciones de backup...</p>
+              <div className="relative inline-flex items-center justify-center w-12 h-12 mb-3">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full animate-pulse"></div>
+                <Loader2 className="w-6 h-6 text-white animate-spin relative z-10" />
+              </div>
+              <p className="text-xs text-gray-500 font-medium">Cargando opciones de backup...</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {backupOptions.map((option) => {
+              {backupOptions.map((option, index) => {
                 const Icon = option.icon;
                 const isCreating = isCreatingBackup;
+                
+                const cardStyles = {
+                  'blue': {
+                    gradient: 'from-blue-50 via-blue-100 to-blue-200',
+                    border: 'border-blue-300/50',
+                    iconBg: 'from-blue-600 to-blue-700',
+                    iconHover: 'group-hover:from-blue-700 group-hover:to-blue-800',
+                    button: 'from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800',
+                    textAccent: 'text-blue-800'
+                  },
+                  'green': {
+                    gradient: 'from-emerald-50 via-emerald-100 to-emerald-200',
+                    border: 'border-emerald-300/50',
+                    iconBg: 'from-emerald-600 to-emerald-700',
+                    iconHover: 'group-hover:from-emerald-700 group-hover:to-emerald-800',
+                    button: 'from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800',
+                    textAccent: 'text-emerald-800'
+                  },
+                  'gray': {
+                    gradient: 'from-slate-50 via-slate-100 to-slate-200',
+                    border: 'border-slate-300/50',
+                    iconBg: 'from-slate-600 to-slate-700',
+                    iconHover: 'group-hover:from-slate-700 group-hover:to-slate-800',
+                    button: 'from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800',
+                    textAccent: 'text-slate-800'
+                  }
+                };
+
+                const styles = cardStyles[option.color as keyof typeof cardStyles] || cardStyles.gray;
                 
                 return (
                   <div
                     key={option.id}
-                    className={`border-2 rounded-lg p-4 transition-all cursor-pointer hover:shadow-md ${
-                      option.color === 'blue' ? 'border-blue-200 bg-blue-50' :
-                      option.color === 'green' ? 'border-green-200 bg-green-50' :
-                      'border-gray-200 bg-gray-50'
-                    }`}
+                    className={`group relative bg-gradient-to-br ${styles.gradient} border-2 ${styles.border} rounded-xl p-4 transition-all duration-300 cursor-pointer hover:shadow-lg hover:-translate-y-1 transform overflow-hidden`}
+                    style={{ 
+                      animationDelay: `${index * 100}ms`,
+                      animation: 'fadeInUp 0.6s ease-out both'
+                    }}
                   >
-                    <div className="text-center mb-3">
-                      <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg mb-2 ${
-                        option.color === 'blue' ? 'bg-blue-600' :
-                        option.color === 'green' ? 'bg-green-600' :
-                        'bg-gray-600'
-                      }`}>
-                        <Icon className="w-6 h-6 text-white" />
-                      </div>
-                      <h3 className="text-sm font-bold text-gray-900">{option.title}</h3>
+                    {/* Decorative background pattern */}
+                    <div className="absolute top-0 right-0 w-16 h-16 opacity-10">
+                      <Icon className="w-full h-full transform rotate-12" />
                     </div>
                     
-                    <p className="text-xs text-gray-600 mb-4 text-center">
-                      {option.description}
-                    </p>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-center gap-2 text-xs">
-                        <span className={`w-2 h-2 rounded-full ${
-                          option.includeData ? 'bg-green-500' : 'bg-gray-300'
-                        }`}></span>
-                        <span className={option.includeData ? 'text-green-700' : 'text-gray-500'}>
-                          Datos incluidos
-                        </span>
+                    <div className="relative z-10">
+                      <div className="text-center mb-3">
+                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-2 bg-gradient-to-br ${styles.iconBg} ${styles.iconHover} shadow-md transition-all duration-300 group-hover:scale-105`}>
+                          <Icon className="w-6 h-6 text-white" />
+                        </div>
+                        <h3 className={`text-sm font-bold ${styles.textAccent} mb-1`}>{option.title}</h3>
                       </div>
-                      <div className="flex items-center justify-center gap-2 text-xs">
-                        <span className={`w-2 h-2 rounded-full ${
-                          option.includeLogs ? 'bg-green-500' : 'bg-gray-300'
-                        }`}></span>
-                        <span className={option.includeLogs ? 'text-green-700' : 'text-gray-500'}>
-                          Logs incluidos
-                        </span>
+                      
+                      <p className="text-xs text-gray-700 mb-4 text-center leading-relaxed">
+                        {option.description}
+                      </p>
+                      
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600">Datos incluidos</span>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${option.includeData ? 'bg-emerald-500 shadow-md shadow-emerald-500/40' : 'bg-gray-300'}`}></div>
+                            <span className={`font-medium ${option.includeData ? 'text-emerald-700' : 'text-gray-500'}`}>
+                              {option.includeData ? 'Sí' : 'No'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600">Logs incluidos</span>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${option.includeLogs ? 'bg-emerald-500 shadow-md shadow-emerald-500/40' : 'bg-gray-300'}`}></div>
+                            <span className={`font-medium ${option.includeLogs ? 'text-emerald-700' : 'text-gray-500'}`}>
+                              {option.includeLogs ? 'Sí' : 'No'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
+                      
+                      <button
+                        onClick={() => handleCreateFullBackup(option)}
+                        disabled={isCreating}
+                        className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r ${styles.button} text-white shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-95`}
+                      >
+                        {isCreating ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Creando...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            <Download className="w-3 h-3" />
+                            <span>Crear Backup</span>
+                          </div>
+                        )}
+                      </button>
                     </div>
-                    
-                    <button
-                      onClick={() => handleCreateFullBackup(option)}
-                      disabled={isCreating}
-                      className={`w-full py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${
-                        option.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white' :
-                        option.color === 'green' ? 'bg-green-600 hover:bg-green-700 text-white' :
-                        'bg-gray-600 hover:bg-gray-700 text-white'
-                      }`}
-                    >
-                      {isCreating ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin inline mr-1" />
-                          Creando...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-3 h-3 inline mr-1" />
-                          Crear Backup
-                        </>
-                      )}
-                    </button>
                   </div>
                 );
               })}
@@ -529,7 +743,21 @@ const BackupManager = () => {
         </div>
       </div>
 
-      {/* ✅ BACKUP DE TABLA ESPECÍFICA MEJORADO */}
+      {/* CSS Animations */}
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+
+      {/* Backup de tabla específica */}
       <div className="bg-white rounded-lg shadow border border-gray-100 mb-6">
         <div className="p-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -562,7 +790,7 @@ const BackupManager = () => {
             </div>
             
             <div className="flex gap-2">
-              {/* ✅ BOTÓN VISTA PREVIA */}
+              {/* Botón Vista Previa */}
               <button
                 onClick={() => selectedTable && loadTablePreview(selectedTable)}
                 disabled={!selectedTable || loadingPreview}
@@ -602,7 +830,7 @@ const BackupManager = () => {
               <div className="text-xs text-gray-600">
                 <span className="font-medium">Registros en esta tabla:</span>
                 <span className="ml-2 font-bold text-gray-900">
-                  {backupStats.tableStats[selectedTable]?.count.toLocaleString() || '0'}
+                  {backupStats?.tableStats?.[selectedTable]?.count?.toLocaleString() || '0'}
                 </span>
               </div>
             </div>
@@ -616,7 +844,7 @@ const BackupManager = () => {
         </div>
       </div>
 
-      {/* ✅ HISTORIAL DE BACKUPS MEJORADO */}
+      {/* Historial de backups */}
       <div className="bg-white rounded-lg shadow border border-gray-100">
         <div className="p-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -647,7 +875,7 @@ const BackupManager = () => {
 
         {showHistory && (
           <div className="p-4">
-            {/* ✅ FILTROS DE HISTORIAL */}
+            {/* Filtros de historial */}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <div className="flex-1">
                 <div className="relative">
@@ -704,7 +932,7 @@ const BackupManager = () => {
                   
                   return (
                     <div key={backup.id || index} className="border border-gray-200 rounded-lg">
-                      {/* ✅ HEADER EXPANDIBLE */}
+                      {/* Header expandible */}
                       <div 
                         className="p-3 cursor-pointer hover:bg-gray-50 transition-colors"
                         onClick={() => setExpandedHistoryItem(isExpanded ? null : backup.id)}
@@ -750,7 +978,7 @@ const BackupManager = () => {
                         </div>
                       </div>
                       
-                      {/* ✅ DETALLES EXPANDIBLES */}
+                      {/* Detalles expandibles */}
                       {isExpanded && backup.metadata && (
                         <div className="px-3 pb-3 border-t border-gray-100 bg-gray-50">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
@@ -802,7 +1030,7 @@ const BackupManager = () => {
         )}
       </div>
 
-      {/* ✅ MODAL DE VISTA PREVIA DE TABLA */}
+      {/* Modal de vista previa de tabla */}
       {showTablePreview && tablePreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">

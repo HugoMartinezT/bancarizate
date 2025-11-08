@@ -875,17 +875,157 @@ const getTransferDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { data: transfer, error } = await supabase.from('transfers').select(`*, sender:from_user_id(*), recipient:to_user_id(*), transfer_recipients(*, recipient:user_id(*))`).eq('id', id).single();
-    if (error || !transfer) return res.status(404).json({ status: 'error', message: 'Transferencia no encontrada' });
-    const hasAccess = transfer.from_user_id === userId || transfer.to_user_id === userId || transfer.transfer_recipients?.some(r => r.user_id === userId);
-    if (!hasAccess) return res.status(403).json({ status: 'error', message: 'No tienes acceso a esta transferencia' });
-    const formattedTransfer = { id: transfer.id, amount: parseFloat(transfer.amount), description: transfer.description, status: transfer.status, type: transfer.type, createdAt: transfer.created_at, completedAt: transfer.completed_at, errorMessage: transfer.error_message, sender: transfer.sender ? { id: transfer.sender.id, name: `${transfer.sender.first_name} ${transfer.sender.last_name}`, run: transfer.sender.run, role: transfer.sender.role } : null, recipient: transfer.recipient ? { id: transfer.recipient.id, name: `${transfer.recipient.first_name} ${transfer.recipient.last_name}`, run: transfer.recipient.run, role: transfer.recipient.role } : null, recipients: transfer.transfer_recipients?.map(r => ({ id: r.recipient.id, name: `${r.recipient.first_name} ${r.recipient.last_name}`, run: r.recipient.run, role: r.recipient.role, amount: parseFloat(r.amount), status: r.status })) || [] };
-    res.status(200).json({ status: 'success', data: { transfer: formattedTransfer } });
+    const logger = req.logger || console;
+
+    // 1. OBTENER LA TRANSFERENCIA
+    const { data: transfer, error: transferError } = await supabase
+      .from('transfers')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (transferError || !transfer) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Transferencia no encontrada'
+      });
+    }
+
+    // 2. VERIFICAR ACCESO
+    const isRemitente = transfer.from_user_id === userId;
+    const isDestinatario = transfer.to_user_id === userId;
+    
+    if (!isRemitente && !isDestinatario && transfer.type === 'multiple') {
+      // Para múltiples, verificar en transfer_recipients
+      const { data: recipientCheck } = await supabase
+        .from('transfer_recipients')
+        .select('id')
+        .eq('transfer_id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (!recipientCheck) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'No tienes acceso a esta transferencia'
+        });
+      }
+    } else if (!isRemitente && !isDestinatario) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No tienes acceso a esta transferencia'
+      });
+    }
+
+    // 3. CONSTRUIR RESPUESTA BASE
+    const responseData = {
+      id: transfer.id,
+      status: transfer.status,
+      date: transfer.created_at
+    };
+
+    // 4. SEGÚN TIPO DE TRANSFERENCIA
+    if (transfer.type === 'multiple') {
+      // 4A. TRANSFERENCIA MÚLTIPLE
+      const { data: recipients, error: recipientsError } = await supabase
+        .from('transfer_recipients')
+        .select(`
+          id,
+          user_id,
+          amount,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            run,
+            role
+          )
+        `)
+        .eq('transfer_id', id);
+
+      if (recipientsError) {
+        logger.error('Error obteniendo recipients:', recipientsError);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Error al obtener detalles de destinatarios'
+        });
+      }
+
+      if (recipients && recipients.length > 0) {
+        responseData.recipients = recipients.map(r => ({
+          id: r.user_id,
+          name: `${r.users.first_name} ${r.users.last_name}`,
+          run: r.users.run,
+          role: r.users.role,
+          amount: parseFloat(r.amount)
+        }));
+
+        // Calcular total correcto
+        responseData.totalAmount = recipients.reduce(
+          (sum, r) => sum + parseFloat(r.amount),
+          0
+        );
+      } else {
+        responseData.recipients = [];
+        responseData.totalAmount = 0;
+      }
+
+    } else {
+      // 4B. TRANSFERENCIA SIMPLE
+      if (transfer.to_user_id) {
+        const { data: toUser, error: userError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, run, role')
+          .eq('id', transfer.to_user_id)
+          .single();
+
+        if (userError) {
+          logger.error('Error obteniendo usuario destino:', userError);
+          return res.status(500).json({
+            status: 'error',
+            message: 'Error al obtener información del destinatario'
+          });
+        }
+
+        if (toUser) {
+          responseData.otherPerson = {
+            id: toUser.id,
+            name: `${toUser.first_name} ${toUser.last_name}`,
+            run: toUser.run,
+            role: toUser.role
+          };
+        }
+
+        responseData.totalAmount = parseFloat(transfer.amount);
+      }
+    }
+
+    // 5. DEVOLVER RESPUESTA
+    logger.info(`Detalles de transferencia ${id} obtenidos exitosamente`);
+    
+    res.status(200).json({
+      status: 'success',
+      data: responseData
+    });
+
   } catch (error) {
-    console.error('Error obteniendo detalles:', error);
-    res.status(500).json({ status: 'error', message: 'Error al obtener detalles de la transferencia' });
+    const logger = req.logger || console;
+    logger.error('Error en getTransferDetails:', {
+      error: error.message,
+      stack: error.stack,
+      transferId: req.params.id
+    });
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al obtener detalles de la transferencia',
+      ...(process.env.NODE_ENV === 'development' && { 
+        debug: error.message 
+      })
+    });
   }
 };
+
 
 const getClassmates = async (req, res) => {
   req.query.role = 'student';
