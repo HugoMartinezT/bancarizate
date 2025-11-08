@@ -1,647 +1,912 @@
-import { useEffect, useMemo, useState } from 'react';
-import { 
-  BarChart3, TrendingUp, TrendingDown, DollarSign, Users, 
-  Calendar, ArrowUpRight, ArrowDownLeft, Shield, User,
-  Activity as ActivityIcon, Clock, Loader2, RefreshCw, ChevronLeft, ChevronRight
-} from 'lucide-react';
-import { apiService } from '../services/api';
+import { useState, useEffect } from 'react';
+import { Settings, Save, RefreshCw, AlertCircle, CheckCircle, XCircle, Loader2, DollarSign, Users, Shield, Globe, Eye, History, X, Clock, Zap, TestTube, AlertTriangle } from 'lucide-react';
+import { apiService, SystemConfig, SystemConfigResponse } from '../../services/api';
 
-type RangeOpt = '7d'|'30d'|'90d'|'all';
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount||0);
-
-// ==========================
-// Utilidades visuales
-// ==========================
-const Skeleton = ({ className = '' }: { className?: string }) => (
-  <div className={`animate-pulse rounded bg-gray-100 ${className}`} />
-);
-
-// ==========================
-// Componente de gráfico de barras minimalista
-// ==========================
-interface BarChartProps {
-  data: Array<{
-    label: string;
-    sent: number;
-    received: number;
-  }>;
-  maxSent: number;
-  maxRecv: number;
+interface ConfigUpdate {
+  key: string;
+  value: any;
+  originalValue: string;
 }
 
-const MinimalBarChart = ({ data, maxSent, maxRecv }: BarChartProps) => {
-  if (data.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-sm text-gray-500">Sin datos en el rango seleccionado</p>
-      </div>
-    );
-  }
-
+const RateLimiterPanel = ({ showRateLimiterPanel, rateLimiterStatus, isRefreshingRateLimiters, rateLimiterTest, handleRefreshRateLimiters, handleTestRateLimiters, setShowRateLimiterPanel }: {
+  showRateLimiterPanel: boolean;
+  rateLimiterStatus: any;
+  isRefreshingRateLimiters: boolean;
+  rateLimiterTest: any;
+  handleRefreshRateLimiters: () => Promise<void>;
+  handleTestRateLimiters: () => Promise<void>;
+  setShowRateLimiterPanel: (value: boolean) => void;
+}) => {
+  if (!showRateLimiterPanel || !rateLimiterStatus) return null;
   return (
-    <div className="space-y-3">
-      {data.map((item, idx) => {
-        const sentPct = Math.min(100, ((item.sent || 0) / maxSent) * 100);
-        const recvPct = Math.min(100, ((item.received || 0) / maxRecv) * 100);
-        const netFlow = (item.received || 0) - (item.sent || 0);
-
-        return (
-          <div key={idx} className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-gray-700">{item.label}</span>
-              <span className={`font-semibold ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow)}
-              </span>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              <h2 className="text-lg font-bold">Estado de Rate Limiters</h2>
             </div>
-            
-            {/* Barra dual mejorada */}
-            <div className="relative h-10 flex items-center gap-2">
-              {/* Barra de recibido */}
-              <div className="relative flex-1 h-6 bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-[#193cb8] to-[#2563eb] rounded-lg transition-all duration-500 shadow-sm"
-                  style={{ width: `${recvPct}%` }}
-                >
-                  {item.received > 0 && (
-                    <div className="absolute inset-0 flex items-center justify-end pr-2">
-                      <span className="text-xs font-semibold text-white drop-shadow">
-                        {formatCurrency(item.received)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            <button
+              onClick={() => setShowRateLimiterPanel(false)}
+              className="p-1 hover:bg-white/20 rounded transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        {/* Contenido */}
+        <div className="p-6 max-h-96 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Información</h3>
+              <div className="space-y-2 text-sm">
+                <div><span className="font-medium">Última carga:</span> {rateLimiterStatus.configuration.lastLoaded}</div>
+                <div><span className="font-medium">Origen:</span> {rateLimiterStatus.configuration.source}</div>
+                <div><span className="font-medium">Actualizado por:</span> {rateLimiterStatus.requestedBy.name}</div>
               </div>
-
-              {/* Barra de enviado */}
-              <div className="relative flex-1 h-6 bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-gray-400 to-gray-500 rounded-lg transition-all duration-500 shadow-sm"
-                  style={{ width: `${sentPct}%` }}
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">Acciones</h3>
+              <div className="space-y-2">
+                <button
+                  onClick={handleRefreshRateLimiters}
+                  disabled={isRefreshingRateLimiters}
+                  className="w-full px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {item.sent > 0 && (
-                    <div className="absolute inset-0 flex items-center justify-end pr-2">
-                      <span className="text-xs font-semibold text-white drop-shadow">
-                        {formatCurrency(item.sent)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  <RefreshCw className={`w-4 h-4 ${isRefreshingRateLimiters ? 'animate-spin' : ''}`} />
+                  {isRefreshingRateLimiters ? 'Refrescando...' : 'Refrescar'}
+                </button>
+                <button
+                  onClick={handleTestRateLimiters}
+                  className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+                >
+                  <TestTube className="w-4 h-4" />
+                  Probar Rate Limiters
+                </button>
               </div>
             </div>
           </div>
-        );
-      })}
-      
-      {/* Leyenda */}
-      <div className="flex justify-center items-center gap-6 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gradient-to-r from-[#193cb8] to-[#2563eb]"></div>
-          <span className="text-xs font-medium text-gray-600">Recibido</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gradient-to-r from-gray-400 to-gray-500"></div>
-          <span className="text-xs font-medium text-gray-600">Enviado</span>
+          {/* Configuraciones actuales */}
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-3">Configuración Actual</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {Object.entries(rateLimiterStatus.configuration).map(([key, value]) => {
+                if (typeof value === 'object' || key === 'lastLoaded' || key === 'source') return null;
+                return (
+                  <div key={key} className="p-3 bg-gray-50 rounded border">
+                    <div className="text-xs text-gray-500 font-mono">{key}</div>
+                    <div className="font-semibold text-gray-900">
+                      {apiService.formatRateLimitDisplay(key, value as number)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Resultado del test */}
+          {rateLimiterTest && (
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded">
+              <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+                <CheckCircle className="w-4 h-4" />
+                Test de Rate Limiters
+              </div>
+              <div className="text-sm text-green-600">
+                <div><span className="font-medium">Tipo:</span> {rateLimiterTest.testType}</div>
+                <div><span className="font-medium">Mensaje:</span> {rateLimiterTest.message}</div>
+                <div><span className="font-medium">Timestamp:</span> {rateLimiterTest.timestamp}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// ==========================
-// Tarjeta de estadística mejorada y compacta
-// ==========================
-interface StatCardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  value: string | React.ReactNode;
-  subtitle: string;
-  trend?: number;
-  iconBgColor: string;
-  iconColor: string;
-  valueColor?: string;
-}
-
-const StatCard: React.FC<StatCardProps> = ({
-  icon: Icon,
-  title,
-  value,
-  subtitle,
-  trend,
-  iconBgColor,
-  iconColor,
-  valueColor,
+const RateLimiterControls = ({ handleGetRateLimiterStatus, handleRefreshRateLimiters, isRefreshingRateLimiters }: {
+  handleGetRateLimiterStatus: () => Promise<void>;
+  handleRefreshRateLimiters: () => Promise<void>;
+  isRefreshingRateLimiters: boolean;
 }) => (
-  <button 
-    type="button" 
-    className="w-full text-left bg-white rounded-lg shadow-sm border border-gray-100 p-3 hover:shadow-md hover:border-gray-200 transition-all duration-300 group relative overflow-hidden active:scale-[.97]"
-  >
-    {/* Fondo decorativo sutil */}
-    <div className={`absolute top-0 right-0 w-20 h-20 ${iconBgColor} opacity-5 rounded-full -translate-y-6 translate-x-6 group-hover:scale-110 transition-transform duration-300`} />
+  <div className="flex gap-2">
+    <button
+      onClick={handleGetRateLimiterStatus}
+      className="px-3 py-2 text-sm text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-2"
+      title="Ver estado de rate limiters"
+    >
+      <Shield className="w-4 h-4" />
+      Estado Rate Limiters
+    </button>
+    <button
+      onClick={handleRefreshRateLimiters}
+      disabled={isRefreshingRateLimiters}
+      className={`px-3 py-2 text-sm text-green-700 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-2 ${
+        isRefreshingRateLimiters ? 'opacity-50 cursor-not-allowed' : ''
+      }`}
+      title="Aplicar cambios de rate limiters inmediatamente"
+    >
+      <Zap className={`w-4 h-4 ${isRefreshingRateLimiters ? 'animate-pulse' : ''}`} />
+      {isRefreshingRateLimiters ? 'Aplicando...' : 'Aplicar Rate Limiters'}
+    </button>
+  </div>
+);
 
-    <div className="relative z-10">
-      <div className="flex items-center justify-between mb-2">
-        <div className={`p-2 rounded-lg ${iconBgColor} group-hover:scale-105 transition-all duration-200 shadow-sm`}>
-          <Icon className={`w-4 h-4 ${iconColor}`} />
-        </div>
-        {typeof trend === 'number' && trend !== 0 && (
-          <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-            trend > 0
-              ? 'bg-green-50 text-green-700 border border-green-200'
-              : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
-            {trend > 0 ? (
-              <TrendingUp className="w-3 h-3" />
-            ) : (
-              <TrendingDown className="w-3 h-3" />
-            )}
-            {Math.abs(trend)}%
-          </div>
-        )}
-      </div>
-
-      <div>
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-0.5">{title}</p>
-        <div className={`text-lg font-bold ${valueColor || 'text-gray-900'} mb-0.5`}>
-          {value}
-        </div>
-        <p className="text-xs text-gray-400 font-medium">{subtitle}</p>
-      </div>
-    </div>
-  </button>
-); // <-- CORREGIDO: Se eliminó el ); extra de aquí
-
-// ==========================
-// Componente principal
-// ==========================
-const Statistics = () => {
-  const [tab, setTab] = useState<'global'|'mine'>('global');
-  const [range, setRange] = useState<RangeOpt>('30d');
-  const [groupBy, setGroupBy] = useState<'day'|'month'>('day');
+const SystemSettings = () => {
+  const [configurations, setConfigurations] = useState<SystemConfig[]>([]);
+  const [groupedConfigs, setGroupedConfigs] = useState<Record<string, SystemConfig[]>>({});
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [g, setG] = useState<any>(null);   // global stats
-  const [me, setMe] = useState<any>(null); // my stats
-  const [error, setError] = useState<string|null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
-  // Estados para paginación del gráfico
-  const [chartPage, setChartPage] = useState(0);
-  const ITEMS_PER_PAGE = 10;
+  // Estados del formulario
+  const [pendingChanges, setPendingChanges] = useState<Record<string, ConfigUpdate>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showOnlyEditable, setShowOnlyEditable] = useState(true);
+  
+  // Estados de la UI
+  const [showHistory, setShowHistory] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  // Estados para Rate Limiters
+  const [isRefreshingRateLimiters, setIsRefreshingRateLimiters] = useState(false);
+  const [rateLimiterStatus, setRateLimiterStatus] = useState<any>(null);
+  const [showRateLimiterPanel, setShowRateLimiterPanel] = useState(false);
+  const [rateLimiterTest, setRateLimiterTest] = useState<any>(null);
 
-  const load = async () => {
+  // Función helper para generar labels dinámicos
+  const generateLabel = (configKey: string): string => {
+    return configKey
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Mapeo de categorías a iconos y labels
+  const categoryInfo = {
+    transfers: { icon: DollarSign, label: 'Transferencias', color: 'green' },
+    users: { icon: Users, label: 'Usuarios', color: 'blue' },
+    security: { icon: Shield, label: 'Seguridad', color: 'red' },
+    general: { icon: Globe, label: 'General', color: 'gray' },
+    system: { icon: Settings, label: 'Sistema', color: 'purple' },
+    notifications: { icon: AlertCircle, label: 'Notificaciones', color: 'yellow' }
+  };
+
+  // Normaliza el valor isEditable que puede venir como boolean, string o number
+  const isConfigEditable = (value: any): boolean => {
+    if (typeof value === "boolean") return value;
+
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      return normalized === "true" || normalized === "1";
+    }
+
+    if (typeof value === "number") {
+      return value === 1;
+    }
+
+    return false;
+  };
+
+  // Cargar configuraciones
+  const loadConfigurations = async () => {
     try {
-      setLoading(true); 
+      setLoading(true);
       setError(null);
-      const [globalRes, meRes] = await Promise.all([
-        apiService.request(`/dashboard/stats?range=${range}&groupBy=${groupBy}`),
-        apiService.request(`/transfers/stats?range=${range}`)
-      ]);
-      setG(globalRes?.data || globalRes);
-      setMe(meRes?.data || meRes);
-    } catch (e:any) {
-      setError(e?.message || 'Error cargando estadísticas');
-      console.error('Statistics load error', e);
+      
+      console.log('⚙️ Cargando configuraciones del sistema...');
+      
+      const response: SystemConfigResponse = await apiService.getSystemConfig();
+      
+      console.log('✅ Configuraciones cargadas:', response.data);
+      
+      setConfigurations(response.data.configurations);
+      setGroupedConfigs(response.data.grouped);
+      setCategories(response.data.categories);
+      
+    } catch (error: any) {
+      console.error('❌ Error cargando configuraciones:', error);
+      
+      if (error.message.includes('403') || error.message.includes('autorizado')) {
+        setError('No tienes permisos para gestionar configuraciones del sistema. Solo administradores pueden acceder.');
+      } else if (error.message.includes('401')) {
+        setError('Tu sesión ha expirado. Recarga la página e inicia sesión nuevamente.');
+      } else {
+        setError(error.message || 'Error al cargar configuraciones');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(()=>{ load(); /* eslint-disable-next-line */ }, [range, groupBy]);
-
-  const series = useMemo(()=>{
-    const s = (tab==='global' ? g?.transfers?.series : me?.series) || [];
-    return Array.isArray(s) ? s : [];
-  }, [tab, g, me]);
-
-  // Calcular máximos para barras
-  const maxSent = useMemo(()=> Math.max(1, ...series.map((d:any)=>+d.sent_amount||0)), [series]);
-  const maxRecv = useMemo(()=> Math.max(1, ...series.map((d:any)=>+d.received_amount||0)), [series]);
-
-  // Formatear datos para el gráfico con paginación
-  const allChartData = useMemo(() => {
-    return series.map((d: any) => ({
-      label: d.date,
-      sent: +d.sent_amount || 0,
-      received: +d.received_amount || 0,
-    }));
-  }, [series]);
-
-  // Datos paginados
-  const chartData = useMemo(() => {
-    const start = chartPage * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    return allChartData.slice(start, end);
-  }, [allChartData, chartPage]);
-
-  const totalPages = Math.ceil(allChartData.length / ITEMS_PER_PAGE);
-  
-  // Reset page cuando cambia el rango o agrupación
+  // Cargar configuraciones al montar
   useEffect(() => {
-    setChartPage(0);
-  }, [range, groupBy, tab]);
+    loadConfigurations();
+  }, []);
+
+  // Función para validar configuraciones de rate limiting
+  const validateRateLimitChange = (configKey: string, newValue: number) => {
+    const validation = apiService.validateRateLimitConfig(configKey, newValue);
+ 
+    if (!validation.isValid) {
+      setError(`${configKey}: ${validation.error}${validation.recommendation ? ` - ${validation.recommendation}` : ''}`);
+      return false;
+    }
+ 
+    return true;
+  };
+
+  // Manejar cambio de valor
+  const handleValueChange = (config: SystemConfig, newValue: any) => {
+    const key = config.configKey;
+ 
+    // Validar tipo de dato
+    let validatedValue = newValue;
+ 
+    if (config.dataType === 'number') {
+      // ✅ MEJORADO: Permitir strings vacías temporalmente durante edición
+      if (newValue === '' || newValue === null || newValue === undefined) {
+        // Guardar temporalmente el valor vacío sin validar
+        setPendingChanges(prev => ({
+          ...prev,
+          [key]: {
+            key,
+            value: '', // Guardar string vacío temporalmente
+            originalValue: config.configValue
+          }
+        }));
+        return;
+      }
+      
+      validatedValue = parseFloat(newValue);
+   
+      if (isNaN(validatedValue)) {
+        setError('El valor debe ser un número válido');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+   
+      // Validaciones de base de datos
+      if (config.minValue !== null && config.minValue !== undefined && validatedValue < config.minValue) {
+        setError(`El valor debe ser mayor o igual a ${config.minValue}`);
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+   
+      if (config.maxValue !== null && config.maxValue !== undefined && validatedValue > config.maxValue) {
+        setError(`El valor debe ser menor o igual a ${config.maxValue}`);
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+   
+      // Validaciones específicas para rate limiting
+      if (config.configKey.includes('_limit_')) {
+        if (!validateRateLimitChange(config.configKey, validatedValue)) {
+          return; // Error ya mostrado por validateRateLimitChange
+        }
+      }
+   
+    } else if (config.dataType === 'boolean') {
+      validatedValue = newValue === 'true' || newValue === true;
+    }
+    
+    // Limpiar error anterior
+    if (error) setError(null);
+    
+    setPendingChanges(prev => ({
+      ...prev,
+      [key]: {
+        key,
+        value: validatedValue,
+        originalValue: config.configValue
+      }
+    }));
+  };
+
+  // Función para refrescar rate limiters
+  const handleRefreshRateLimiters = async () => {
+    setIsRefreshingRateLimiters(true);
+    setError(null);
+ 
+    try {
+      console.log('🔄 Refrescando rate limiters...');
+   
+      const response = await apiService.refreshRateLimiters();
+   
+      if (response.status === 'success') {
+        setSuccess('Rate limiters actualizados exitosamente en tiempo real');
+        setRateLimiterStatus(response.data);
+     
+        // Recargar configuraciones para mostrar estado actual
+        setTimeout(() => {
+          loadConfigurations();
+        }, 1000);
+      }
+   
+    } catch (error: any) {
+      console.error('❌ Error refrescando rate limiters:', error);
+   
+      if (error.message.includes('403')) {
+        setError('No tienes permisos para refrescar rate limiters');
+      } else {
+        setError(`Error refrescando rate limiters: ${error.message}`);
+      }
+    } finally {
+      setIsRefreshingRateLimiters(false);
+      setTimeout(() => setSuccess(null), 5000);
+    }
+  };
+
+  // Función para obtener estado de rate limiters
+  const handleGetRateLimiterStatus = async () => {
+    try {
+      console.log('📊 Consultando estado de rate limiters...');
+   
+      const response = await apiService.getRateLimiterStatus();
+      setRateLimiterStatus(response.data);
+      setShowRateLimiterPanel(true);
+   
+    } catch (error: any) {
+      console.error('❌ Error obteniendo estado:', error);
+      setError(`Error obteniendo estado: ${error.message}`);
+    }
+  };
+
+  // Función para probar rate limiters
+  const handleTestRateLimiters = async () => {
+    try {
+      console.log('🧪 Probando rate limiters...');
+   
+      const response = await apiService.testRateLimiters();
+      setRateLimiterTest(response.data);
+      setSuccess('Test de rate limiters exitoso');
+   
+    } catch (error: any) {
+      console.error('❌ Error en test:', error);
+   
+      if (error.message.includes('429')) {
+        setSuccess('✅ Rate limiter funcionando - Límite alcanzado (comportamiento esperado)');
+        setRateLimiterTest({
+          testType: 'rate_limit_reached',
+          message: 'El rate limiter está funcionando correctamente',
+          status: 'blocked_as_expected'
+        });
+      } else {
+        setError(`Error en test: ${error.message}`);
+      }
+    }
+  };
+
+  // Guardar cambios con refresh automático de rate limiters
+  const handleSaveChanges = async () => {
+    const updates = Object.values(pendingChanges);
+    if (updates.length === 0) return;
+    
+    // ✅ NUEVO: Validar que no haya valores vacíos antes de guardar
+    const emptyValues = updates.filter(update => update.value === '' || update.value === null || update.value === undefined);
+    if (emptyValues.length > 0) {
+      setError(`Por favor completa todos los campos antes de guardar. Campos vacíos: ${emptyValues.map(u => u.key).join(', ')}`);
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
+    // Verificar si hay cambios de rate limiting
+    const rateLimitUpdates = updates.filter(update =>
+      update.key.includes('_limit_')
+    );
+    
+    setIsSaving(true);
+    setSuccess(null);
+    setError(null);
+    
+    try {
+      console.log('💾 Guardando configuraciones...');
+   
+      if (rateLimitUpdates.length > 0) {
+        // Si hay cambios de rate limiting, usar método combinado
+        console.log('🔧 Detectados cambios de rate limiting, aplicando...');
+     
+        const response = await apiService.updateRateLimiterConfigs(updates);
+     
+        setSuccess(
+          `Configuraciones actualizadas y rate limiters refrescados exitosamente.
+           ${rateLimitUpdates.length} configuraciones de seguridad aplicadas.`
+        );
+        setRateLimiterStatus(response.rateLimiterRefresh.data);
+     
+      } else {
+        // Si no hay cambios de rate limiting, usar método normal
+        const response = await apiService.updateMultipleConfigurations(updates);
+        if (response.status === 'success') {
+          setSuccess('Configuraciones actualizadas exitosamente');
+        }
+      }
+   
+      setPendingChanges({});
+      loadConfigurations();
+      setTimeout(() => setSuccess(null), 5000);
+   
+    } catch (error: any) {
+      console.error('Error guardando configuraciones:', error);
+      setError(error.message || 'Error al guardar configuraciones');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Descartar cambios
+  const handleDiscardChanges = () => {
+    setPendingChanges({});
+    setError(null);
+  };
+
+  // Cargar historial
+  const loadHistory = async (configKey: string) => {
+    setLoadingHistory(true);
+    setHistoryData([]);
+
+    try {
+      console.log('📋 Cargando historial para:', configKey);
+      const response = await apiService.getConfigHistory(configKey);
+      setHistoryData(response.data.history);
+    } catch (error: any) {
+      console.error('Error cargando historial:', error);
+      setError('Error al cargar historial de cambios');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Formatear fecha
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Formatear valor para mostrar
+  const formatDisplayValue = (config: SystemConfig, value: any) => {
+    if (config.dataType === 'boolean') {
+      return value ? 'Habilitado' : 'Deshabilitado';
+    }
+    if (config.dataType === 'number' && config.configKey.includes('amount')) {
+      return new Intl.NumberFormat('es-CL', { 
+        style: 'currency', 
+        currency: 'CLP' 
+      }).format(value);
+    }
+    return value;
+  };
+
+  // Indicador especial para configuraciones de rate limiting
+  const getRateLimitIndicator = (configKey: string) => {
+    if (!configKey.includes('_limit_')) return null;
+ 
+    return (
+      <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium ml-2">
+        <Shield className="w-3 h-3" />
+        Rate Limiting
+      </div>
+    );
+  };
+
+  // Filtrar configuraciones usando isEditable
+  const filteredConfigs = configurations.filter(config => {
+    if (selectedCategory !== 'all' && config.category !== selectedCategory) return false;
+    if (showOnlyEditable && !config.isEditable) return false;
+    return true;
+  });
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        {/* Header skeleton */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <Skeleton className="h-10 w-64" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-40" />
-            <Skeleton className="h-10 w-48" />
-          </div>
-        </div>
-
-        {/* Cards skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center">
-          <Loader2 className="w-8 h-8 text-[#193cb8] animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-600">Cargando estadísticas...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-600">Cargando configuraciones del sistema...</p>
         </div>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-gray-900">Estadísticas</h1>
-        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <TrendingDown className="w-8 h-8 text-red-600" />
-          </div>
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-          <button
-            onClick={load}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const users = g?.users || {};
-  const transfers = g?.transfers || {};
-  const activity = g?.activity || {};
-  const mine = me || {};
 
   return (
-    <div className="max-w-7xl mx-auto px-3 py-4">
-      {/* Header compacto con fondo azul */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-white/20 rounded">
-              <BarChart3 className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">Estadísticas</h1>
-              <p className="text-blue-200 text-xs">
-                Análisis detallado de la actividad {tab === 'global' ? 'de la plataforma' : 'de tu cuenta'}
-              </p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Configuraciones del Sistema</h1>
+            <p className="text-sm text-gray-500 mt-1">Ajusta parámetros y límites globales</p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Tabs compactos */}
-            <div className="flex rounded-md overflow-hidden border border-white/20 shadow-sm">
-              <button 
-                onClick={()=>setTab('global')}
-                className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
-                  tab==='global'
-                    ?'bg-white text-[#193cb8] shadow-sm'
-                    :'bg-white/10 text-white hover:bg-white/20'
-                }`}
+          <div className="flex gap-2">
+            {Object.keys(pendingChanges).length > 0 && (
+              <button
+                onClick={handleDiscardChanges}
+                disabled={isSaving}
+                className="px-3 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
               >
-                Global
+                Descartar Cambios
               </button>
-              <button 
-                onClick={()=>setTab('mine')}
-                className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
-                  tab==='mine'
-                    ?'bg-white text-[#193cb8] shadow-sm'
-                    :'bg-white/10 text-white hover:bg-white/20'
-                }`}
-              >
-                Mi cuenta
-              </button>
-            </div>
-
-            {/* Range selector compacto */}
-            <select 
-              className="px-3 py-1.5 text-xs font-medium border border-white/20 rounded-md bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200" 
-              value={range} 
-              onChange={e=>setRange(e.target.value as RangeOpt)}
+            )}
+            <RateLimiterControls
+              handleGetRateLimiterStatus={handleGetRateLimiterStatus}
+              handleRefreshRateLimiters={handleRefreshRateLimiters}
+              isRefreshingRateLimiters={isRefreshingRateLimiters}
+            />
+            <button
+              onClick={handleSaveChanges}
+              disabled={isSaving || Object.keys(pendingChanges).length === 0}
+              className={`bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white px-4 py-2.5 rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-bold ${
+                isSaving || Object.keys(pendingChanges).length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              <option value="7d" className="text-gray-900">Últimos 7 días</option>
-              <option value="30d" className="text-gray-900">Últimos 30 días</option>
-              <option value="90d" className="text-gray-900">Últimos 90 días</option>
-              <option value="all" className="text-gray-900">Todo el período</option>
-            </select>
-
-            {/* Group by button compacto */}
-            <button 
-              className="px-3 py-1.5 text-xs font-medium border border-white/20 rounded-md bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 inline-flex items-center gap-1.5" 
-              onClick={()=>setGroupBy(p=>p==='day'?'month':'day')}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              {groupBy==='day' ? 'Por mes' : 'Por día'}
+              <Save className="w-4 h-4" />
+              {isSaving ? 'Guardando...' : `Guardar Cambios (${Object.keys(pendingChanges).length})`}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Tarjetas de resumen más compactas */}
-      {tab==='global' ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <StatCard
-              icon={ArrowDownLeft}
-              title="Total Recibido"
-              value={formatCurrency(transfers?.volume?.received_total || 0)}
-              subtitle="Ingresos del período"
-              iconBgColor="bg-blue-100"
-              iconColor="text-[#193cb8]"
-              valueColor="text-gray-900"
-            />
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow border border-gray-200 mb-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors"
+            >
+              <option value="all">Todas las categorías</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>
+                  {categoryInfo[cat as keyof typeof categoryInfo]?.label || cat}
+                </option>
+              ))}
+            </select>
 
-            <StatCard
-              icon={ArrowUpRight}
-              title="Total Enviado"
-              value={formatCurrency(transfers?.volume?.sent_total || 0)}
-              subtitle="Egresos del período"
-              iconBgColor="bg-gray-100"
-              iconColor="text-gray-600"
-              valueColor="text-gray-900"
-            />
-
-            <StatCard
-              icon={DollarSign}
-              title="Flujo Neto"
-              value={formatCurrency(transfers?.volume?.net_flow || 0)}
-              subtitle="Balance del período"
-              iconBgColor="bg-blue-50"
-              iconColor="text-[#193cb8]"
-              valueColor={(transfers?.volume?.net_flow||0)>=0 ? 'text-blue-600' : 'text-gray-600'}
-            />
-
-            <StatCard
-              icon={Users}
-              title="Usuarios Activos"
-              value={users?.active ?? 0}
-              subtitle="Total activos"
-              iconBgColor="bg-blue-50"
-              iconColor="text-[#193cb8]"
-              valueColor="text-gray-900"
-            />
-          </div>
-
-          {/* Información adicional en tarjetas */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Usuarios por rol */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-[#193cb8]" />
-                Usuarios por rol
-              </h2>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#193cb8]"></div>
-                    <span className="text-xs font-medium text-gray-700">Estudiantes</span>
-                  </div>
-                  <span className="text-sm font-bold text-[#193cb8]">{users?.by_role?.student ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
-                    <span className="text-xs font-medium text-gray-700">Docentes</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">{users?.by_role?.teacher ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
-                    <span className="text-xs font-medium text-gray-700">Administradores</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">{users?.by_role?.admin ?? 0}</span>
-                </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-600">Circulante</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(users?.circulating || 0)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-600">Sobregiro</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(users?.overdraft_total || 0)}</span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showOnlyEditable}
+                onChange={(e) => setShowOnlyEditable(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label className="text-sm text-gray-700">Mostrar solo editables</label>
             </div>
 
-            {/* Actividad */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                <ActivityIcon className="w-4 h-4 text-[#193cb8]" />
-                Actividad reciente
-              </h2>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100">
-                  <div className="flex items-center gap-1.5">
-                    <ActivityIcon className="w-3.5 h-3.5 text-[#193cb8]" />
-                    <span className="text-xs font-medium text-gray-700">Logins 24h</span>
-                  </div>
-                  <span className="text-sm font-bold text-[#193cb8]">{activity?.logins_24h ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-gray-600" />
-                    <span className="text-xs font-medium text-gray-700">Activos 7d</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">{activity?.active_users_7d ?? 0}</span>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-gray-600" />
-                    <span className="text-xs font-medium text-gray-700">Acciones 7d</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">{activity?.total_activities_7d ?? 0}</span>
-                </div>
-              </div>
-            </div>
+            <button
+              onClick={loadConfigurations}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Recargar
+            </button>
+          </div>
 
-            {/* Estados de transferencias */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-[#193cb8]" />
-                Estados de transferencias
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { key: 'completed', label: 'Completadas', color: 'bg-blue-50 border-blue-100 text-blue-700' },
-                  { key: 'failed', label: 'Fallidas', color: 'bg-gray-50 border-gray-100 text-gray-700' },
-                  { key: 'cancelled', label: 'Canceladas', color: 'bg-gray-50 border-gray-100 text-gray-600' },
-                  { key: 'pending', label: 'Pendientes', color: 'bg-gray-50 border-gray-100 text-gray-600' }
-                ].map(({key, label, color})=>(
-                  <div key={key} className={`p-2 rounded-lg border ${color} text-center`}>
-                    <div className="text-xs font-medium capitalize mb-0.5">{label}</div>
-                    <div className="text-lg font-bold">{transfers?.count?.[key] ?? 0}</div>
-                  </div>
-                ))}
-              </div>
+          {/* Estadísticas rápidas */}
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Total Configuraciones</p>
+              <p className="font-semibold text-gray-900">{configurations.length}</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Editables</p>
+              <p className="font-semibold text-blue-600">{configurations.filter(c => c.isEditable).length}</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Cambios Pendientes</p>
+              <p className="font-semibold text-orange-600">{Object.keys(pendingChanges).length}</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded">
+              <p className="text-xs text-gray-500">Categorías</p>
+              <p className="font-semibold text-purple-600">{categories.length}</p>
             </div>
           </div>
-        </>
-      ) : (
-        // MI CUENTA
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard
-              icon={ArrowDownLeft}
-              title="Recibido"
-              value={formatCurrency(mine?.received?.total_amount||0)}
-              subtitle="Total recibido en el período"
-              iconBgColor="bg-blue-100"
-              iconColor="text-[#193cb8]"
-              valueColor="text-gray-900"
-            />
-
-            <StatCard
-              icon={ArrowUpRight}
-              title="Enviado"
-              value={formatCurrency(mine?.sent?.total_amount||0)}
-              subtitle="Total enviado en el período"
-              iconBgColor="bg-gray-100"
-              iconColor="text-gray-600"
-              valueColor="text-gray-900"
-            />
-
-            <StatCard
-              icon={DollarSign}
-              title="Flujo Neto"
-              value={formatCurrency((mine?.net_flow)||0)}
-              subtitle="Balance del período"
-              iconBgColor="bg-blue-50"
-              iconColor="text-[#193cb8]"
-              valueColor={(mine?.net_flow||0)>=0 ? 'text-blue-600' : 'text-gray-600'}
-            />
-
-            <StatCard
-              icon={User}
-              title="Balance Actual"
-              value={formatCurrency(mine?.user?.balance||0)}
-              subtitle="Saldo disponible"
-              iconBgColor="bg-blue-50"
-              iconColor="text-[#193cb8]"
-              valueColor="text-gray-900"
-            />
-          </div>
-        </>
-      )}
-
-      {/* Gráfico principal mejorado */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-4 mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">
-              {tab==='global' ? 'Flujo de transferencias' : 'Mi actividad de transferencias'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Comparación entre ingresos y egresos
-            </p>
-          </div>
-          <BarChart3 className="w-5 h-5 text-gray-400" />
         </div>
-        
-        <MinimalBarChart 
-          data={chartData}
-          maxSent={maxSent}
-          maxRecv={maxRecv}
+
+        {/* Mensaje de éxito */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-green-700 text-sm">
+            <CheckCircle className="w-4 h-4" />
+            {success}
+          </div>
+        )}
+
+        {/* Mensaje de error */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        {/* Tabla de configuraciones */}
+        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Categoría
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Configuración
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Valor Actual
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Descripción
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredConfigs.map(config => {
+                const categoryMeta = categoryInfo[config.category as keyof typeof categoryInfo];
+                const IconComponent = categoryMeta?.icon || Settings;
+                const hasChanges = pendingChanges[config.configKey];
+                const displayValue = hasChanges ? hasChanges.value : config.configValue;
+                
+                return (
+                  <tr key={config.configKey} className={`hover:bg-gray-50 transition-colors ${hasChanges ? 'bg-yellow-50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-${categoryMeta?.color || 'gray'}-100 text-${categoryMeta?.color || 'gray'}-800`}>
+                        <IconComponent className="w-3 h-3 mr-1" />
+                        {categoryMeta?.label || config.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <div className="flex items-center">
+                          <span className="text-sm font-medium text-gray-900">{generateLabel(config.configKey)}</span>
+                          {getRateLimitIndicator(config.configKey)}
+                        </div>
+                        <span className="text-xs text-gray-500 font-mono">{config.configKey}</span>
+                        {hasChanges && (
+                          <span className="text-xs text-orange-600 font-medium">⚠ Cambio pendiente</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {/* ✅ DEBUGGING: Log del valor de isEditable */}
+                      {(() => {
+                        const isEditableRaw = config.isEditable;
+                        const isEditableBool = isConfigEditable(isEditableRaw);
+
+                        // Solo hacer console.log si estamos en desarrollo
+                        if (import.meta.env.DEV && config.configKey.includes('limit')) {
+                          console.log(`🔍 ${config.configKey}:`, {
+                            isEditableRaw,
+                            tipo: typeof isEditableRaw,
+                            isEditableBool,
+                            dataType: config.dataType
+                          });
+                        }
+
+                        return null;
+                      })()}
+
+                      {/* ✅ Conversión de boolean explícita y robusta */}
+                      {isConfigEditable(config.isEditable) ? (
+                        <div className="flex flex-col">
+                          {config.dataType === 'boolean' ? (
+                            <select
+                              value={displayValue?.toString() || 'false'}
+                              onChange={(e) => handleValueChange(config, e.target.value === 'true')}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            >
+                              <option value="false">Deshabilitado</option>
+                              <option value="true">Habilitado</option>
+                            </select>
+                          ) : config.dataType === 'number' ? (
+                            <div className="space-y-1">
+                              <input
+                                type="number"
+                                value={displayValue || ""}
+                                onChange={(e) => handleValueChange(config, e.target.value)}
+                                min={config.minValue || undefined}
+                                max={config.maxValue || undefined}
+                                step={config.configKey.includes('amount') ? '1000' : '1'}
+                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                placeholder={`Ej: ${config.configValue}`}
+                              />
+                              {/* ✅ NUEVO: Ayuda visual para rate limiters */}
+                              {config.configKey.includes('_limit_') && (config.minValue || config.maxValue) && (
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>
+                                    Rango seguro: {config.minValue || "0"} - {config.maxValue || "∞"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={displayValue || ""}
+                              onChange={(e) => handleValueChange(config, e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            />
+                          )}
+
+                          {hasChanges && (
+                            <div className="mt-1 text-xs">
+                              <span className="text-gray-500">Original: </span>
+                              <span className="text-red-600">{formatDisplayValue(config, config.configValue)}</span>
+                              <span className="text-gray-500"> → </span>
+                              <span className="text-green-600">{formatDisplayValue(config, displayValue)}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700">
+                            {formatDisplayValue(config, config.configValue)}
+                          </span>
+                          {/* ✅ DEBUGGING: Mostrar por qué no es editable */}
+                          {import.meta.env.DEV && config.configKey.includes('limit') && (
+                            <span className="text-xs text-red-500 mt-1">
+                              🔒 No editable (isEditable={JSON.stringify(config.isEditable)})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
+                      <div className="truncate" title={config.description}>
+                        {config.description}
+                      </div>
+                      {(config.minValue !== null || config.maxValue !== null) && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Rango: {config.minValue || '∞'} - {config.maxValue || '∞'}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setShowHistory(config.configKey);
+                            loadHistory(config.configKey);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
+                          title="Ver historial"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                        {hasChanges && (
+                          <button
+                            onClick={() => {
+                              const newChanges = { ...pendingChanges };
+                              delete newChanges[config.configKey];
+                              setPendingChanges(newChanges);
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded text-red-600 transition-colors"
+                            title="Descartar cambio"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {filteredConfigs.length === 0 && (
+            <div className="text-center py-8">
+              <Settings className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No hay configuraciones que mostrar</p>
+            </div>
+          )}
+        </div>
+
+        <RateLimiterPanel
+          showRateLimiterPanel={showRateLimiterPanel}
+          rateLimiterStatus={rateLimiterStatus}
+          isRefreshingRateLimiters={isRefreshingRateLimiters}
+          rateLimiterTest={rateLimiterTest}
+          handleRefreshRateLimiters={handleRefreshRateLimiters}
+          handleTestRateLimiters={handleTestRateLimiters}
+          setShowRateLimiterPanel={setShowRateLimiterPanel}
         />
-      </div>
 
-      {/* Tops - Rediseñados */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top emisores */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-            <ArrowUpRight className="w-4 h-4 text-gray-600" />
-            {tab==='global' ? 'Top 5 emisores' : 'A quienes más envié'}
-          </h2>
-          <div className="space-y-2">
-            {(tab==='global' ? (transfers?.top_senders||[]) : (me?.top_counterparties?.sent||[])).map((u:any, idx: number)=>(
-              <div key={u.user_id} className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                  idx === 0 ? 'bg-gradient-to-br from-[#193cb8] to-[#0e2167] text-white' :
-                  idx === 1 ? 'bg-gray-200 text-gray-700' :
-                  idx === 2 ? 'bg-gray-100 text-gray-600' :
-                  'bg-white text-gray-500 border border-gray-200'
-                }`}>
-                  {idx + 1}
+        {/* Modal de historial */}
+        {showHistory && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+              {/* Header del modal */}
+              <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-white/20 rounded">
+                      <History className="w-4 h-4 text-white" />
+                    </div>
+                    <h2 className="text-lg font-bold">Historial de Cambios</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(null)}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-gray-900 truncate">{u.name}</div>
-                  <div className="text-xs text-gray-500">{u.run}</div>
-                </div>
-                <div className="text-xs font-bold text-gray-900">{formatCurrency(u.amount)}</div>
+                <p className="text-blue-200 text-sm mt-1">Configuración: {showHistory}</p>
               </div>
-            ))}
-            {((tab==='global' ? (transfers?.top_senders||[]) : (me?.top_counterparties?.sent||[])).length===0) && (
-              <div className="text-center py-6">
-                <Users className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-xs text-gray-500">Sin datos para mostrar</p>
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Top receptores */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-            <ArrowDownLeft className="w-4 h-4 text-[#193cb8]" />
-            {tab==='global' ? 'Top 5 receptores' : 'Quienes más me enviaron'}
-          </h2>
-          <div className="space-y-2">
-            {(tab==='global' ? (transfers?.top_receivers||[]) : (me?.top_counterparties?.received||[])).map((u:any, idx: number)=>(
-              <div key={u.user_id} className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                  idx === 0 ? 'bg-gradient-to-br from-[#193cb8] to-[#0e2167] text-white' :
-                  idx === 1 ? 'bg-gray-200 text-gray-700' :
-                  idx === 2 ? 'bg-gray-100 text-gray-600' :
-                  'bg-white text-gray-500 border border-gray-200'
-                }`}>
-                  {idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-gray-900 truncate">{u.name}</div>
-                  <div className="text-xs text-gray-500">{u.run}</div>
-                </div>
-                <div className="text-xs font-bold text-gray-900">{formatCurrency(u.amount)}</div>
+              {/* Contenido del historial */}
+              <div className="p-4 max-h-96 overflow-y-auto">
+                {loadingHistory ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 text-blue-600 mx-auto mb-2 animate-spin" />
+                    <p className="text-sm text-gray-500">Cargando historial...</p>
+                  </div>
+                ) : historyData.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Eye className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No hay cambios registrados</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Los cambios aparecerán aquí una vez que se modifique esta configuración
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {historyData.map((entry, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {entry.users?.first_name} {entry.users?.last_name}
+                          </span>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            {formatDate(entry.created_at)}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600 mb-2">
+                          RUN: {entry.users?.run}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Valor anterior:</span>
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-mono">
+                                {entry.metadata?.oldValue}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Valor nuevo:</span>
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-mono">
+                                {entry.metadata?.newValue}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-            {((tab==='global' ? (transfers?.top_receivers||[]) : (me?.top_counterparties?.received||[])).length===0) && (
-              <div className="text-center py-6">
-                <Users className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-xs text-gray-500">Sin datos para mostrar</p>
-              </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default Statistics;
+export default SystemSettings;
+export { RateLimiterPanel, RateLimiterControls };
