@@ -1357,7 +1357,7 @@ function FragmentRow({
   formatDate: (d: string | Date) => string;
   formatCurrency: (n: number) => string;
   getAvatarColors: (name: string) => { bg: string; text: string };
-  getStatusChip: (s?: 'completed'|'pending'|'failed') => JSX.Element | null;
+  getStatusChip: (s?: 'completed'|'pending'|'failed') => React.ReactNode;
 }) {
   return (
     <>
