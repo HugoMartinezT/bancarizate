@@ -192,8 +192,8 @@ const Statistics = () => {
         setLoading(true);
         setError(null);
         const [gResp, meResp] = await Promise.all([
-          apiService.getDashboardStats({ range, groupBy }),
-          apiService.getUserStats({ range })
+          apiService.getDashboardStats(range, groupBy),
+          apiService.getTransferStats(range)
         ]);
         setG(gResp?.data ?? null);
         setMe(meResp?.data ?? null);
