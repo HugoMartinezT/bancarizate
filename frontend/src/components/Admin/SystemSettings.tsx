@@ -324,12 +324,12 @@ const SystemSettings = () => {
       setSuccess(null);
 
       // Convertir pendingChanges a formato que espera el backend
-      const updates = Object.entries(pendingChanges).reduce((acc, [key, change]) => {
-        acc[key] = change.value;
-        return acc;
-      }, {} as Record<string, any>);
+      const updates = Object.entries(pendingChanges).map(([key, change]) => ({
+        key: key,
+        value: change.value
+      }));
 
-      const response = await apiService.updateMultipleConfigs(updates);
+      const response = await apiService.updateMultipleConfigurations(updates);
 
       if (response.status === 'success') {
         setSuccess(`✅ ${Object.keys(updates).length} configuración(es) actualizada(s) exitosamente`);
