@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { 
   BarChart3, TrendingUp, TrendingDown, DollarSign, Users, 
   Calendar, ArrowUpRight, ArrowDownLeft, Shield, User,
@@ -183,8 +183,42 @@ const Statistics = () => {
   const [loading, setLoading] = useState(true);
   const [g, setG] = useState<any>(null);   // global stats
   const [me, setMe] = useState<any>(null); // my stats
-  
+
+  // Estados para controlar la expansión de cada casillero
+  const [expandedPanel, setExpandedPanel] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
+
+  // Función para toggle con View Transition API
+  const togglePanel = useCallback((panelId: string) => {
+    // Verificar si el navegador soporta View Transition API
+    if ('startViewTransition' in document) {
+      (document as any).startViewTransition(() => {
+        setExpandedPanel((prev) => prev === panelId ? null : panelId);
+      });
+    } else {
+      // Fallback sin animación
+      setExpandedPanel((prev) => prev === panelId ? null : panelId);
+    }
+  }, []);
+
+  // Manejador para cerrar el panel expandido al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (expandedPanel && !target.closest('.expandable-card')) {
+        togglePanel(expandedPanel);
+      }
+    };
+
+    if (expandedPanel) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [expandedPanel, togglePanel]);
 
   useEffect(() => {
     const load = async () => {
@@ -272,9 +306,21 @@ const Statistics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
+    <div className="min-h-screen bg-gray-50 pb-8 relative">
+      {/* Backdrop difuminado */}
+      {expandedPanel && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+            style={{ viewTransitionName: 'backdrop' }}
+          />
+          {/* Overlay para ocultar otros elementos durante la transición */}
+          <div className="fixed inset-0 z-35 pointer-events-none" />
+        </>
+      )}
+
       {/* Header mejorado */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg shadow-md">
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg shadow-md relative z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -291,7 +337,7 @@ const Statistics = () => {
       </div>
 
       {/* Controles */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 transition-opacity duration-500 ${expandedPanel ? 'opacity-0 pointer-events-none' : ''}`}>
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4">
           <div className="flex flex-wrap items-center gap-3">
             {/* Tabs */}
@@ -384,7 +430,7 @@ const Statistics = () => {
         {tab === 'global' ? (
           // GLOBAL
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-opacity duration-500 ${expandedPanel ? 'opacity-0' : ''}`}>
               <StatCard
                 icon={ArrowDownLeft}
                 title="Total Recibido"
@@ -429,82 +475,142 @@ const Statistics = () => {
             {/* Bloques secundarios */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Usuarios por rol */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div
+                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-opacity duration-500 ${
+                  expandedPanel === 'users-role'
+                    ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
+                    : expandedPanel
+                    ? 'opacity-0 pointer-events-none'
+                    : 'relative z-10'
+                }`}
+                onClick={() => togglePanel('users-role')}
+                style={{
+                  viewTransitionName: 'users-role-panel'
+                }}
+              >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#193cb8]" />
                   Usuarios por rol
+                  <span className="ml-auto text-xs text-gray-500">
+                    {expandedPanel === 'users-role' ? 'Click fuera para cerrar' : 'Click para expandir'}
+                  </span>
                 </h2>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100">
-                    <span className="text-xs font-medium text-gray-700">Estudiantes</span>
-                    <span className="text-sm font-bold text-[#193cb8]">{users?.byRole?.student ?? 0}</span>
+                <div className={expandedPanel === 'users-role' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
+                  <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-sm mb-2' : 'text-xs'} font-medium text-gray-700`}>Estudiantes</span>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-3xl' : 'text-sm'} font-bold text-[#193cb8]`}>{users?.byRole?.student ?? 0}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <span className="text-xs font-medium text-gray-700">Docentes</span>
-                    <span className="text-sm font-bold text-gray-900">{users?.byRole?.teacher ?? 0}</span>
+                  <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-sm mb-2' : 'text-xs'} font-medium text-gray-700`}>Docentes</span>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-3xl' : 'text-sm'} font-bold text-gray-900`}>{users?.byRole?.teacher ?? 0}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <span className="text-xs font-medium text-gray-700">Admins</span>
-                    <span className="text-sm font-bold text-gray-900">{users?.byRole?.admin ?? 0}</span>
+                  <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-sm mb-2' : 'text-xs'} font-medium text-gray-700`}>Admins</span>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-3xl' : 'text-sm'} font-bold text-gray-900`}>{users?.byRole?.admin ?? 0}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <span className="text-xs font-medium text-gray-700">Circulante</span>
-                    <span className="text-sm font-bold text-gray-900">{formatCurrency(users?.circulating||0)}</span>
+                  <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-sm mb-2' : 'text-xs'} font-medium text-gray-700`}>Circulante</span>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-2xl' : 'text-sm'} font-bold text-gray-900`}>{formatCurrency(users?.circulating||0)}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <span className="text-xs font-medium text-gray-700">Sobregiro</span>
-                    <span className="text-sm font-bold text-gray-900">{formatCurrency(users?.overdraft_total||0)}</span>
+                  <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-sm mb-2' : 'text-xs'} font-medium text-gray-700`}>Sobregiro</span>
+                    <span className={`${expandedPanel === 'users-role' ? 'text-2xl' : 'text-sm'} font-bold text-gray-900`}>{formatCurrency(users?.overdraft_total||0)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Actividad */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div
+                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-opacity duration-500 ${
+                  expandedPanel === 'activity'
+                    ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
+                    : expandedPanel
+                    ? 'opacity-0 pointer-events-none'
+                    : 'relative z-10'
+                }`}
+                onClick={() => togglePanel('activity')}
+                style={{
+                  viewTransitionName: 'activity-panel'
+                }}
+              >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <ActivityIcon className="w-4 h-4 text-[#193cb8]" />
                   Actividad
+                  <span className="ml-auto text-xs text-gray-500">
+                    {expandedPanel === 'activity' ? 'Click fuera para cerrar' : 'Click para expandir'}
+                  </span>
                 </h2>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100">
-                    <div className="flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-[#193cb8]" />
-                      <span className="text-xs font-medium text-gray-700">Logins 24h</span>
+                <div className={expandedPanel === 'activity' ? 'grid grid-cols-1 md:grid-cols-3 gap-4' : 'space-y-2'}>
+                  <div className={`flex ${expandedPanel === 'activity' ? 'flex-col items-start' : 'items-center'} justify-between p-3 bg-blue-50 rounded-lg border border-blue-100 ${expandedPanel === 'activity' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <div className={`flex items-center gap-2 ${expandedPanel === 'activity' ? 'mb-2' : ''}`}>
+                      <div className={`${expandedPanel === 'activity' ? 'p-2 bg-white rounded-lg shadow-sm' : ''}`}>
+                        <Shield className={`${expandedPanel === 'activity' ? 'w-5 h-5' : 'w-3.5 h-3.5'} text-[#193cb8]`} />
+                      </div>
+                      <span className={`${expandedPanel === 'activity' ? 'text-sm' : 'text-xs'} font-medium text-gray-700`}>Logins 24h</span>
                     </div>
-                    <span className="text-sm font-bold text-[#193cb8]">{activity?.logins_24h ?? 0}</span>
+                    <span className={`${expandedPanel === 'activity' ? 'text-2xl' : 'text-sm'} font-bold text-[#193cb8]`}>{activity?.logins_24h ?? 0}</span>
+                    {expandedPanel === 'activity' && (
+                      <p className="text-xs text-gray-500 mt-1">Usuarios que iniciaron sesión en las últimas 24 horas</p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-gray-600" />
-                      <span className="text-xs font-medium text-gray-700">Activos 7d</span>
+                  <div className={`flex ${expandedPanel === 'activity' ? 'flex-col items-start' : 'items-center'} justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'activity' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <div className={`flex items-center gap-2 ${expandedPanel === 'activity' ? 'mb-2' : ''}`}>
+                      <div className={`${expandedPanel === 'activity' ? 'p-2 bg-white rounded-lg shadow-sm' : ''}`}>
+                        <Users className={`${expandedPanel === 'activity' ? 'w-5 h-5' : 'w-3.5 h-3.5'} text-gray-600`} />
+                      </div>
+                      <span className={`${expandedPanel === 'activity' ? 'text-sm' : 'text-xs'} font-medium text-gray-700`}>Activos 7d</span>
                     </div>
-                    <span className="text-sm font-bold text-gray-900">{activity?.active_users_7d ?? 0}</span>
+                    <span className={`${expandedPanel === 'activity' ? 'text-2xl' : 'text-sm'} font-bold text-gray-900`}>{activity?.active_users_7d ?? 0}</span>
+                    {expandedPanel === 'activity' && (
+                      <p className="text-xs text-gray-500 mt-1">Usuarios activos en los últimos 7 días</p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-gray-600" />
-                      <span className="text-xs font-medium text-gray-700">Acciones 7d</span>
+                  <div className={`flex ${expandedPanel === 'activity' ? 'flex-col items-start' : 'items-center'} justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 ${expandedPanel === 'activity' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                    <div className={`flex items-center gap-2 ${expandedPanel === 'activity' ? 'mb-2' : ''}`}>
+                      <div className={`${expandedPanel === 'activity' ? 'p-2 bg-white rounded-lg shadow-sm' : ''}`}>
+                        <Clock className={`${expandedPanel === 'activity' ? 'w-5 h-5' : 'w-3.5 h-3.5'} text-gray-600`} />
+                      </div>
+                      <span className={`${expandedPanel === 'activity' ? 'text-sm' : 'text-xs'} font-medium text-gray-700`}>Acciones 7d</span>
                     </div>
-                    <span className="text-sm font-bold text-gray-900">{activity?.total_activities_7d ?? 0}</span>
+                    <span className={`${expandedPanel === 'activity' ? 'text-2xl' : 'text-sm'} font-bold text-gray-900`}>{activity?.total_activities_7d ?? 0}</span>
+                    {expandedPanel === 'activity' && (
+                      <p className="text-xs text-gray-500 mt-1">Total de acciones realizadas en 7 días</p>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Estados de transferencias */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div
+                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+                  expandedPanel === 'transfer-status'
+                    ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
+                    : expandedPanel
+                    ? 'opacity-0 pointer-events-none'
+                    : 'relative z-10'
+                }`}
+                onClick={() => togglePanel('transfer-status')}
+                style={{
+                  viewTransitionName: 'transfer-status-panel'
+                }}
+              >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-[#193cb8]" />
                   Estados de transferencias
+                  <span className="ml-auto text-xs text-gray-500">
+                    {expandedPanel === 'transfer-status' ? 'Click fuera para cerrar' : 'Click para expandir'}
+                  </span>
                 </h2>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={expandedPanel === 'transfer-status' ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-2'}>
                   {[
                     { key: 'completed', label: 'Completadas', color: 'bg-blue-50 border-blue-100 text-blue-700' },
                     { key: 'failed', label: 'Fallidas', color: 'bg-gray-50 border-gray-100 text-gray-700' },
                     { key: 'cancelled', label: 'Canceladas', color: 'bg-gray-50 border-gray-100 text-gray-600' },
                     { key: 'pending', label: 'Pendientes', color: 'bg-gray-50 border-gray-100 text-gray-600' }
                   ].map(({key, label, color})=>(
-                    <div key={key} className={`p-2 rounded-lg border ${color} text-center`}>
-                      <div className="text-xs font-medium capitalize mb-0.5">{label}</div>
-                      <div className="text-lg font-bold">{transfers?.count?.[key] ?? 0}</div>
+                    <div key={key} className={`${expandedPanel === 'transfer-status' ? 'p-4' : 'p-2'} rounded-lg border ${color} text-center ${expandedPanel === 'transfer-status' ? 'hover:shadow-sm transition-shadow' : ''}`}>
+                      <div className={`${expandedPanel === 'transfer-status' ? 'text-sm' : 'text-xs'} font-medium capitalize mb-1`}>{label}</div>
+                      <div className={`${expandedPanel === 'transfer-status' ? 'text-4xl' : 'text-lg'} font-bold`}>{transfers?.count?.[key] ?? 0}</div>
                     </div>
                   ))}
                 </div>
@@ -514,7 +620,7 @@ const Statistics = () => {
         ) : (
           // MI CUENTA
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-opacity duration-500 ${expandedPanel ? 'opacity-0' : ''}`}>
               <StatCard
                 icon={ArrowDownLeft}
                 title="Recibido"
@@ -559,7 +665,19 @@ const Statistics = () => {
         )}
 
         {/* Gráfico principal mejorado */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-4 mb-4">
+        <div
+          className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-4 mb-4 cursor-pointer hover:shadow-md ${
+            expandedPanel === 'chart'
+              ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-4xl max-h-[80vh] overflow-auto shadow-2xl'
+              : expandedPanel
+              ? 'opacity-0 pointer-events-none'
+              : 'relative z-10'
+          }`}
+          onClick={() => togglePanel('chart')}
+          style={{
+            viewTransitionName: 'chart-panel'
+          }}
+        >
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">
@@ -569,10 +687,15 @@ const Statistics = () => {
                 Comparación entre ingresos y egresos
               </p>
             </div>
-            <BarChart3 className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">
+                {expandedPanel === 'chart' ? 'Click fuera para cerrar' : 'Click para expandir'}
+              </span>
+              <BarChart3 className="w-5 h-5 text-gray-400" />
+            </div>
           </div>
-          
-          <MinimalBarChart 
+
+          <MinimalBarChart
             data={chartData}
             maxSent={maxSent}
             maxRecv={maxRecv}
@@ -582,15 +705,30 @@ const Statistics = () => {
         {/* Tops - Rediseñados */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Top emisores */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div
+            className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+              expandedPanel === 'top-senders'
+                ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
+                : expandedPanel
+                ? 'opacity-0 pointer-events-none'
+                : 'relative z-10'
+            }`}
+            onClick={() => togglePanel('top-senders')}
+            style={{
+              viewTransitionName: 'top-senders-panel'
+            }}
+          >
             <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
               <ArrowUpRight className="w-4 h-4 text-gray-600" />
               {tab==='global' ? 'Top 5 emisores' : 'A quienes más envié'}
+              <span className="ml-auto text-xs text-gray-500">
+                {expandedPanel === 'top-senders' ? 'Click fuera para cerrar' : 'Click para expandir'}
+              </span>
             </h2>
-            <div className="space-y-2">
+            <div className={expandedPanel === 'top-senders' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-2'}>
               {(tab==='global' ? (transfers?.top_senders||[]) : (me?.top_counterparties?.sent||[])).map((u:any, idx: number)=>(
-                <div key={u.user_id} className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                <div key={u.user_id} className={`flex items-center gap-3 ${expandedPanel === 'top-senders' ? 'p-4' : 'p-2.5'} bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100 ${expandedPanel === 'top-senders' ? 'hover:shadow-sm' : ''}`}>
+                  <div className={`${expandedPanel === 'top-senders' ? 'w-10 h-10' : 'w-7 h-7'} rounded-full flex items-center justify-center font-bold ${expandedPanel === 'top-senders' ? 'text-sm' : 'text-xs'} ${
                     idx === 0 ? 'bg-gradient-to-br from-[#193cb8] to-[#0e2167] text-white' :
                     idx === 1 ? 'bg-gray-200 text-gray-700' :
                     idx === 2 ? 'bg-gray-100 text-gray-600' :
@@ -599,10 +737,10 @@ const Statistics = () => {
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-gray-900 truncate">{u.name}</div>
+                    <div className={`${expandedPanel === 'top-senders' ? 'text-sm' : 'text-xs'} font-semibold text-gray-900 truncate`}>{u.name}</div>
                     <div className="text-xs text-gray-500">{u.run}</div>
                   </div>
-                  <div className="text-xs font-bold text-gray-900">{formatCurrency(u.amount)}</div>
+                  <div className={`${expandedPanel === 'top-senders' ? 'text-base' : 'text-xs'} font-bold text-gray-900`}>{formatCurrency(u.amount)}</div>
                 </div>
               ))}
               {((tab==='global' ? (transfers?.top_senders||[]) : (me?.top_counterparties?.sent||[])).length===0) && (
@@ -615,15 +753,30 @@ const Statistics = () => {
           </div>
 
           {/* Top receptores */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div
+            className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+              expandedPanel === 'top-receivers'
+                ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
+                : expandedPanel
+                ? 'opacity-0 pointer-events-none'
+                : 'relative z-10'
+            }`}
+            onClick={() => togglePanel('top-receivers')}
+            style={{
+              viewTransitionName: 'top-receivers-panel'
+            }}
+          >
             <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
               <ArrowDownLeft className="w-4 h-4 text-[#193cb8]" />
               {tab==='global' ? 'Top 5 receptores' : 'Quienes más me enviaron'}
+              <span className="ml-auto text-xs text-gray-500">
+                {expandedPanel === 'top-receivers' ? 'Click fuera para cerrar' : 'Click para expandir'}
+              </span>
             </h2>
-            <div className="space-y-2">
+            <div className={expandedPanel === 'top-receivers' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-2'}>
               {(tab==='global' ? (transfers?.top_receivers||[]) : (me?.top_counterparties?.received||[])).map((u:any, idx: number)=>(
-                <div key={u.user_id} className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                <div key={u.user_id} className={`flex items-center gap-3 ${expandedPanel === 'top-receivers' ? 'p-4' : 'p-2.5'} bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100 ${expandedPanel === 'top-receivers' ? 'hover:shadow-sm' : ''}`}>
+                  <div className={`${expandedPanel === 'top-receivers' ? 'w-10 h-10' : 'w-7 h-7'} rounded-full flex items-center justify-center font-bold ${expandedPanel === 'top-receivers' ? 'text-sm' : 'text-xs'} ${
                     idx === 0 ? 'bg-gradient-to-br from-[#193cb8] to-[#0e2167] text-white' :
                     idx === 1 ? 'bg-gray-200 text-gray-700' :
                     idx === 2 ? 'bg-gray-100 text-gray-600' :
@@ -632,10 +785,10 @@ const Statistics = () => {
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-gray-900 truncate">{u.name}</div>
+                    <div className={`${expandedPanel === 'top-receivers' ? 'text-sm' : 'text-xs'} font-semibold text-gray-900 truncate`}>{u.name}</div>
                     <div className="text-xs text-gray-500">{u.run}</div>
                   </div>
-                  <div className="text-xs font-bold text-gray-900">{formatCurrency(u.amount)}</div>
+                  <div className={`${expandedPanel === 'top-receivers' ? 'text-base' : 'text-xs'} font-bold text-gray-900`}>{formatCurrency(u.amount)}</div>
                 </div>
               ))}
               {((tab==='global' ? (transfers?.top_receivers||[]) : (me?.top_counterparties?.received||[])).length===0) && (
