@@ -492,7 +492,7 @@ const ActivityPage = () => {
   // Renderizado condicional para estados de carga y error
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-3 py-4">
+      <div className="mx-auto px-3 py-4">
         <div className="bg-white rounded-lg shadow border border-gray-100 p-8 text-center">
           <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
           <p className="text-sm text-gray-600">Cargando actividades...</p>
@@ -503,7 +503,7 @@ const ActivityPage = () => {
 
   if (error) {
     return (
-      <div className="max-w-7xl mx-auto px-3 py-4">
+      <div className="mx-auto px-3 py-4">
         <div className="bg-white rounded-lg shadow border border-red-200 p-8 text-center">
           <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-4" />
           <p className="text-sm text-red-600 mb-4">{error}</p>
@@ -519,19 +519,19 @@ const ActivityPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto px-3 py-4">
       {/* Header con información para admin */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-4 text-white shadow-md">
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded">
-              {isAdmin ? <Shield className="w-5 h-5 text-white" /> : <Sparkles className="w-5 h-5 text-white" />}
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              {isAdmin ? <Shield className="w-4 h-4 text-white" /> : <Sparkles className="w-4 h-4 text-white" />}
             </div>
             <div>
-              <h1 className="text-xl font-bold">
+              <h1 className="text-base font-bold">
                 {isAdmin ? 'Panel de Actividades - Administrador' : `Actividad del ${getSelectedDateLabel()}`}
               </h1>
-              <p className="text-blue-200 text-sm">
+              <p className="text-blue-200 text-xs">
                 {isAdmin ? 'Vista completa de todas las actividades de la plataforma' : 'Historial de tus acciones'}
               </p>
             </div>
@@ -546,17 +546,17 @@ const ActivityPage = () => {
               <RefreshCw className={`w-4 h-4 text-white ${refreshing ? 'animate-spin' : ''}`} />
             </button>
             <div className="text-right">
-              <p className="text-blue-200 text-sm mb-1">
+              <p className="text-blue-200 text-xs mb-0.5">
                 {isAdmin ? 'Total registros' : 'Actividades'}
               </p>
-              <p className="text-lg font-bold">{pagination.totalItems}</p>
+              <p className="text-base font-bold">{pagination.totalItems}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className="bg-white rounded-lg shadow-sm mb-4">
         {/* Filtros básicos */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
           {/* Búsqueda */}

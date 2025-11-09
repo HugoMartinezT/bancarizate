@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { 
-  BarChart3, TrendingUp, TrendingDown, DollarSign, Users, 
+import {
+  BarChart3, TrendingUp, TrendingDown, DollarSign, Users,
   Calendar, ArrowUpRight, ArrowDownLeft, Shield, User,
   Activity as ActivityIcon, Clock, Loader2, RefreshCw, ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -24,14 +24,12 @@ const Skeleton = ({ className = '' }: { className?: string }) => (
 interface BarChartProps {
   data: Array<{
     label: string;
-    sent: number;
-    received: number;
+    total: number;
   }>;
-  maxSent: number;
-  maxRecv: number;
+  maxTotal: number;
 }
 
-const MinimalBarChart = ({ data, maxSent, maxRecv }: BarChartProps) => {
+const MinimalBarChart = ({ data, maxTotal }: BarChartProps) => {
   if (data.length === 0) {
     return (
       <div className="text-center py-12">
@@ -44,47 +42,28 @@ const MinimalBarChart = ({ data, maxSent, maxRecv }: BarChartProps) => {
   return (
     <div className="space-y-3">
       {data.map((item, idx) => {
-        const sentPct = Math.min(100, ((item.sent || 0) / maxSent) * 100);
-        const recvPct = Math.min(100, ((item.received || 0) / maxRecv) * 100);
-        const netFlow = (item.received || 0) - (item.sent || 0);
+        const totalPct = Math.min(100, ((item.total || 0) / maxTotal) * 100);
 
         return (
           <div key={idx} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-gray-700">{item.label}</span>
-              <span className={`font-semibold ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow)}
+              <span className="font-semibold text-[#193cb8]">
+                {formatCurrency(item.total)}
               </span>
             </div>
-            
-            {/* Barra dual mejorada */}
-            <div className="relative h-10 flex items-center gap-2">
-              {/* Barra de recibido */}
-              <div className="relative flex-1 h-6 bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-[#193cb8] to-[#2563eb] rounded-lg transition-all duration-500 shadow-sm"
-                  style={{ width: `${recvPct}%` }}
-                >
-                  {item.received > 0 && (
-                    <div className="absolute inset-0 flex items-center justify-end pr-2">
-                      <span className="text-xs font-semibold text-white drop-shadow">
-                        {formatCurrency(item.received)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Barra de enviado */}
-              <div className="relative flex-1 h-6 bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-gray-400 to-gray-500 rounded-lg transition-all duration-500 shadow-sm"
-                  style={{ width: `${sentPct}%` }}
+            {/* Barra de volumen total */}
+            <div className="relative h-8">
+              <div className="relative w-full h-full bg-gray-50 rounded-lg overflow-hidden border border-gray-100">
+                <div
+                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-[#193cb8] to-[#2563eb] rounded-lg transition-all duration-500 shadow-sm"
+                  style={{ width: `${totalPct}%` }}
                 >
-                  {item.sent > 0 && (
-                    <div className="absolute inset-0 flex items-center justify-end pr-2">
+                  {item.total > 0 && totalPct > 15 && (
+                    <div className="absolute inset-0 flex items-center justify-end pr-3">
                       <span className="text-xs font-semibold text-white drop-shadow">
-                        {formatCurrency(item.sent)}
+                        {formatCurrency(item.total)}
                       </span>
                     </div>
                   )}
@@ -94,18 +73,6 @@ const MinimalBarChart = ({ data, maxSent, maxRecv }: BarChartProps) => {
           </div>
         );
       })}
-      
-      {/* Leyenda */}
-      <div className="flex justify-center items-center gap-6 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gradient-to-r from-[#193cb8] to-[#2563eb]"></div>
-          <span className="text-xs font-medium text-gray-600">Recibido</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gradient-to-r from-gray-400 to-gray-500"></div>
-          <span className="text-xs font-medium text-gray-600">Enviado</span>
-        </div>
-      </div>
     </div>
   );
 };
@@ -189,17 +156,9 @@ const Statistics = () => {
 
   const [error, setError] = useState<string | null>(null);
 
-  // Función para toggle con View Transition API
+  // Función para toggle de panel
   const togglePanel = useCallback((panelId: string) => {
-    // Verificar si el navegador soporta View Transition API
-    if ('startViewTransition' in document) {
-      (document as any).startViewTransition(() => {
-        setExpandedPanel((prev) => prev === panelId ? null : panelId);
-      });
-    } else {
-      // Fallback sin animación
-      setExpandedPanel((prev) => prev === panelId ? null : panelId);
-    }
+    setExpandedPanel((prev) => prev === panelId ? null : panelId);
   }, []);
 
   // Manejador para cerrar el panel expandido al hacer click fuera
@@ -250,21 +209,18 @@ const Statistics = () => {
     if (tab==='global') {
       return (transfers?.series || []).map((s: any) => ({
         label: s.date,
-        sent: s.sent_amount,
-        received: s.received_amount
+        total: (s.sent_amount || 0) + (s.received_amount || 0)
       }));
     } else {
       return (mine?.series || []).map((s: any) => ({
         label: s.date,
-        sent: s.sent_amount,
-        received: s.received_amount
+        total: (s.sent_amount || 0) + (s.received_amount || 0)
       }));
     }
   }, [tab, transfers, mine]);
 
   const chartData = seriesData;
-  const maxSent = Math.max(...chartData.map((d: any) => d.sent || 0), 1);
-  const maxRecv = Math.max(...chartData.map((d: any) => d.received || 0), 1);
+  const maxTotal = Math.max(...chartData.map((d: any) => d.total || 0), 1);
 
   if (error) {
     return (
@@ -306,38 +262,28 @@ const Statistics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8 relative">
+    <div className="min-h-screen bg-gray-50 relative">
       {/* Backdrop difuminado */}
       {expandedPanel && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-            style={{ viewTransitionName: 'backdrop' }}
-          />
-          {/* Overlay para ocultar otros elementos durante la transición */}
-          <div className="fixed inset-0 z-35 pointer-events-none" />
-        </>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
       )}
 
-      {/* Header mejorado */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg shadow-md relative z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Estadísticas</h1>
-                <p className="text-blue-200 text-sm mt-0.5">Análisis de la actividad financiera</p>
-              </div>
+      <div className="mx-auto px-3 py-4">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md relative z-30">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold">Estadísticas</h1>
+              <p className="text-blue-200 text-xs">Análisis de la actividad financiera</p>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Controles */}
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 transition-opacity duration-500 ${expandedPanel ? 'opacity-0 pointer-events-none' : ''}`}>
+        {/* Controles */}
+        <div className={expandedPanel ? 'opacity-0 pointer-events-none' : ''}>
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4">
           <div className="flex flex-wrap items-center gap-3">
             {/* Tabs */}
@@ -426,11 +372,11 @@ const Statistics = () => {
       </div>
 
       {/* Contenido principal */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <div className="space-y-4">
         {tab === 'global' ? (
           // GLOBAL
           <>
-            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-opacity duration-500 ${expandedPanel ? 'opacity-0' : ''}`}>
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${expandedPanel ? 'opacity-0' : ''}`}>
               <StatCard
                 icon={ArrowDownLeft}
                 title="Total Recibido"
@@ -476,7 +422,7 @@ const Statistics = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Usuarios por rol */}
               <div
-                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-opacity duration-500 ${
+                className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-all ${
                   expandedPanel === 'users-role'
                     ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
                     : expandedPanel
@@ -484,16 +430,10 @@ const Statistics = () => {
                     : 'relative z-10'
                 }`}
                 onClick={() => togglePanel('users-role')}
-                style={{
-                  viewTransitionName: 'users-role-panel'
-                }}
               >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#193cb8]" />
                   Usuarios por rol
-                  <span className="ml-auto text-xs text-gray-500">
-                    {expandedPanel === 'users-role' ? 'Click fuera para cerrar' : 'Click para expandir'}
-                  </span>
                 </h2>
                 <div className={expandedPanel === 'users-role' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
                   <div className={`flex ${expandedPanel === 'users-role' ? 'flex-col' : 'flex-row'} items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100 ${expandedPanel === 'users-role' ? 'hover:shadow-sm transition-shadow' : ''}`}>
@@ -521,7 +461,7 @@ const Statistics = () => {
 
               {/* Actividad */}
               <div
-                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-opacity duration-500 ${
+                className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-all ${
                   expandedPanel === 'activity'
                     ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
                     : expandedPanel
@@ -529,16 +469,10 @@ const Statistics = () => {
                     : 'relative z-10'
                 }`}
                 onClick={() => togglePanel('activity')}
-                style={{
-                  viewTransitionName: 'activity-panel'
-                }}
               >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <ActivityIcon className="w-4 h-4 text-[#193cb8]" />
                   Actividad
-                  <span className="ml-auto text-xs text-gray-500">
-                    {expandedPanel === 'activity' ? 'Click fuera para cerrar' : 'Click para expandir'}
-                  </span>
                 </h2>
                 <div className={expandedPanel === 'activity' ? 'grid grid-cols-1 md:grid-cols-3 gap-4' : 'space-y-2'}>
                   <div className={`flex ${expandedPanel === 'activity' ? 'flex-col items-start' : 'items-center'} justify-between p-3 bg-blue-50 rounded-lg border border-blue-100 ${expandedPanel === 'activity' ? 'hover:shadow-sm transition-shadow' : ''}`}>
@@ -582,7 +516,7 @@ const Statistics = () => {
 
               {/* Estados de transferencias */}
               <div
-                className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+                className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-all ${
                   expandedPanel === 'transfer-status'
                     ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
                     : expandedPanel
@@ -590,16 +524,10 @@ const Statistics = () => {
                     : 'relative z-10'
                 }`}
                 onClick={() => togglePanel('transfer-status')}
-                style={{
-                  viewTransitionName: 'transfer-status-panel'
-                }}
               >
                 <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-[#193cb8]" />
                   Estados de transferencias
-                  <span className="ml-auto text-xs text-gray-500">
-                    {expandedPanel === 'transfer-status' ? 'Click fuera para cerrar' : 'Click para expandir'}
-                  </span>
                 </h2>
                 <div className={expandedPanel === 'transfer-status' ? 'grid grid-cols-2 md:grid-cols-4 gap-4' : 'grid grid-cols-2 gap-2'}>
                   {[
@@ -620,7 +548,7 @@ const Statistics = () => {
         ) : (
           // MI CUENTA
           <>
-            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-opacity duration-500 ${expandedPanel ? 'opacity-0' : ''}`}>
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ${expandedPanel ? 'opacity-0' : ''}`}>
               <StatCard
                 icon={ArrowDownLeft}
                 title="Recibido"
@@ -666,7 +594,7 @@ const Statistics = () => {
 
         {/* Gráfico principal mejorado */}
         <div
-          className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-4 mb-4 cursor-pointer hover:shadow-md ${
+          className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-4 mb-4 cursor-pointer hover:shadow-md transition-all ${
             expandedPanel === 'chart'
               ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-4xl max-h-[80vh] overflow-auto shadow-2xl'
               : expandedPanel
@@ -674,31 +602,22 @@ const Statistics = () => {
               : 'relative z-10'
           }`}
           onClick={() => togglePanel('chart')}
-          style={{
-            viewTransitionName: 'chart-panel'
-          }}
         >
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-gray-900">
-                {tab==='global' ? 'Flujo de transferencias' : 'Mi actividad de transferencias'}
+                {tab==='global' ? 'Volumen de transferencias' : 'Mi volumen de transferencias'}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Comparación entre ingresos y egresos
+                Total de dinero transferido por período
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">
-                {expandedPanel === 'chart' ? 'Click fuera para cerrar' : 'Click para expandir'}
-              </span>
-              <BarChart3 className="w-5 h-5 text-gray-400" />
-            </div>
+            <BarChart3 className="w-5 h-5 text-gray-400" />
           </div>
 
           <MinimalBarChart
             data={chartData}
-            maxSent={maxSent}
-            maxRecv={maxRecv}
+            maxTotal={maxTotal}
           />
         </div>
 
@@ -706,7 +625,7 @@ const Statistics = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Top emisores */}
           <div
-            className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+            className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-all ${
               expandedPanel === 'top-senders'
                 ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
                 : expandedPanel
@@ -714,16 +633,10 @@ const Statistics = () => {
                 : 'relative z-10'
             }`}
             onClick={() => togglePanel('top-senders')}
-            style={{
-              viewTransitionName: 'top-senders-panel'
-            }}
           >
             <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
               <ArrowUpRight className="w-4 h-4 text-gray-600" />
               {tab==='global' ? 'Top 5 emisores' : 'A quienes más envié'}
-              <span className="ml-auto text-xs text-gray-500">
-                {expandedPanel === 'top-senders' ? 'Click fuera para cerrar' : 'Click para expandir'}
-              </span>
             </h2>
             <div className={expandedPanel === 'top-senders' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-2'}>
               {(tab==='global' ? (transfers?.top_senders||[]) : (me?.top_counterparties?.sent||[])).map((u:any, idx: number)=>(
@@ -754,7 +667,7 @@ const Statistics = () => {
 
           {/* Top receptores */}
           <div
-            className={`expandable-card bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md ${
+            className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition-all ${
               expandedPanel === 'top-receivers'
                 ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90vw] max-w-3xl max-h-[80vh] overflow-auto shadow-2xl'
                 : expandedPanel
@@ -762,16 +675,10 @@ const Statistics = () => {
                 : 'relative z-10'
             }`}
             onClick={() => togglePanel('top-receivers')}
-            style={{
-              viewTransitionName: 'top-receivers-panel'
-            }}
           >
             <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
               <ArrowDownLeft className="w-4 h-4 text-[#193cb8]" />
               {tab==='global' ? 'Top 5 receptores' : 'Quienes más me enviaron'}
-              <span className="ml-auto text-xs text-gray-500">
-                {expandedPanel === 'top-receivers' ? 'Click fuera para cerrar' : 'Click para expandir'}
-              </span>
             </h2>
             <div className={expandedPanel === 'top-receivers' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-2'}>
               {(tab==='global' ? (transfers?.top_receivers||[]) : (me?.top_counterparties?.received||[])).map((u:any, idx: number)=>(
@@ -801,6 +708,7 @@ const Statistics = () => {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

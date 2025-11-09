@@ -49,40 +49,42 @@ const AdminModuleCard: React.FC<{
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
-  iconBgColor: string;
-  iconColor: string;
   onClick: () => void;
-}> = ({ icon: Icon, title, description, iconBgColor, iconColor, onClick }) => (
-  <div 
-    className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+}> = ({ icon: Icon, title, description, onClick }) => (
+  <button
     onClick={onClick}
+    className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-5 hover:shadow-xl transition-all duration-300 cursor-pointer text-left w-full overflow-hidden active:scale-[0.98]"
   >
-    {/* Fondo decorativo sutil */}
-    <div className={`absolute top-0 right-0 w-24 h-24 ${iconBgColor} opacity-5 rounded-full -translate-y-8 translate-x-8 group-hover:scale-110 transition-transform duration-300`} />
-    
+    {/* Fondo decorativo con gradiente sutil */}
+    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
+
     <div className="relative z-10">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`p-3 rounded-xl ${iconBgColor} group-hover:scale-105 transition-all duration-200 shadow-sm`}>
-          <Icon className={`w-5 h-5 ${iconColor}`} />
+      {/* Icono y título */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+            {/* Brillo interior */}
+            <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <Icon className="w-5 h-5 text-white relative z-10" />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 group-hover:text-[#193cb8] transition-colors duration-300">{title}</h3>
         </div>
-        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+
+        {/* Indicador de flecha */}
+        <div className="flex-shrink-0 ml-2 w-7 h-7 rounded-full bg-gradient-to-r from-[#193cb8] to-[#0e2167] flex items-center justify-center opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300 shadow-md">
+          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
       </div>
-      
-      <p className="text-sm text-gray-600">{description}</p>
+
+      {/* Descripción */}
+      <p className="text-sm text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">{description}</p>
     </div>
 
-    {/* Efecto de brillo en hover */}
-    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-all duration-700" />
-    
-    {/* Indicador de acción */}
-    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </div>
-    </div>
-  </div>
+    {/* Barra de acento inferior */}
+    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
+  </button>
 );
 
 const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
@@ -136,18 +138,6 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
     }
   ];
 
-  // Mapeo de colores para iconos
-  const getColorClasses = (color: string) => {
-    const colorMap: Record<string, { bg: string; text: string }> = {
-      blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
-      green: { bg: 'bg-green-100', text: 'text-green-600' },
-      purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
-      orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
-      red: { bg: 'bg-red-100', text: 'text-red-600' }
-    };
-    return colorMap[color] || { bg: 'bg-gray-100', text: 'text-gray-600' };
-  };
-
   // Verificar autenticación y permisos
   useEffect(() => {
     const checkAuth = async () => {
@@ -176,10 +166,10 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow border border-gray-100 p-8 text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Cargando panel de administración...</p>
+          <p className="text-sm text-gray-600">Cargando panel de administración...</p>
         </div>
       </div>
     );
@@ -187,56 +177,51 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-md text-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-6 rounded-lg shadow border border-red-200 max-w-md text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-800 mb-2">Error de acceso</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <p className="text-sm text-gray-500">Redirigiendo al inicio...</p>
+          <p className="text-sm text-gray-600 mb-4">{error}</p>
+          <p className="text-xs text-gray-500">Redirigiendo al inicio...</p>
         </div>
       </div>
     );
   }
 
   const renderDashboard = () => (
-    <div className="max-w-7xl mx-auto px-3 py-4">
+    <div className="mx-auto px-3 py-4">
       {/* Header compacto con diseño gradiente */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-4 mb-6 text-white shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-white/20 rounded-lg">
-            <Shield className="w-5 h-5 text-white" />
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-white/20 rounded">
+            <Shield className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Panel de Administración</h1>
-            <p className="text-blue-200 text-sm">Gestiona todos los aspectos del sistema</p>
+            <h1 className="text-base font-bold">Panel de Administración</h1>
+            <p className="text-blue-200 text-xs">Gestiona todos los aspectos del sistema</p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Tarjetas de módulos mejoradas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {adminModules.map(module => {
-            const colors = getColorClasses(module.color);
-            return (
-              <AdminModuleCard
-                key={module.id}
-                icon={module.icon}
-                title={module.title}
-                description={module.description}
-                iconBgColor={colors.bg}
-                iconColor={colors.text}
-                onClick={() => navigate(`/admin/${module.id}`)}
-              />
-            );
-          })}
+          {adminModules.map(module => (
+            <AdminModuleCard
+              key={module.id}
+              icon={module.icon}
+              title={module.title}
+              description={module.description}
+              onClick={() => navigate(`/admin/${module.id}`)}
+            />
+          ))}
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
+    <div className="min-h-screen bg-gray-50">
       <Routes>
         {/* Ruta principal del admin - dashboard de módulos */}
         <Route path="/" element={renderDashboard()} />

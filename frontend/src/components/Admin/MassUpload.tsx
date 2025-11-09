@@ -300,9 +300,20 @@ const MassUpload = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Carga Masiva de Usuarios</h1>
-      
+    <div className="mx-auto px-3 py-4">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-white/20 rounded">
+            <Upload className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold">Carga Masiva de Usuarios</h1>
+            <p className="text-blue-200 text-xs">Importa múltiples usuarios desde archivos Excel</p>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         {/* Step 1: Selección */}
         {currentStep === 'select' && (

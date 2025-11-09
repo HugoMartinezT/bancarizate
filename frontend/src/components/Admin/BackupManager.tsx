@@ -415,7 +415,7 @@ const BackupManager = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-3 py-4">
+    <div className="mx-auto px-3 py-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
         <div className="flex items-center justify-between">

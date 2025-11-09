@@ -268,22 +268,28 @@ const CourseManager = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gestión de Cursos</h1>
-            <p className="text-sm text-gray-500 mt-1">Administra cursos y carreras en el sistema</p>
+    <div className="mx-auto px-3 py-4">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              <BookOpen className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold">Gestión de Cursos</h1>
+              <p className="text-blue-200 text-xs">Administra cursos y carreras en el sistema</p>
+            </div>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white px-4 py-2.5 rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-bold"
+            className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
           >
             <Plus className="w-4 h-4" />
             Nuevo Curso
           </button>
         </div>
+      </div>
 
         {/* Filtros y Búsqueda */}
         <div className="bg-white rounded-lg shadow border border-gray-100 mb-4 p-4">
@@ -673,7 +679,6 @@ const CourseManager = () => {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

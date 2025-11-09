@@ -441,35 +441,33 @@ const SystemSettings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="mx-auto px-3 py-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Settings className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Configuración del Sistema</h1>
-                <p className="text-blue-200 text-sm mt-0.5">
-                  Gestiona las configuraciones globales de BANCARIZATE
-                </p>
-              </div>
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-white/20 rounded">
+              <Settings className="w-4 h-4 text-white" />
             </div>
-            <div className="flex items-center gap-3">
-              <RateLimiterControls 
-                handleGetRateLimiterStatus={handleGetRateLimiterStatus}
-                handleRefreshRateLimiters={handleRefreshRateLimiters}
-                isRefreshingRateLimiters={isRefreshingRateLimiters}
-              />
+            <div>
+              <h1 className="text-base font-bold">Configuración del Sistema</h1>
+              <p className="text-blue-200 text-xs">
+                Gestiona las configuraciones globales de BANCARIZATE
+              </p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <RateLimiterControls
+              handleGetRateLimiterStatus={handleGetRateLimiterStatus}
+              handleRefreshRateLimiters={handleRefreshRateLimiters}
+              isRefreshingRateLimiters={isRefreshingRateLimiters}
+            />
           </div>
         </div>
       </div>
 
       {/* Contenido principal */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div>
         {/* Mensajes de estado */}
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
