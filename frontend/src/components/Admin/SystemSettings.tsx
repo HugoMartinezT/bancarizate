@@ -158,6 +158,14 @@ const SystemSettings = () => {
   const [showRateLimiterPanel, setShowRateLimiterPanel] = useState(false);
   const [rateLimiterTest, setRateLimiterTest] = useState<any>(null);
 
+  // ✅ HELPER: Convertir isEditable a boolean de forma segura
+  const convertToBoolean = (value: any): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true' || value === '1';
+    if (typeof value === 'number') return value === 1;
+    return false;
+  };
+
   // Función helper para generar labels dinámicos
   const generateLabel = (configKey: string): string => {
     return configKey
@@ -168,288 +176,63 @@ const SystemSettings = () => {
       .join(' ');
   };
 
-  // Mapeo de categorías a iconos y labels
-  const categoryInfo = {
-    transfers: { icon: DollarSign, label: 'Transferencias', color: 'green' },
-    users: { icon: Users, label: 'Usuarios', color: 'blue' },
-    security: { icon: Shield, label: 'Seguridad', color: 'red' },
-    general: { icon: Globe, label: 'General', color: 'gray' },
-    system: { icon: Settings, label: 'Sistema', color: 'purple' },
-    notifications: { icon: AlertCircle, label: 'Notificaciones', color: 'yellow' }
-  };
-
-  // Cargar configuraciones
-  const loadConfigurations = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('⚙️ Cargando configuraciones del sistema...');
-      
-      const response: SystemConfigResponse = await apiService.getSystemConfig();
-      
-      console.log('✅ Configuraciones cargadas:', response.data);
-      
-      setConfigurations(response.data.configurations);
-      setGroupedConfigs(response.data.grouped);
-      setCategories(response.data.categories);
-      
-    } catch (error: any) {
-      console.error('❌ Error cargando configuraciones:', error);
-      
-      if (error.message.includes('403') || error.message.includes('autorizado')) {
-        setError('No tienes permisos para gestionar configuraciones del sistema. Solo administradores pueden acceder.');
-      } else if (error.message.includes('401')) {
-        setError('Tu sesión ha expirado. Recarga la página e inicia sesión nuevamente.');
-      } else {
-        setError(error.message || 'Error al cargar configuraciones');
-      }
-    } finally {
-      setLoading(false);
+  // Función helper para obtener el icono correcto según la categoría
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'financial':
+        return DollarSign;
+      case 'security':
+        return Shield;
+      case 'general':
+        return Settings;
+      case 'users':
+        return Users;
+      default:
+        return Globe;
     }
   };
 
-  // Cargar configuraciones al montar
-  useEffect(() => {
-    loadConfigurations();
-  }, []);
-
-  // Función para validar configuraciones de rate limiting
-  const validateRateLimitChange = (configKey: string, newValue: number) => {
-    const validation = apiService.validateRateLimitConfig(configKey, newValue);
- 
-    if (!validation.isValid) {
-      setError(`${configKey}: ${validation.error}${validation.recommendation ? ` - ${validation.recommendation}` : ''}`);
-      return false;
+  // Función para formatear valores para mostrar
+  const formatDisplayValue = (config: SystemConfig, value: any): string => {
+    if (config.dataType === 'boolean') {
+      return value === true || value === 'true' ? 'Activado' : 'Desactivado';
     }
- 
-    return true;
-  };
-
-  // Manejar cambio de valor
-  const handleValueChange = (config: SystemConfig, newValue: any) => {
-    const key = config.configKey;
- 
-    // Validar tipo de dato
-    let validatedValue = newValue;
- 
+    
     if (config.dataType === 'number') {
-      // ✅ MEJORADO: Permitir strings vacías temporalmente durante edición
-      if (newValue === '' || newValue === null || newValue === undefined) {
-        // Guardar temporalmente el valor vacío sin validar
-        setPendingChanges(prev => ({
-          ...prev,
-          [key]: {
-            key,
-            value: '', // Guardar string vacío temporalmente
-            originalValue: config.configValue
-          }
-        }));
-        return;
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      
+      // Para rate limiters con _window_ms, formatear como tiempo
+      if (config.configKey.includes('_window_ms') || config.configKey.includes('window')) {
+        const minutes = Math.floor(numValue / 60000);
+        const hours = Math.floor(minutes / 60);
+        if (hours >= 1) {
+          return `${hours} hora${hours !== 1 ? 's' : ''}`;
+        }
+        return `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
       }
       
-      validatedValue = parseFloat(newValue);
-   
-      if (isNaN(validatedValue)) {
-        setError('El valor debe ser un número válido');
-        setTimeout(() => setError(null), 3000);
-        return;
-      }
-   
-      // Validaciones de base de datos
-      if (config.minValue !== null && config.minValue !== undefined && validatedValue < config.minValue) {
-        setError(`El valor debe ser mayor o igual a ${config.minValue}`);
-        setTimeout(() => setError(null), 3000);
-        return;
-      }
-   
-      if (config.maxValue !== null && config.maxValue !== undefined && validatedValue > config.maxValue) {
-        setError(`El valor debe ser menor o igual a ${config.maxValue}`);
-        setTimeout(() => setError(null), 3000);
-        return;
-      }
-   
-      // Validaciones específicas para rate limiting
-      if (config.configKey.includes('_limit_')) {
-        if (!validateRateLimitChange(config.configKey, validatedValue)) {
-          return; // Error ya mostrado por validateRateLimitChange
-        }
-      }
-   
-    } else if (config.dataType === 'boolean') {
-      validatedValue = newValue === 'true' || newValue === true;
+      // Para otros números, formatear con separador de miles
+      return numValue.toLocaleString('es-CL');
     }
     
-    // Limpiar error anterior
-    if (error) setError(null);
-    
-    setPendingChanges(prev => ({
-      ...prev,
-      [key]: {
-        key,
-        value: validatedValue,
-        originalValue: config.configValue
-      }
-    }));
+    return String(value);
   };
 
-  // Función para refrescar rate limiters
-  const handleRefreshRateLimiters = async () => {
-    setIsRefreshingRateLimiters(true);
-    setError(null);
- 
-    try {
-      console.log('🔄 Refrescando rate limiters...');
-   
-      const response = await apiService.refreshRateLimiters();
-   
-      if (response.status === 'success') {
-        setSuccess('Rate limiters actualizados exitosamente en tiempo real');
-        setRateLimiterStatus(response.data);
-     
-        // Recargar configuraciones para mostrar estado actual
-        setTimeout(() => {
-          loadConfigurations();
-        }, 1000);
-      }
-   
-    } catch (error: any) {
-      console.error('❌ Error refrescando rate limiters:', error);
-   
-      if (error.message.includes('403')) {
-        setError('No tienes permisos para refrescar rate limiters');
-      } else {
-        setError(`Error refrescando rate limiters: ${error.message}`);
-      }
-    } finally {
-      setIsRefreshingRateLimiters(false);
-      setTimeout(() => setSuccess(null), 5000);
-    }
-  };
+  // Función para formatear fechas
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  // Función para obtener estado de rate limiters
-  const handleGetRateLimiterStatus = async () => {
-    try {
-      console.log('📊 Consultando estado de rate limiters...');
-   
-      const response = await apiService.getRateLimiterStatus();
-      setRateLimiterStatus(response.data);
-      setShowRateLimiterPanel(true);
-   
-    } catch (error: any) {
-      console.error('❌ Error obteniendo estado:', error);
-      setError(`Error obteniendo estado: ${error.message}`);
-    }
-  };
+    if (diffMins < 1) return 'Hace un momento';
+    if (diffMins < 60) return `Hace ${diffMins} minuto${diffMins !== 1 ? 's' : ''}`;
+    if (diffHours < 24) return `Hace ${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
+    if (diffDays < 7) return `Hace ${diffDays} día${diffDays !== 1 ? 's' : ''}`;
 
-  // Función para probar rate limiters
-  const handleTestRateLimiters = async () => {
-    try {
-      console.log('🧪 Probando rate limiters...');
-   
-      const response = await apiService.testRateLimiters();
-      setRateLimiterTest(response.data);
-      setSuccess('Test de rate limiters exitoso');
-   
-    } catch (error: any) {
-      console.error('❌ Error en test:', error);
-   
-      if (error.message.includes('429')) {
-        setSuccess('✅ Rate limiter funcionando - Límite alcanzado (comportamiento esperado)');
-        setRateLimiterTest({
-          testType: 'rate_limit_reached',
-          message: 'El rate limiter está funcionando correctamente',
-          status: 'blocked_as_expected'
-        });
-      } else {
-        setError(`Error en test: ${error.message}`);
-      }
-    }
-  };
-
-  // Guardar cambios con refresh automático de rate limiters
-  const handleSaveChanges = async () => {
-    const updates = Object.values(pendingChanges);
-    if (updates.length === 0) return;
-    
-    // ✅ NUEVO: Validar que no haya valores vacíos antes de guardar
-    const emptyValues = updates.filter(update => update.value === '' || update.value === null || update.value === undefined);
-    if (emptyValues.length > 0) {
-      setError(`Por favor completa todos los campos antes de guardar. Campos vacíos: ${emptyValues.map(u => u.key).join(', ')}`);
-      setTimeout(() => setError(null), 5000);
-      return;
-    }
-    
-    // Verificar si hay cambios de rate limiting
-    const rateLimitUpdates = updates.filter(update =>
-      update.key.includes('_limit_')
-    );
-    
-    setIsSaving(true);
-    setSuccess(null);
-    setError(null);
-    
-    try {
-      console.log('💾 Guardando configuraciones...');
-   
-      if (rateLimitUpdates.length > 0) {
-        // Si hay cambios de rate limiting, usar método combinado
-        console.log('🔧 Detectados cambios de rate limiting, aplicando...');
-     
-        const response = await apiService.updateRateLimiterConfigs(updates);
-     
-        setSuccess(
-          `Configuraciones actualizadas y rate limiters refrescados exitosamente.
-           ${rateLimitUpdates.length} configuraciones de seguridad aplicadas.`
-        );
-        setRateLimiterStatus(response.rateLimiterRefresh.data);
-     
-      } else {
-        // Si no hay cambios de rate limiting, usar método normal
-        const response = await apiService.updateMultipleConfigurations(updates);
-        if (response.status === 'success') {
-          setSuccess('Configuraciones actualizadas exitosamente');
-        }
-      }
-   
-      setPendingChanges({});
-      loadConfigurations();
-      setTimeout(() => setSuccess(null), 5000);
-   
-    } catch (error: any) {
-      console.error('Error guardando configuraciones:', error);
-      setError(error.message || 'Error al guardar configuraciones');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Descartar cambios
-  const handleDiscardChanges = () => {
-    setPendingChanges({});
-    setError(null);
-  };
-
-  // Cargar historial
-  const loadHistory = async (configKey: string) => {
-    setLoadingHistory(true);
-    setHistoryData([]);
-
-    try {
-      console.log('📋 Cargando historial para:', configKey);
-      const response = await apiService.getConfigHistory(configKey);
-      setHistoryData(response.data.history);
-    } catch (error: any) {
-      console.error('Error cargando historial:', error);
-      setError('Error al cargar historial de cambios');
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  // Formatear fecha
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleString('es-CL', {
+    return date.toLocaleDateString('es-CL', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -458,44 +241,199 @@ const SystemSettings = () => {
     });
   };
 
-  // Formatear valor para mostrar
-  const formatDisplayValue = (config: SystemConfig, value: any) => {
-    if (config.dataType === 'boolean') {
-      return value ? 'Habilitado' : 'Deshabilitado';
+  // Cargar configuraciones desde el backend
+  const loadConfigurations = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await apiService.getSystemConfig();
+      
+      if (response.status === 'success' && response.data) {
+        const configs = response.data.configurations || [];
+        setConfigurations(configs);
+        
+        // Agrupar por categoría
+        const grouped = configs.reduce((acc: Record<string, SystemConfig[]>, config: SystemConfig) => {
+          const category = config.category || 'general';
+          if (!acc[category]) acc[category] = [];
+          acc[category].push(config);
+          return acc;
+        }, {});
+        
+        setGroupedConfigs(grouped);
+        setCategories(Object.keys(grouped).sort());
+      }
+    } catch (err: any) {
+      console.error('Error cargando configuraciones:', err);
+      setError(err.response?.data?.message || 'Error al cargar las configuraciones del sistema');
+    } finally {
+      setLoading(false);
     }
-    if (config.dataType === 'number' && config.configKey.includes('amount')) {
-      return new Intl.NumberFormat('es-CL', { 
-        style: 'currency', 
-        currency: 'CLP' 
-      }).format(value);
-    }
-    return value;
   };
 
-  // Indicador especial para configuraciones de rate limiting
-  const getRateLimitIndicator = (configKey: string) => {
-    if (!configKey.includes('_limit_')) return null;
- 
-    return (
-      <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium ml-2">
-        <Shield className="w-3 h-3" />
-        Rate Limiting
-      </div>
-    );
+  // Cargar historial de una configuración específica
+  const loadHistory = async (configKey: string) => {
+    try {
+      setLoadingHistory(true);
+      const response = await apiService.getConfigHistory(configKey);
+      
+      if (response.status === 'success' && response.data) {
+        setHistoryData(response.data.history || []);
+      }
+    } catch (err: any) {
+      console.error('Error cargando historial:', err);
+      setHistoryData([]);
+    } finally {
+      setLoadingHistory(false);
+    }
   };
 
-  // Filtrar configuraciones usando isEditable
+  // Manejar cambios en valores
+  const handleValueChange = (config: SystemConfig, newValue: any) => {
+    let processedValue = newValue;
+    
+    // Convertir según el tipo de dato
+    if (config.dataType === 'number') {
+      processedValue = parseFloat(newValue) || 0;
+    } else if (config.dataType === 'boolean') {
+      processedValue = newValue === true || newValue === 'true';
+    }
+
+    // Actualizar cambios pendientes
+    setPendingChanges(prev => ({
+      ...prev,
+      [config.configKey]: {
+        key: config.configKey,
+        value: processedValue,
+        originalValue: config.configValue
+      }
+    }));
+  };
+
+  // Guardar cambios
+  const handleSave = async () => {
+    if (Object.keys(pendingChanges).length === 0) {
+      setError('No hay cambios pendientes para guardar');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      setSuccess(null);
+
+      // Convertir pendingChanges a formato que espera el backend
+      const updates = Object.entries(pendingChanges).reduce((acc, [key, change]) => {
+        acc[key] = change.value;
+        return acc;
+      }, {} as Record<string, any>);
+
+      const response = await apiService.updateMultipleConfigs(updates);
+
+      if (response.status === 'success') {
+        setSuccess(`✅ ${Object.keys(updates).length} configuración(es) actualizada(s) exitosamente`);
+        setPendingChanges({});
+        
+        // Recargar configuraciones
+        await loadConfigurations();
+        
+        // Limpiar mensaje de éxito después de 5 segundos
+        setTimeout(() => setSuccess(null), 5000);
+      }
+    } catch (err: any) {
+      console.error('Error guardando configuraciones:', err);
+      setError(err.response?.data?.message || 'Error al guardar las configuraciones');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Descartar cambios
+  const handleDiscard = () => {
+    setPendingChanges({});
+    setSuccess('Cambios descartados');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  // ✅ NUEVAS FUNCIONES PARA RATE LIMITERS
+  const handleGetRateLimiterStatus = async () => {
+    try {
+      const response = await apiService.getRateLimiterStatus();
+      if (response.status === 'success') {
+        setRateLimiterStatus(response.data);
+        setShowRateLimiterPanel(true);
+      }
+    } catch (err: any) {
+      console.error('Error obteniendo estado de rate limiters:', err);
+      setError('Error al obtener estado de rate limiters');
+    }
+  };
+
+  const handleRefreshRateLimiters = async () => {
+    try {
+      setIsRefreshingRateLimiters(true);
+      setError(null);
+      
+      const response = await apiService.refreshRateLimiters();
+      
+      if (response.status === 'success') {
+        setSuccess('✅ Rate limiters aplicados exitosamente');
+        
+        // Recargar estado actualizado
+        await handleGetRateLimiterStatus();
+        
+        setTimeout(() => setSuccess(null), 3000);
+      }
+    } catch (err: any) {
+      console.error('Error refrescando rate limiters:', err);
+      setError(err.response?.data?.message || 'Error al refrescar rate limiters');
+    } finally {
+      setIsRefreshingRateLimiters(false);
+    }
+  };
+
+  const handleTestRateLimiters = async () => {
+    try {
+      const response = await apiService.testRateLimiters();
+      if (response.status === 'success') {
+        setRateLimiterTest(response.data);
+        setSuccess('✅ Test de rate limiters completado');
+        setTimeout(() => setSuccess(null), 3000);
+      }
+    } catch (err: any) {
+      console.error('Error probando rate limiters:', err);
+      setError('Error al probar rate limiters');
+    }
+  };
+
+  // Cargar configuraciones al montar
+  useEffect(() => {
+    loadConfigurations();
+  }, []);
+
+  // Filtrar configuraciones según categoría y filtros
   const filteredConfigs = configurations.filter(config => {
-    if (selectedCategory !== 'all' && config.category !== selectedCategory) return false;
-    if (showOnlyEditable && !config.isEditable) return false;
+    // Filtro por categoría
+    if (selectedCategory !== 'all' && config.category !== selectedCategory) {
+      return false;
+    }
+    
+    // Filtro por editables
+    if (showOnlyEditable && !convertToBoolean(config.isEditable)) {
+      return false;
+    }
+    
     return true;
   });
 
+  const hasChanges = Object.keys(pendingChanges).length > 0;
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-4 animate-spin" />
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Cargando configuraciones del sistema...</p>
         </div>
       </div>
@@ -503,185 +441,174 @@ const SystemSettings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Configuraciones del Sistema</h1>
-            <p className="text-sm text-gray-500 mt-1">Ajusta parámetros y límites globales</p>
-          </div>
-          <div className="flex gap-2">
-            {Object.keys(pendingChanges).length > 0 && (
-              <button
-                onClick={handleDiscardChanges}
-                disabled={isSaving}
-                className="px-3 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Descartar Cambios
-              </button>
-            )}
-            <RateLimiterControls
-              handleGetRateLimiterStatus={handleGetRateLimiterStatus}
-              handleRefreshRateLimiters={handleRefreshRateLimiters}
-              isRefreshingRateLimiters={isRefreshingRateLimiters}
-            />
-            <button
-              onClick={handleSaveChanges}
-              disabled={isSaving || Object.keys(pendingChanges).length === 0}
-              className={`bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white px-4 py-2.5 rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center gap-2 text-sm font-bold ${
-                isSaving || Object.keys(pendingChanges).length === 0 ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Guardando...' : `Guardar Cambios (${Object.keys(pendingChanges).length})`}
-            </button>
-          </div>
-        </div>
-
-        {/* Filtros */}
-        <div className="bg-white rounded-lg shadow border border-gray-200 mb-4 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2.5 text-sm border border-gray-200 rounded-lg shadow-sm focus:border-blue-300 transition-colors"
-            >
-              <option value="all">Todas las categorías</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>
-                  {categoryInfo[cat as keyof typeof categoryInfo]?.label || cat}
-                </option>
-              ))}
-            </select>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={showOnlyEditable}
-                onChange={(e) => setShowOnlyEditable(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Settings className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Configuración del Sistema</h1>
+                <p className="text-blue-200 text-sm mt-0.5">
+                  Gestiona las configuraciones globales de BANCARIZATE
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <RateLimiterControls 
+                handleGetRateLimiterStatus={handleGetRateLimiterStatus}
+                handleRefreshRateLimiters={handleRefreshRateLimiters}
+                isRefreshingRateLimiters={isRefreshingRateLimiters}
               />
-              <label className="text-sm text-gray-700">Mostrar solo editables</label>
-            </div>
-
-            <button
-              onClick={loadConfigurations}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Recargar
-            </button>
-          </div>
-
-          {/* Estadísticas rápidas */}
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-xs text-gray-500">Total Configuraciones</p>
-              <p className="font-semibold text-gray-900">{configurations.length}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-xs text-gray-500">Editables</p>
-              <p className="font-semibold text-blue-600">{configurations.filter(c => c.isEditable).length}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-xs text-gray-500">Cambios Pendientes</p>
-              <p className="font-semibold text-orange-600">{Object.keys(pendingChanges).length}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded">
-              <p className="text-xs text-gray-500">Categorías</p>
-              <p className="font-semibold text-purple-600">{categories.length}</p>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Mensaje de éxito */}
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-green-700 text-sm">
-            <CheckCircle className="w-4 h-4" />
-            {success}
-          </div>
-        )}
-
-        {/* Mensaje de error */}
+      {/* Contenido principal */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Mensajes de estado */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700 text-sm">
-            <AlertCircle className="w-4 h-4" />
-            {error}
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
+
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{success}</span>
+            <button onClick={() => setSuccess(null)} className="ml-auto">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Controles superiores */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Selector de categoría */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categoría
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todas las categorías</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Toggle solo editables */}
+            <div className="flex items-center">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnlyEditable}
+                  onChange={(e) => setShowOnlyEditable(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <span className="ml-3 text-sm font-medium text-gray-700">
+                  Solo editables
+                </span>
+              </label>
+            </div>
+
+            {/* Botones de acción */}
+            {hasChanges && (
+              <div className="flex gap-2 ml-auto">
+                <button
+                  onClick={handleDiscard}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Descartar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {isSaving ? 'Guardando...' : `Guardar (${Object.keys(pendingChanges).length})`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Tabla de configuraciones */}
-        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Categoría
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Configuración
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Valor Actual
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Valor
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Descripción
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredConfigs.map(config => {
-                const categoryMeta = categoryInfo[config.category as keyof typeof categoryInfo];
-                const IconComponent = categoryMeta?.icon || Settings;
-                const hasChanges = pendingChanges[config.configKey];
-                const displayValue = hasChanges ? hasChanges.value : config.configValue;
-                
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredConfigs.map((config) => {
+                const hasChange = config.configKey in pendingChanges;
+                const displayValue = hasChange 
+                  ? pendingChanges[config.configKey].value 
+                  : config.configValue;
+
+                const CategoryIcon = getCategoryIcon(config.category);
+
                 return (
-                  <tr key={config.configKey} className={`hover:bg-gray-50 transition-colors ${hasChanges ? 'bg-yellow-50' : ''}`}>
+                  <tr 
+                    key={config.configKey}
+                    className={hasChange ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                  >
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-${categoryMeta?.color || 'gray'}-100 text-${categoryMeta?.color || 'gray'}-800`}>
-                        <IconComponent className="w-3 h-3 mr-1" />
-                        {categoryMeta?.label || config.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <div className="flex items-center">
-                          <span className="text-sm font-medium text-gray-900">{generateLabel(config.configKey)}</span>
-                          {getRateLimitIndicator(config.configKey)}
+                      <div className="flex items-center gap-2">
+                        <CategoryIcon className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {generateLabel(config.configKey)}
+                          </div>
+                          <div className="text-xs text-gray-500 font-mono">
+                            {config.configKey}
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-500 font-mono">{config.configKey}</span>
-                        {hasChanges && (
+                        {hasChange && (
                           <span className="text-xs text-orange-600 font-medium">⚠ Cambio pendiente</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {/* ✅ DEBUGGING: Log del valor de isEditable */}
-                      {(() => {
-                        const isEditableRaw = config.isEditable;
-                        const isEditableBool = config.isEditable === true || config.isEditable === 'true' || config.isEditable === 1;
-                        
-                        // Solo hacer console.log si estamos en desarrollo
-                        if (import.meta.env.DEV && config.configKey.includes('limit')) {
-                          console.log(`🔍 ${config.configKey}:`, {
-                            isEditableRaw,
-                            tipo: typeof isEditableRaw,
-                            isEditableBool,
-                            dataType: config.dataType
-                          });
-                        }
-                        
-                        return null;
-                      })()}
-                      
-                      {/* ✅ CORREGIDO: Conversión de boolean explícita y robusta */}
-                      {(config.isEditable === true || config.isEditable === 'true' || config.isEditable === 1 || config.isEditable === '1') ? (
+                      {/* ✅ CORREGIDO: Conversión de boolean usando helper function */}
+                      {convertToBoolean(config.isEditable) ? (
                         <div className="flex flex-col">
                           {config.dataType === 'boolean' ? (
                             <select
@@ -689,31 +616,18 @@ const SystemSettings = () => {
                               onChange={(e) => handleValueChange(config, e.target.value === 'true')}
                               className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
                             >
-                              <option value="false">Deshabilitado</option>
-                              <option value="true">Habilitado</option>
+                              <option value="true">Activado</option>
+                              <option value="false">Desactivado</option>
                             </select>
                           ) : config.dataType === 'number' ? (
-                            <div className="space-y-1">
-                              <input
-                                type="number"
-                                value={displayValue || ''}
-                                onChange={(e) => handleValueChange(config, e.target.value)}
-                                min={config.minValue || undefined}
-                                max={config.maxValue || undefined}
-                                step={config.configKey.includes('amount') ? '1000' : '1'}
-                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                placeholder={`Ej: ${config.configValue}`}
-                              />
-                              {/* ✅ NUEVO: Ayuda visual para rate limiters */}
-                              {config.configKey.includes('_limit_') && (config.minValue || config.maxValue) && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  <span>
-                                    Rango seguro: {config.minValue || '0'} - {config.maxValue || '∞'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                            <input
+                              type="number"
+                              value={displayValue || 0}
+                              onChange={(e) => handleValueChange(config, e.target.value)}
+                              min={config.minValue || undefined}
+                              max={config.maxValue || undefined}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
+                            />
                           ) : (
                             <input
                               type="text"
@@ -722,11 +636,9 @@ const SystemSettings = () => {
                               className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:border-blue-300"
                             />
                           )}
-                          {hasChanges && (
-                            <div className="mt-1 text-xs">
-                              <span className="text-gray-500">Original: </span>
-                              <span className="text-red-600">{formatDisplayValue(config, config.configValue)}</span>
-                              <span className="text-gray-500"> → </span>
+                          {hasChange && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Anterior: {' '}
                               <span className="text-green-600">{formatDisplayValue(config, displayValue)}</span>
                             </div>
                           )}
@@ -736,12 +648,6 @@ const SystemSettings = () => {
                           <span className="text-sm text-gray-700">
                             {formatDisplayValue(config, config.configValue)}
                           </span>
-                          {/* ✅ DEBUGGING: Mostrar por qué no es editable */}
-                          {import.meta.env.DEV && config.configKey.includes('limit') && (
-                            <span className="text-xs text-red-500 mt-1">
-                              🔒 No editable (isEditable={JSON.stringify(config.isEditable)})
-                            </span>
-                          )}
                         </div>
                       )}
                     </td>
@@ -767,7 +673,7 @@ const SystemSettings = () => {
                         >
                           <History className="w-4 h-4" />
                         </button>
-                        {hasChanges && (
+                        {hasChange && (
                           <button
                             onClick={() => {
                               const newChanges = { ...pendingChanges };
