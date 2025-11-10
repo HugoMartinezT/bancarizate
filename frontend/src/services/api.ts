@@ -300,7 +300,7 @@ class ApiService {
     const response = await this.request('/auth/logout', {
       method: 'POST',
     });
-    localStorage.removeItem('token');
+    localState.removeItem('token');
     localStorage.removeItem('user');
     return response;
   }
@@ -334,6 +334,202 @@ class ApiService {
    
       throw error;
     }
+  }
+
+  // ==========================================
+  // MÉTODOS PARA SETTINGS (CONFIGURACIÓN DE USUARIO)
+  // ==========================================
+
+  /**
+   * Actualizar información personal del usuario actual
+   * Solo permite actualizar campos editables según el rol
+   */
+  async updateMyProfile(updates: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    birthDate?: string;
+    institution?: string;
+    course?: string;
+    courses?: string[];
+    gender?: string;
+  }): Promise<any> {
+    const user = this.getCurrentUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    // Determinar endpoint según rol
+    if (user.role === 'student') {
+      return await this.updateStudent(user.id, updates);
+    } else if (user.role === 'teacher') {
+      return await this.updateTeacher(user.id, updates);
+    } else {
+      throw new Error('Solo estudiantes y docentes pueden actualizar su perfil');
+    }
+  }
+
+  /**
+   * Obtener estadísticas financieras del usuario actual
+   */
+  async getMyFinancialStats(): Promise<{
+    balance: number;
+    overdraftLimit: number;
+    totalAvailable: number;
+    stats30Days: UserStats;
+  }> {
+    const user = this.getCurrentUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    // Obtener datos actualizados del usuario y estadísticas
+    const [verifyResponse, statsResponse] = await Promise.all([
+      this.verifyToken(),
+      this.getUserStats({ range: '30d' })
+    ]);
+
+    const currentUser = verifyResponse.data.user;
+    
+    return {
+      balance: currentUser.balance || 0,
+      overdraftLimit: currentUser.overdraftLimit || 0,
+      totalAvailable: (currentUser.balance || 0) + (currentUser.overdraftLimit || 0),
+      stats30Days: statsResponse.data
+    };
+  }
+
+  /**
+   * Obtener actividad reciente del usuario actual
+   */
+  async getMyRecentActivity(limit: number = 10): Promise<{
+    recentTransfersSent: Transfer[];
+    recentTransfersReceived: Transfer[];
+    recentLogins: Activity[];
+    recentActions: Activity[];
+  }> {
+    const user = this.getCurrentUser();
+    if (!user) throw new Error('Usuario no autenticado');
+
+    try {
+      // Obtener transferencias y actividad en paralelo
+      const [transfersResponse, activityResponse] = await Promise.all([
+        this.getTransferHistory({ page: 1, limit: limit * 2 }), // Más transferencias para filtrar
+        this.getActivity({ userId: user.id, limit: limit * 3 }) // Más actividades para filtrar logins
+      ]);
+
+      const allTransfers = transfersResponse.data.transfers;
+      const allActivities = activityResponse.data.activities;
+
+      // Filtrar transferencias enviadas y recibidas
+      const sent = allTransfers
+        .filter((t: Transfer) => t.fromUserId === user.id)
+        .slice(0, limit);
+      
+      const received = allTransfers
+        .filter((t: Transfer) => t.toUserId === user.id || t.recipientIds?.includes(user.id))
+        .slice(0, limit);
+
+      // Filtrar logins y otras acciones
+      const logins = allActivities
+        .filter((a: Activity) => a.action === 'login')
+        .slice(0, limit);
+
+      const actions = allActivities
+        .filter((a: Activity) => a.action !== 'login')
+        .slice(0, limit);
+
+      return {
+        recentTransfersSent: sent,
+        recentTransfersReceived: received,
+        recentLogins: logins,
+        recentActions: actions
+      };
+    } catch (error) {
+      console.error('Error obteniendo actividad reciente:', error);
+      // Retornar valores vacíos en caso de error
+      return {
+        recentTransfersSent: [],
+        recentTransfersReceived: [],
+        recentLogins: [],
+        recentActions: []
+      };
+    }
+  }
+
+  /**
+   * Validar fortaleza de contraseña
+   * Retorna: 'weak' | 'medium' | 'strong'
+   */
+  validatePasswordStrength(password: string): {
+    strength: 'weak' | 'medium' | 'strong';
+    score: number;
+    feedback: string[];
+    color: string;
+  } {
+    let score = 0;
+    const feedback: string[] = [];
+
+    // Criterio 1: Longitud (max 3 puntos)
+    if (password.length >= 6) score += 1;
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+
+    // Criterio 2: Mayúsculas (1 punto)
+    if (/[A-Z]/.test(password)) {
+      score += 1;
+    } else {
+      feedback.push('Agrega al menos una mayúscula');
+    }
+
+    // Criterio 3: Minúsculas (1 punto)
+    if (/[a-z]/.test(password)) {
+      score += 1;
+    } else {
+      feedback.push('Agrega al menos una minúscula');
+    }
+
+    // Criterio 4: Números (1 punto)
+    if (/[0-9]/.test(password)) {
+      score += 1;
+    } else {
+      feedback.push('Agrega al menos un número');
+    }
+
+    // Criterio 5: Caracteres especiales (2 puntos)
+    if (/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/;'`~]/.test(password)) {
+      score += 2;
+    } else {
+      feedback.push('Agrega caracteres especiales (!@#$%^&*)');
+    }
+
+    // Criterio 6: Sin patrones comunes (penalización)
+    const commonPatterns = ['123', 'abc', 'qwerty', 'password', 'admin', '000'];
+    const hasCommonPattern = commonPatterns.some(pattern => 
+      password.toLowerCase().includes(pattern)
+    );
+    if (hasCommonPattern) {
+      score = Math.max(0, score - 2);
+      feedback.push('Evita patrones comunes (123, abc, qwerty)');
+    }
+
+    // Determinar nivel de fortaleza
+    let strength: 'weak' | 'medium' | 'strong';
+    let color: string;
+
+    if (score <= 3) {
+      strength = 'weak';
+      color = '#ef4444'; // rojo
+      if (feedback.length === 0) feedback.push('Contraseña muy débil');
+    } else if (score <= 6) {
+      strength = 'medium';
+      color = '#f59e0b'; // amarillo
+      if (feedback.length === 0) feedback.push('Contraseña aceptable, pero puedes mejorarla');
+    } else {
+      strength = 'strong';
+      color = '#10b981'; // verde
+      feedback.length = 0;
+      feedback.push('¡Contraseña fuerte y segura!');
+    }
+
+    return { strength, score, feedback, color };
   }
 
   // ==========================================
@@ -789,6 +985,15 @@ class ApiService {
     });
     return await this.request(`/activity?${queryParams.toString()}`);
   }
+  /**
+   * Alias simplificado para obtener actividad por usuario u otros filtros
+   * Mantiene compatibilidad con módulos que usan getActivity()
+   */
+  async getActivity(filters: Partial<ActivityFilters>): Promise<ActivityResponse> {
+    return await this.getActivityLog(filters);
+  }
+
+
 
   async getActivityStats(filters?: { timeframe?: string }): Promise<ActivityStats> {
     const queryParams = new URLSearchParams();
@@ -848,8 +1053,13 @@ class ApiService {
     return await this.request(`/transfers/${transferId}`);
   }
 
-  async getUserStats(): Promise<UserStats> {
-    return await this.request('/transfers/stats');
+  async getUserStats(params?: { range?: '7d' | '30d' | '90d' | 'all' }): Promise<UserStats> {
+    const queryParams = new URLSearchParams();
+    if (params?.range) {
+      queryParams.append('range', params.range);
+    }
+    const endpoint = `/transfers/stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return await this.request(endpoint);
   }
 
   async getClassmates(): Promise<any> {

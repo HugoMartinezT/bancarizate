@@ -74,6 +74,7 @@ const BackupManager = () => {
   const [tablePreview, setTablePreview] = useState<TablePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewTab, setPreviewTab] = useState<'info' | 'structure' | 'data'>('info');
 
   const [historyFilter, setHistoryFilter] = useState<string>('all');
   const [historySearch, setHistorySearch] = useState<string>('');
@@ -473,131 +474,147 @@ const BackupManager = () => {
       {!loading && backupStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {/* Card Usuarios */}
-          <div className="group bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-blue-700 font-semibold uppercase tracking-wide">Usuarios</p>
-                <p className="text-2xl font-black text-blue-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Usuarios</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalUsers)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-blue-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Database className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Database className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-         
+
           {/* Card Estudiantes */}
-          <div className="group bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-xl border border-emerald-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Estudiantes</p>
-                <p className="text-2xl font-black text-emerald-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Estudiantes</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalStudents)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-emerald-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <FileText className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <FileText className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-         
+
           {/* Card Docentes */}
-          <div className="group bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-purple-700 font-semibold uppercase tracking-wide">Docentes</p>
-                <p className="text-2xl font-black text-purple-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Docentes</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalTeachers)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-purple-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <HardDrive className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <HardDrive className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-         
+
           {/* Card Transferencias */}
-          <div className="group bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-xl border border-amber-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-amber-700 font-semibold uppercase tracking-wide">Transferencias</p>
-                <p className="text-2xl font-black text-amber-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Transferencias</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalTransfers)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-amber-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Archive className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Archive className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-         
+
           {/* Card Instituciones */}
-          <div className="group bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-xl border border-indigo-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-indigo-700 font-semibold uppercase tracking-wide">Instituciones</p>
-                <p className="text-2xl font-black text-indigo-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Instituciones</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalInstitutions)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-indigo-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Shield className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Shield className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-         
+
           {/* Card Cursos */}
-          <div className="group bg-gradient-to-br from-cyan-50 to-cyan-100 p-4 rounded-xl border border-cyan-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-cyan-700 font-semibold uppercase tracking-wide">Cursos</p>
-                <p className="text-2xl font-black text-cyan-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Cursos</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.totalCourses)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-cyan-400 to-cyan-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-cyan-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <FileText className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <FileText className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-          
+
           {/* Card Total Registros */}
-          <div className="group bg-gradient-to-br from-rose-50 to-rose-100 p-4 rounded-xl border border-rose-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-rose-700 font-semibold uppercase tracking-wide">Total Registros</p>
-                <p className="text-2xl font-black text-rose-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Total Registros</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatNumber(backupStats.summary?.totalRecords || 0)}
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-rose-400 to-rose-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-rose-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <BarChart3 className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
-          
+
           {/* Card Tamaño */}
-          <div className="group bg-gradient-to-br from-slate-50 to-slate-100 p-4 rounded-xl border border-slate-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
+          <div className="group relative bg-white rounded-lg border-2 border-gray-100 hover:border-[#193cb8] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden active:scale-[0.98]">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+            <div className="relative z-10 flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-700 font-semibold uppercase tracking-wide">Tamaño Est.</p>
-                <p className="text-2xl font-black text-slate-900 mt-1">
+                <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Tamaño Est.</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
                   {safeFormatSize(backupStats.summary?.estimatedSizeMB || 0)} MB
                 </p>
-                <div className="w-8 h-1 bg-gradient-to-r from-slate-400 to-slate-600 rounded-full mt-2"></div>
               </div>
-              <div className="p-3 bg-slate-600 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <HardDrive className="w-6 h-6 text-white" />
+              <div className="relative p-3 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <HardDrive className="w-6 h-6 text-white relative z-10" />
               </div>
             </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-lg" />
           </div>
         </div>
       )}
@@ -1018,161 +1035,346 @@ const BackupManager = () => {
         )}
       </div>
 
-      {/* Modal de vista previa de tabla */}
+      {/* Modal de vista previa de tabla - DISEÑO MEJORADO */}
       {showTablePreview && tablePreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            {/* Header del modal */}
-            <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-t-lg p-3 text-white">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden transform transition-all animate-slideUp">
+            {/* Header del modal con gradiente */}
+            <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-white/20 rounded">
-                    <Table className="w-4 h-4 text-white" />
+                <div className="flex items-center gap-3">
+                  <div className="relative p-2.5 bg-white/20 rounded-xl backdrop-blur-sm">
+                    <div className="absolute inset-0 bg-white/10 rounded-xl" />
+                    <Table className="w-5 h-5 text-white relative z-10" />
                   </div>
-                  <h2 className="text-base font-bold">Vista Previa - Tabla: {tablePreview.tableName}</h2>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Vista Previa de Tabla</h2>
+                    <p className="text-blue-200 text-xs mt-0.5 font-medium">{tablePreview.tableName}</p>
+                  </div>
                 </div>
                 <button
-                  onClick={() => setShowTablePreview(false)}
-                  className="p-1 hover:bg-white/20 rounded transition-colors"
+                  onClick={() => {
+                    setShowTablePreview(false);
+                    setPreviewTab('info');
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 group"
+                  title="Cerrar"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5 text-white group-hover:rotate-90 transition-transform duration-200" />
+                </button>
+              </div>
+            </div>
+
+            {/* Pestañas de navegación */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4">
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setPreviewTab('info')}
+                  className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    previewTab === 'info'
+                      ? 'border-[#193cb8] text-[#193cb8] bg-white'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    Información General
+                  </div>
+                </button>
+                <button
+                  onClick={() => setPreviewTab('structure')}
+                  className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    previewTab === 'structure'
+                      ? 'border-[#193cb8] text-[#193cb8] bg-white'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Columns className="w-4 h-4" />
+                    Estructura ({tablePreview.structure.columns.length})
+                  </div>
+                </button>
+                <button
+                  onClick={() => setPreviewTab('data')}
+                  className={`px-4 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    previewTab === 'data'
+                      ? 'border-[#193cb8] text-[#193cb8] bg-white'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Datos de Muestra ({tablePreview.data.sampleRows.length})
+                  </div>
                 </button>
               </div>
             </div>
 
             {/* Contenido del modal */}
-            <div className="p-4 overflow-y-auto max-h-[calc(90vh-60px)]">
-              {/* Estadísticas rápidas */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="text-xs text-blue-600 font-medium">Total Registros</p>
-                      <p className="text-lg font-bold text-blue-900">
-                        {tablePreview.data.totalRows.toLocaleString()}
-                      </p>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)] bg-gray-50">
+              {/* Tab: Información General */}
+              {previewTab === 'info' && (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Tarjetas de estadísticas mejoradas */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-[#193cb8] p-5 hover:shadow-xl transition-all duration-300 overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg">
+                            <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <BarChart3 className="w-5 h-5 text-white relative z-10" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Total Registros</p>
+                            <p className="text-2xl font-black text-gray-900 mt-0.5">
+                              {tablePreview.data.totalRows.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-xl" />
                     </div>
-                  </div>
-                </div>
-                
-                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                  <div className="flex items-center gap-2">
-                    <Columns className="w-5 h-5 text-green-600" />
-                    <div>
-                      <p className="text-xs text-green-600 font-medium">Columnas</p>
-                      <p className="text-lg font-bold text-green-900">
-                        {tablePreview.structure.columns.length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                  <div className="flex items-center gap-2">
-                    <HardDrive className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <p className="text-xs text-purple-600 font-medium">Tamaño Est.</p>
-                      <p className="text-lg font-bold text-purple-900">
-                        {tablePreview.data.estimatedSize}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* Estructura de la tabla */}
-              <div className="mb-6">
-                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <Columns className="w-4 h-4 text-gray-600" />
-                  Estructura de la Tabla
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-2 font-bold text-gray-700">Columna</th>
-                        <th className="text-left py-2 font-bold text-gray-700">Tipo</th>
-                        <th className="text-center py-2 font-bold text-gray-700">Nullable</th>
-                        <th className="text-left py-2 font-bold text-gray-700">Valor Por Defecto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tablePreview.structure.columns.map((column, index) => (
-                        <tr key={index} className="border-b border-gray-100 hover:bg-white">
-                          <td className="py-2 font-medium text-gray-900">{column.name}</td>
-                          <td className="py-2 text-blue-600 font-mono">{column.type}</td>
-                          <td className="py-2 text-center">
-                            {column.nullable ? (
-                              <span className="text-green-600">✓</span>
-                            ) : (
-                              <span className="text-red-600">✗</span>
-                            )}
-                          </td>
-                          <td className="py-2 text-gray-600 font-mono">
-                            {column.defaultValue || '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    <div className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-[#193cb8] p-5 hover:shadow-xl transition-all duration-300 overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg">
+                            <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <Columns className="w-5 h-5 text-white relative z-10" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Columnas</p>
+                            <p className="text-2xl font-black text-gray-900 mt-0.5">
+                              {tablePreview.structure.columns.length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-xl" />
+                    </div>
 
-              {/* Datos de muestra */}
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-gray-600" />
-                  Datos de Muestra (10 primeros registros)
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-3 overflow-x-auto">
-                  {tablePreview.data.sampleRows.length > 0 ? (
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          {Object.keys(tablePreview.data.sampleRows[0]).map((column) => (
-                            <th key={column} className="text-left py-2 px-2 font-bold text-gray-700 whitespace-nowrap">
-                              {column}
-                            </th>
+                    <div className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-[#193cb8] p-5 hover:shadow-xl transition-all duration-300 overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#193cb8]/5 to-transparent rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-500" />
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-[#193cb8] to-[#0e2167] group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-lg">
+                            <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <HardDrive className="w-5 h-5 text-white relative z-10" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 font-semibold uppercase tracking-wide">Tamaño Est.</p>
+                            <p className="text-2xl font-black text-gray-900 mt-0.5">
+                              {tablePreview.data.estimatedSize}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#193cb8] to-[#0e2167] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left rounded-b-xl" />
+                    </div>
+                  </div>
+
+                  {/* Información adicional */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Índices */}
+                    {tablePreview.structure.indexes && tablePreview.structure.indexes.length > 0 && (
+                      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <div className="p-1.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                            <Database className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          Índices
+                        </h4>
+                        <div className="space-y-2">
+                          {tablePreview.structure.indexes.map((index, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
+                              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                              <span className="font-mono text-blue-900">{index}</span>
+                            </div>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tablePreview.data.sampleRows.map((row, index) => (
-                          <tr key={index} className="border-b border-gray-100 hover:bg-white">
-                            {Object.values(row).map((value, cellIndex) => (
-                              <td key={cellIndex} className="py-2 px-2 text-gray-900 whitespace-nowrap max-w-xs truncate">
-                                {value === null ? (
-                                  <span className="text-gray-400 italic">NULL</span>
-                                ) : (
-                                  String(value)
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="text-center py-8">
-                      <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">La tabla está vacía</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Constraints */}
+                    {tablePreview.structure.constraints && tablePreview.structure.constraints.length > 0 && (
+                      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <div className="p-1.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                            <Shield className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          Restricciones
+                        </h4>
+                        <div className="space-y-2">
+                          {tablePreview.structure.constraints.map((constraint, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs bg-purple-50 px-3 py-2 rounded-lg border border-purple-100">
+                              <div className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                              <span className="font-mono text-purple-900">{constraint}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Metadata */}
+                  {tablePreview.metadata && (
+                    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                      <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-600" />
+                        Información de Timestamps
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        {tablePreview.metadata.createdAt && (
+                          <div className="text-xs">
+                            <p className="text-gray-600 mb-1">Creado</p>
+                            <p className="font-semibold text-gray-900">{new Date(tablePreview.metadata.createdAt).toLocaleString('es-CL')}</p>
+                          </div>
+                        )}
+                        {tablePreview.metadata.lastUpdated && (
+                          <div className="text-xs">
+                            <p className="text-gray-600 mb-1">Última actualización</p>
+                            <p className="font-semibold text-gray-900">{new Date(tablePreview.metadata.lastUpdated).toLocaleString('es-CL')}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
+              )}
+
+              {/* Tab: Estructura */}
+              {previewTab === 'structure' && (
+                <div className="animate-fadeIn">
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                            <th className="text-left py-3 px-4 font-bold text-gray-700">#</th>
+                            <th className="text-left py-3 px-4 font-bold text-gray-700">Columna</th>
+                            <th className="text-left py-3 px-4 font-bold text-gray-700">Tipo de Dato</th>
+                            <th className="text-center py-3 px-4 font-bold text-gray-700">Nullable</th>
+                            <th className="text-left py-3 px-4 font-bold text-gray-700">Valor Por Defecto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tablePreview.structure.columns.map((column, index) => (
+                            <tr key={index} className="border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150">
+                              <td className="py-3 px-4 text-gray-500 font-medium">{index + 1}</td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-full" />
+                                  <span className="font-semibold text-gray-900">{column.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                                  {column.type}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {column.nullable ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Sí
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+                                    <AlertCircle className="w-3 h-3" />
+                                    No
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="text-gray-700 font-mono text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                                  {column.defaultValue || <span className="text-gray-400 italic">NULL</span>}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Datos de Muestra */}
+              {previewTab === 'data' && (
+                <div className="animate-fadeIn">
+                  {tablePreview.data.sampleRows.length > 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                              <th className="text-left py-3 px-4 font-bold text-gray-700 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100">#</th>
+                              {Object.keys(tablePreview.data.sampleRows[0]).map((column) => (
+                                <th key={column} className="text-left py-3 px-4 font-bold text-gray-700 whitespace-nowrap">
+                                  {column}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tablePreview.data.sampleRows.map((row, index) => (
+                              <tr key={index} className={`border-b border-gray-100 hover:bg-blue-50/50 transition-colors duration-150 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                                <td className="py-3 px-4 font-medium text-gray-500 sticky left-0 bg-inherit">{index + 1}</td>
+                                {Object.values(row).map((value, cellIndex) => (
+                                  <td key={cellIndex} className="py-3 px-4 whitespace-nowrap max-w-xs">
+                                    {value === null ? (
+                                      <span className="text-gray-400 italic text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200">NULL</span>
+                                    ) : (
+                                      <span className="text-gray-900 truncate block" title={String(value)}>
+                                        {String(value)}
+                                      </span>
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-sm">
+                      <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                        <FileText className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-600">La tabla está vacía</p>
+                      <p className="text-xs text-gray-500 mt-1">No hay registros disponibles para mostrar</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Footer del modal */}
-            <div className="border-t border-gray-200 p-3 flex justify-between items-center bg-gray-50">
-              <div className="text-xs text-gray-600">
-                Mostrando {Math.min(10, tablePreview.data.totalRows)} de {tablePreview.data.totalRows.toLocaleString()} registros
+            {/* Footer del modal mejorado */}
+            <div className="border-t border-gray-200 p-4 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
+              <div className="flex items-center gap-2">
+                <div className="px-3 py-1.5 bg-blue-100 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-semibold text-blue-900">
+                    Mostrando {Math.min(10, tablePreview.data.totalRows)} de {tablePreview.data.totalRows.toLocaleString()} registros
+                  </p>
+                </div>
+                <div className="h-4 w-px bg-gray-300" />
+                <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Vista previa limitada</span>
+                </div>
               </div>
               <button
-                onClick={() => setShowTablePreview(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+                onClick={() => {
+                  setShowTablePreview(false);
+                  setPreviewTab('info');
+                }}
+                className="group px-5 py-2.5 bg-gradient-to-r from-[#193cb8] to-[#0e2167] text-white rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-200 flex items-center gap-2"
               >
-                Cerrar
+                <span>Cerrar</span>
+                <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-200" />
               </button>
             </div>
           </div>

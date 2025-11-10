@@ -1,4 +1,4 @@
-// server.js - BANCARIZATE API v2.0 - Versión Final Optimizada para Vercel + Localhost
+// server.js - BANCARIZATE API v2.0 - VersiÃ³n Final Optimizada para Vercel + Localhost
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -34,7 +34,7 @@ let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, ad
 const routeStatus = {};
 
 try {
-  logger.info('🚀 Iniciando carga de rutas BANCARIZATE...');
+  logger.info('ðŸš€ Iniciando carga de rutas BANCARIZATE...');
 
   authRoutes = require('./routes/authRoutes');            routeStatus.auth = 'loaded';
   studentRoutes = require('./routes/studentRoutes');      routeStatus.students = 'loaded';
@@ -43,13 +43,13 @@ try {
   activityRoutes = require('./routes/activityRoutes');    routeStatus.activity = 'loaded';
   adminRoutes = require('./routes/admin/adminRoutes');    routeStatus.admin = 'loaded';
 
-  // ✅ Nuevo: dashboard (estadísticas globales)
+  // âœ… Nuevo: dashboard (estadÃ­sticas globales)
   dashboardRoutes = require('./routes/dashboardRoutes');  routeStatus.dashboard = 'loaded';
 
-  logger.info('🎉 Todas las rutas cargadas exitosamente');
+  logger.info('ðŸŽ‰ Todas las rutas cargadas exitosamente');
 
 } catch (error) {
-  logger.error('❌ Error crítico cargando rutas:', { error: error.message, stack: error.stack });
+  logger.error('âŒ Error crÃ­tico cargando rutas:', { error: error.message, stack: error.stack });
   routeStatus.error = error.message;
 }
 
@@ -67,7 +67,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-logger.info(`🌐 CORS configurado para: ${JSON.stringify(corsOrigins)}`);
+logger.info(`ðŸŒ CORS configurado para: ${JSON.stringify(corsOrigins)}`);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
@@ -76,7 +76,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ✅ Rate limiting general dinámico
+// âœ… Rate limiting general dinÃ¡mico
 app.use('/api/', generalLimiter);
 
 // Root
@@ -84,16 +84,16 @@ app.get('/', (req, res) => {
   logger.info('Acceso a ruta principal');
   res.status(200).json({
     status: 'success',
-    message: '🏦 BANCARIZATE API - Sistema Bancario Educativo',
+    message: 'ðŸ¦ BANCARIZATE API - Sistema Bancario Educativo',
     version: '2.0.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     server_status: 'operational',
     features: [
-      'Autenticación JWT',
-      'Gestión de Estudiantes y Docentes',
+      'AutenticaciÃ³n JWT',
+      'GestiÃ³n de Estudiantes y Docentes',
       'Sistema de Transferencias',
-      'Logging y Auditoría',
+      'Logging y AuditorÃ­a',
       'Rate Limiting',
       'Seguridad Avanzada'
     ],
@@ -121,42 +121,42 @@ try {
   if (authRoutes) {
     app.use('/api/auth/login', loginLimiter);
     app.use('/api/auth', authRoutes);
-    logger.info('🔐 Rutas de autenticación registradas con rate limiting');
+    logger.info('ðŸ” Rutas de autenticaciÃ³n registradas con rate limiting');
   }
 
   if (studentRoutes) {
     app.use('/api/students', studentRoutes);
-    logger.info('👨‍🎓 Rutas de estudiantes registradas');
+    logger.info('ðŸ‘¨â€ðŸŽ“ Rutas de estudiantes registradas');
   }
 
   if (teacherRoutes) {
     app.use('/api/teachers', teacherRoutes);
-    logger.info('👩‍🏫 Rutas de docentes registradas');
+    logger.info('ðŸ‘©â€ðŸ« Rutas de docentes registradas');
   }
 
   if (transferRoutes) {
     app.use('/api/transfers', transferRoutes);
-    logger.info('💸 Rutas de transferencias registradas (rate limiting por ruta)');
+    logger.info('ðŸ’¸ Rutas de transferencias registradas (rate limiting por ruta)');
   }
 
   if (activityRoutes) {
     app.use('/api/activity', activityRoutes);
-    logger.info('📊 Rutas de actividad registradas');
+    logger.info('ðŸ“Š Rutas de actividad registradas');
   }
 
   if (adminRoutes) {
     app.use('/api/admin', adminRoutes);
-    logger.info('⚙️ Rutas de administración registradas');
+    logger.info('âš™ï¸ Rutas de administraciÃ³n registradas');
   }
 
-  // ✅ Nuevo: Dashboard
+  // âœ… Nuevo: Dashboard
   if (dashboardRoutes) {
     app.use('/api/dashboard', dashboardRoutes);
-    logger.info('📈 Rutas de dashboard/estadísticas registradas');
+    logger.info('ðŸ“ˆ Rutas de dashboard/estadÃ­sticas registradas');
   }
 
 } catch (error) {
-  logger.error('❌ Error registrando rutas en Express:', error);
+  logger.error('âŒ Error registrando rutas en Express:', error);
 }
 
 // Health y API info (igual que antes)
@@ -196,7 +196,7 @@ app.get('/api', (req, res) => {
   res.status(200).json({
     status: 'success',
     message: 'BANCARIZATE API v2.0.0 - Sistema Bancario Educativo',
-    description: 'API RESTful para gestión del sistema',
+    description: 'API RESTful para gestiÃ³n del sistema',
     available_endpoints: {
       system: { health: 'GET /api/health', test: 'GET /api/test', info: 'GET /api' },
       authentication: {
@@ -262,7 +262,7 @@ module.exports = app;
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
   const server = app.listen(PORT, () => {
-    console.log(`🚀 Servidor escuchando en http://localhost:${PORT}`);
+    console.log(`ðŸš€ Servidor escuchando en http://localhost:${PORT}`);
   });
   process.on('SIGINT', () => server.close(()=>process.exit(0)));
   process.on('SIGTERM', () => server.close(()=>process.exit(0)));

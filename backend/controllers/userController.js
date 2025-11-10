@@ -76,14 +76,21 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userRole = req.user.role;
     const updates = req.body;
 
-    // Solo permitir actualización de ciertos campos
-    const allowedFields = ['phone', 'email'];
+    // Campos permitidos según el rol
+    let allowedFields = ['phone', 'email', 'firstName', 'lastName'];
+
+    // Estudiantes y profesores pueden actualizar campos adicionales
+    if (userRole === 'student' || userRole === 'teacher') {
+      allowedFields.push('birthDate', 'institution', 'course', 'gender');
+    }
+
     const userUpdates = {};
 
     for (const field of allowedFields) {
-      if (updates[field]) {
+      if (updates[field] !== undefined && updates[field] !== null) {
         if (field === 'email') {
           // Verificar que el nuevo email no esté en uso
           const { data: existingEmail } = await supabase
@@ -101,7 +108,9 @@ const updateProfile = async (req, res) => {
           }
         }
 
-        userUpdates[field] = sanitizeString(updates[field]);
+        // Convertir camelCase a snake_case para la base de datos
+        const dbField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
+        userUpdates[dbField] = typeof updates[field] === 'string' ? sanitizeString(updates[field]) : updates[field];
       }
     }
 
