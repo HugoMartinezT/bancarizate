@@ -300,7 +300,7 @@ class ApiService {
     const response = await this.request('/auth/logout', {
       method: 'POST',
     });
-    localState.removeItem('token');
+    localStorage.removeItem('token');
     localStorage.removeItem('user');
     return response;
   }
@@ -392,7 +392,7 @@ class ApiService {
       balance: currentUser.balance || 0,
       overdraftLimit: currentUser.overdraftLimit || 0,
       totalAvailable: (currentUser.balance || 0) + (currentUser.overdraftLimit || 0),
-      stats30Days: statsResponse.data
+      stats30Days: statsResponse
     };
   }
 
@@ -420,20 +420,20 @@ class ApiService {
 
       // Filtrar transferencias enviadas y recibidas
       const sent = allTransfers
-        .filter((t: Transfer) => t.fromUserId === user.id)
+        .filter((t: Transfer) => t.from === user.id)
         .slice(0, limit);
       
       const received = allTransfers
-        .filter((t: Transfer) => t.toUserId === user.id || t.recipientIds?.includes(user.id))
+        .filter((t: Transfer) => t.to === user.id || t.recipients?.some(r => r.id === user.id))
         .slice(0, limit);
 
       // Filtrar logins y otras acciones
       const logins = allActivities
-        .filter((a: Activity) => a.action === 'login')
+        .filter((a: Activity) => a.type === 'login')
         .slice(0, limit);
 
       const actions = allActivities
-        .filter((a: Activity) => a.action !== 'login')
+        .filter((a: Activity) => a.type !== 'login')
         .slice(0, limit);
 
       return {
