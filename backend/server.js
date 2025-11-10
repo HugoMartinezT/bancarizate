@@ -30,7 +30,7 @@ const logger = winston.createLogger({
 });
 
 // IMPORTAR RUTAS
-let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, adminRoutes, dashboardRoutes;
+let authRoutes, studentRoutes, teacherRoutes, transferRoutes, activityRoutes, adminRoutes, dashboardRoutes, userRoutes;
 const routeStatus = {};
 
 try {
@@ -42,6 +42,7 @@ try {
   transferRoutes = require('./routes/transferRoutes');    routeStatus.transfers = 'loaded';
   activityRoutes = require('./routes/activityRoutes');    routeStatus.activity = 'loaded';
   adminRoutes = require('./routes/admin/adminRoutes');    routeStatus.admin = 'loaded';
+  userRoutes = require('./routes/userRoutes');            routeStatus.users = 'loaded';
 
   // âœ… Nuevo: dashboard (estadÃ­sticas globales)
   dashboardRoutes = require('./routes/dashboardRoutes');  routeStatus.dashboard = 'loaded';
@@ -147,6 +148,11 @@ try {
   if (adminRoutes) {
     app.use('/api/admin', adminRoutes);
     logger.info('âš™ï¸ Rutas de administraciÃ³n registradas');
+  }
+
+  if (userRoutes) {
+    app.use('/api/users', userRoutes);
+    logger.info('👤 Rutas de usuarios registradas');
   }
 
   // âœ… Nuevo: Dashboard

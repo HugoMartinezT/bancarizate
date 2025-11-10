@@ -79,17 +79,15 @@ const updateProfile = async (req, res) => {
     const userRole = req.user.role;
     const updates = req.body;
 
-    // Campos permitidos según el rol
-    let allowedFields = ['phone', 'email', 'firstName', 'lastName'];
-
-    // Estudiantes y profesores pueden actualizar campos adicionales
-    if (userRole === 'student' || userRole === 'teacher') {
-      allowedFields.push('birthDate', 'institution', 'course', 'gender');
-    }
+    // Separar campos que van a la tabla users vs campos que van a students/teachers
+    const userTableFields = ['phone', 'email', 'firstName', 'lastName'];
+    const roleTableFields = ['birthDate', 'gender', 'institution', 'course'];
 
     const userUpdates = {};
+    const roleUpdates = {};
 
-    for (const field of allowedFields) {
+    // Procesar campos de la tabla users
+    for (const field of userTableFields) {
       if (updates[field] !== undefined && updates[field] !== null) {
         if (field === 'email') {
           // Verificar que el nuevo email no esté en uso
@@ -114,22 +112,51 @@ const updateProfile = async (req, res) => {
       }
     }
 
-    if (Object.keys(userUpdates).length === 0) {
+    // Procesar campos de la tabla students/teachers (solo si el usuario es student o teacher)
+    if (userRole === 'student' || userRole === 'teacher') {
+      for (const field of roleTableFields) {
+        if (updates[field] !== undefined && updates[field] !== null) {
+          // Convertir camelCase a snake_case para la base de datos
+          const dbField = field.replace(/([A-Z])/g, '_$1').toLowerCase();
+          roleUpdates[dbField] = typeof updates[field] === 'string' ? sanitizeString(updates[field]) : updates[field];
+        }
+      }
+    }
+
+    if (Object.keys(userUpdates).length === 0 && Object.keys(roleUpdates).length === 0) {
       return res.status(400).json({
         status: 'error',
         message: 'No hay campos válidos para actualizar'
       });
     }
 
-    userUpdates.updated_at = new Date().toISOString();
+    // Actualizar tabla users si hay cambios
+    if (Object.keys(userUpdates).length > 0) {
+      userUpdates.updated_at = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('users')
-      .update(userUpdates)
-      .eq('id', userId);
+      const { error } = await supabase
+        .from('users')
+        .update(userUpdates)
+        .eq('id', userId);
 
-    if (error) {
-      throw error;
+      if (error) {
+        throw error;
+      }
+    }
+
+    // Actualizar tabla students o teachers si hay cambios
+    if (Object.keys(roleUpdates).length > 0) {
+      roleUpdates.updated_at = new Date().toISOString();
+
+      const roleTable = userRole === 'student' ? 'students' : 'teachers';
+      const { error } = await supabase
+        .from(roleTable)
+        .update(roleUpdates)
+        .eq('user_id', userId);
+
+      if (error) {
+        throw error;
+      }
     }
 
     // Registrar actividad
@@ -138,7 +165,9 @@ const updateProfile = async (req, res) => {
       .insert({
         user_id: userId,
         action: 'update_profile',
-        metadata: { fieldsUpdated: Object.keys(userUpdates) },
+        metadata: {
+          fieldsUpdated: [...Object.keys(userUpdates), ...Object.keys(roleUpdates)]
+        },
         ip_address: req.ip,
         user_agent: req.get('user-agent')
       });

@@ -179,16 +179,24 @@ const verifyToken = async (req, res) => {
 
     // Obtener datos adicionales según el rol
     let additionalData = {};
-    
+
     if (user.role === 'student') {
       const { data: studentData } = await supabase
         .from('students')
         .select('*')
         .eq('user_id', user.id)
         .single();
-      
+
       if (studentData) {
-        additionalData = { student: studentData };
+        additionalData = {
+          phone: studentData.phone,
+          birthDate: studentData.birth_date,
+          institution: studentData.institution,
+          course: studentData.course,
+          gender: studentData.gender,
+          status: studentData.status,
+          isActive: studentData.is_active
+        };
       }
     } else if (user.role === 'teacher') {
       const { data: teacherData } = await supabase
@@ -196,9 +204,17 @@ const verifyToken = async (req, res) => {
         .select('*')
         .eq('user_id', user.id)
         .single();
-      
+
       if (teacherData) {
-        additionalData = { teacher: teacherData };
+        additionalData = {
+          phone: teacherData.phone,
+          birthDate: teacherData.birth_date,
+          institution: teacherData.institution,
+          courses: teacherData.courses,
+          gender: teacherData.gender,
+          status: teacherData.status,
+          isActive: teacherData.is_active
+        };
       }
     }
 
@@ -208,6 +224,7 @@ const verifyToken = async (req, res) => {
       firstName: user.first_name,
       lastName: user.last_name,
       email: user.email,
+      phone: user.phone,
       balance: parseFloat(user.balance),
       overdraftLimit: parseFloat(user.overdraft_limit),
       role: user.role,

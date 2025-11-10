@@ -3,11 +3,10 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const { auth, authorize } = require('../middleware/auth');
-const { 
-  validateUpdateProfile, 
-  validateIdParam, 
-  validatePagination, 
-  validateSearch 
+const {
+  validateIdParam,
+  validatePagination,
+  validateSearch
 } = require('../middleware/validation');
 
 // Todas las rutas requieren autenticación
@@ -15,7 +14,7 @@ router.use(auth);
 
 // Rutas de perfil de usuario
 router.get('/profile', userController.getProfile);
-router.put('/profile', validateUpdateProfile, userController.updateProfile);
+router.put('/profile', userController.updateProfile);
 
 // Rutas administrativas
 router.get(
