@@ -3,7 +3,7 @@ import {
   Send, ArrowUpRight, ArrowDownLeft, Clock, XCircle, User, DollarSign, Search, X,
   UserCircle, Star, School, TrendingUp, Shield, Wallet, AlertCircle, Users,
   Calculator, Divide, Loader2, RefreshCw, Filter, ChevronLeft, ChevronRight,
-  SortAsc, SortDesc, Check, ChevronDown, ChevronUp
+  SortAsc, SortDesc, Check, ChevronDown, ChevronUp, AlertTriangle
 } from 'lucide-react';
 import { apiService } from "../services/api";
 import type { User as ApiUser, Transfer, UserStats } from '../services/api';
@@ -99,6 +99,84 @@ const Transfers = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [detailsCache, setDetailsCache] = useState<Record<string, TransferDetails>>({});
   const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
+
+  // ---- Función helper para notificaciones personalizadas ----
+  const showCustomNotification = (type: 'success' | 'error', title: string, description: string) => {
+    const isSuccess = type === 'success';
+    const duration = 4000;
+
+    toast.custom(
+      (t) => (
+        <div
+          className="relative rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2"
+          style={{
+            width: '420px',
+            backgroundColor: '#ffffff',
+            borderColor: isSuccess ? '#10b981' : '#ef4444',
+            borderWidth: '2px',
+            borderStyle: 'solid',
+          }}
+        >
+          {/* Barra de progreso */}
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-100">
+            <div
+              className="h-full"
+              style={{
+                background: isSuccess
+                  ? 'linear-gradient(to right, #10b981, #059669)'
+                  : 'linear-gradient(to right, #ef4444, #dc2626)',
+                animation: `progressBar ${duration / 1000}s linear forwards`,
+              }}
+            />
+          </div>
+
+          {/* Contenido */}
+          <div className="p-4 pb-5">
+            <div className="flex items-start gap-3">
+              {/* Icono */}
+              <div
+                className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
+                style={{
+                  background: isSuccess
+                    ? 'linear-gradient(to bottom right, #10b981, #059669)'
+                    : 'linear-gradient(to bottom right, #ef4444, #dc2626)',
+                }}
+              >
+                {isSuccess ? (
+                  <Check className="w-6 h-6 text-white" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 text-white" />
+                )}
+              </div>
+
+              {/* Texto */}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-base mb-1 text-gray-900">
+                  {title}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {description}
+                </p>
+              </div>
+
+              {/* Botón cerrar */}
+              <button
+                onClick={() => toast.dismiss(t)}
+                className="flex-shrink-0 w-6 h-6 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors group"
+                aria-label="Cerrar notificación"
+              >
+                <X className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ),
+      {
+        duration,
+        position: 'bottom-right',
+      }
+    );
+  };
 
   // ---- Cargas ----
   const loadUserStats = useCallback(async () => {
@@ -363,17 +441,19 @@ const Transfers = () => {
       setTransferTypeFilter('all');
 
       // Mostrar notificación de éxito
-      toast.success(response.message, {
-        description: `Nuevo saldo: ${formatCurrency(response.data.newBalance)}`,
-        duration: 5000,
-      });
+      showCustomNotification(
+        'success',
+        response.message || 'Transferencia realizada exitosamente',
+        `Nuevo saldo: ${formatCurrency(response.data.newBalance)}`
+      );
     } catch (err: any) {
       setErrors({ transfer: err.message });
       // Mostrar notificación de error
-      toast.error('Error al crear transferencia', {
-        description: err.message,
-        duration: 5000,
-      });
+      showCustomNotification(
+        'error',
+        'Error al crear transferencia',
+        err.message || 'No se pudo completar la transferencia'
+      );
     } finally {
       setIsCreatingTransfer(false);
     }
@@ -484,7 +564,20 @@ const Transfers = () => {
 
   // ---- Render ----
   return (
-    <div className="max-w-5xl mx-auto px-3 py-4">
+    <>
+      {/* Estilos CSS para animaciones */}
+      <style>{`
+        @keyframes progressBar {
+          from {
+            width: 100%;
+          }
+          to {
+            width: 0%;
+          }
+        }
+      `}</style>
+
+      <div className="max-w-5xl mx-auto px-3 py-4">
       {/* Cabecera compacta */}
       <div className="bg-gradient-to-r from-[#193cb8] to-[#0e2167] rounded-lg p-3 mb-4 text-white shadow-md">
         <div className="flex items-center justify-between">
@@ -1330,7 +1423,8 @@ const Transfers = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

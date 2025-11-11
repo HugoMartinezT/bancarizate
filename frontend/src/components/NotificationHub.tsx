@@ -66,6 +66,7 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({
   onNewTransfer,
 }) => {
   const [config, setConfig] = useState<NotificationConfig>(DEFAULT_NOTIFICATION_CONFIG);
+  const [audioInitialized, setAudioInitialized] = useState(false);
 
   // Cargar configuración desde localStorage
   useEffect(() => {
@@ -93,6 +94,36 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({
       window.removeEventListener('notificationConfigUpdated', handleConfigUpdate as EventListener);
     };
   }, []);
+
+  // Inicializar audio con la primera interacción del usuario
+  useEffect(() => {
+    const initializeAudio = () => {
+      if (!audioInitialized) {
+        // Crear un audio silencioso para "desbloquear" el contexto de audio
+        const silentAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+Lk0tDK4aBlZJZJj0+WZOsn14mMjxnnK2gWS07QFqWrKNfLDY+YZqsol0nMj1kn66jXy87QFuXrKJfKzY+YZqsoV8pMz5ln7Cjb0U+XZmsomE6WJy0pGE2Ul+bqqBZOS89X5ispGM5WZ20pWA5V522p2E5W6C4qWI7Xam8q2M+Y622qmM+ZbC4q2Q/Z7K6rGVAabS8rmVBa7a+r2dCbbe/sGhCcLnBsmlDc7vDtGpFdb3EtmtGd7/FuGxHeMLIu21IesXKvG5Je8fLvnBKfMnNwHFMfsrOwXNNgM3QxHRPgc/SxnZQg9HUyHdShdPWynlThNXXzHpUh9fYznxViNnaz35XitvbzoBZit7e0YFajN/f0oNbjeHg1IRdjePi1oddjuTk14lek+fm2Ylfk+jp3Ipglujs3oxhmeru34thlOrv4Ixim+zx4o1jnO7z5I5kne/05Y9mofD25pBmo/L56ZJnpfT77JRopfX77ZVppvb97pdqp/f+751rqfj/8J5srPn/8p9trfr/9KBur/v/96FvsPz/+aNwsf3/+6Rxsv7//aVys/7//6Zztf///6Z0tf///6d0tv///6d1t////6h2uP///6l3uf///6l4uv///6p5u////6t6vP///6x8vf///61+wP///65+wf///7CAwv///7GBw////7KCxP///7OFxv///7WHyP///7eJyv///7mKy////7qMzP///7uOzv///76R0f///8CT0v///8GV1P///8OY1////8Wa2P///8ic2v///8ue3P///82h3////86j4f///9Cm4v///9Gp5P///9Os5v///9Wu6P///9aw6f///9ey7P///9m17v///9u47////9276////+C+8v///+DA8////+PD9f///+PG9////+TI9////+XK+f///+bL+////+fM+////+jO/P///+nP/f///+rR/v///+vS//////zU//////3W//////3X//////7Y//////7Z/////////v///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==');
+        silentAudio.volume = 0.01;
+        silentAudio.play()
+          .then(() => {
+            console.log('[NotificationHub] Audio context inicializado correctamente');
+            setAudioInitialized(true);
+          })
+          .catch(() => {
+            // Ignorar error, se intentará nuevamente en la próxima interacción
+          });
+      }
+    };
+
+    // Escuchar cualquier clic del usuario para inicializar
+    document.addEventListener('click', initializeAudio, { once: true });
+    document.addEventListener('touchstart', initializeAudio, { once: true });
+    document.addEventListener('keydown', initializeAudio, { once: true });
+
+    return () => {
+      document.removeEventListener('click', initializeAudio);
+      document.removeEventListener('touchstart', initializeAudio);
+      document.removeEventListener('keydown', initializeAudio);
+    };
+  }, [audioInitialized]);
 
   /**
    * Mapeo de tamaños a anchos
@@ -229,18 +260,22 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({
       }
     );
 
-    // Reproducir sonido si está habilitado
-    if (config.playSound) {
+    // Reproducir sonido si está habilitado y el contexto de audio ha sido inicializado
+    if (config.playSound && audioInitialized) {
       try {
         // Usar sonido personalizado si está disponible, de lo contrario usar el predeterminado
         const soundData = config.soundData || 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+Lk0tDK4aBlZJZJj0+WZOsn14mMjxnnK2gWS07QFqWrKNfLDY+YZqsol0nMj1kn66jXy87QFuXrKJfKzY+YZqsoV8pMz5ln7Cjb0U+XZmsomE6WJy0pGE2Ul+bqqBZOS89X5ispGM5WZ20pWA5V522p2E5W6C4qWI7Xam8q2M+Y622qmM+ZbC4q2Q/Z7K6rGVAabS8rmVBa7a+r2dCbbe/sGhCcLnBsmlDc7vDtGpFdb3EtmtGd7/FuGxHeMLIu21IesXKvG5Je8fLvnBKfMnNwHFMfsrOwXNNgM3QxHRPgc/SxnZQg9HUyHdShdPWynlThNXXzHpUh9fYznxViNnaz35XitvbzoBZit7e0YFajN/f0oNbjeHg1IRdjePi1oddjuTk14lek+fm2Ylfk+jp3Ipglujs3oxhmeru34thlOrv4Ixim+zx4o1jnO7z5I5kne/05Y9mofD25pBmo/L56ZJnpfT77JRopfX77ZVppvb97pdqp/f+751rqfj/8J5srPn/8p9trfr/9KBur/v/96FvsPz/+aNwsf3/+6Rxsv7//aVys/7//6Zztf///6Z0tf///6d0tv///6d1t////6h2uP///6l3uf///6l4uv///6p5u////6t6vP///6x8vf///61+wP///65+wf///7CAwv///7GBw////7KCxP///7OFxv///7WHyP///7eJyv///7mKy////7qMzP///7uOzv///76R0f///8CT0v///8GV1P///8OY1////8Wa2P///8ic2v///8ue3P///82h3////86j4f///9Cm4v///9Gp5P///9Os5v///9Wu6P///9aw6f///9ey7P///9m17v///9u47////9276////+C+8v///+DA8////+PD9f///+PG9////+TI9////+XK+f///+bL+////+fM+////+jO/P///+nP/f///+rR/v///+vS//////zU//////3W//////3X//////7Y//////7Z/////////v///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==';
         const audio = new Audio(soundData);
-        audio.play().catch(() => {
+        audio.volume = 0.5; // Volumen moderado
+        audio.play().catch((err) => {
+          console.warn('[NotificationHub] No se pudo reproducir el sonido:', err.message);
           // Ignorar errores de reproducción (ej: permisos del navegador)
         });
       } catch (error) {
         console.error('Error al reproducir sonido:', error);
       }
+    } else if (config.playSound && !audioInitialized) {
+      console.log('[NotificationHub] Audio no inicializado aún. Interactúa con la página primero.');
     }
 
     // Llamar al callback si existe
