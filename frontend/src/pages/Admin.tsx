@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { 
-  Settings, 
-  Building, 
-  BookOpen, 
-  Upload, 
+import {
+  Settings,
+  Building,
+  BookOpen,
+  Upload,
   Database,
   Shield,
   ArrowLeft,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Bell
 } from 'lucide-react';
 import { apiService } from '../services/api';
 
@@ -19,6 +20,7 @@ import CourseManager from '../components/Admin/CourseManager';
 import MassUpload from '../components/Admin/MassUpload';
 import SystemSettings from '../components/Admin/SystemSettings';
 import BackupManager from '../components/Admin/BackupManager';
+import NotificationSettings from '../components/Admin/NotificationSettings';
 
 interface AdminModule {
   id: string;
@@ -129,6 +131,14 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       requiresAdmin: true
     },
     {
+      id: 'notifications',
+      title: 'Notificaciones',
+      description: 'Personaliza la apariencia y comportamiento de notificaciones',
+      icon: Bell,
+      color: 'indigo',
+      requiresAdmin: true
+    },
+    {
       id: 'backup',
       title: 'Backup y Restauración',
       description: 'Crea copias de seguridad de la base de datos',
@@ -225,22 +235,25 @@ const Admin: React.FC<AdminProps> = ({ user: propUser }) => {
       <Routes>
         {/* Ruta principal del admin - dashboard de módulos */}
         <Route path="/" element={renderDashboard()} />
-        
+
         {/* RUTA REAL: Gestión de Instituciones */}
         <Route path="/institutions" element={<InstitutionManager />} />
-        
+
         {/* RUTA REAL: Gestión de Cursos */}
         <Route path="/courses" element={<CourseManager />} />
-        
+
         {/* RUTA REAL: Carga Masiva */}
         <Route path="/mass-upload" element={<MassUpload />} />
-        
+
         {/* RUTA REAL: Configuraciones del Sistema */}
         <Route path="/system-settings" element={<SystemSettings />} />
-        
+
+        {/* RUTA REAL: Configuración de Notificaciones */}
+        <Route path="/notifications" element={<NotificationSettings />} />
+
         {/* RUTA REAL: Backup y Restauración */}
         <Route path="/backup" element={<BackupManager />} />
-        
+
         {/* Redirección por defecto */}
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

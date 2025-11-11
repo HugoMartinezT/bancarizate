@@ -1584,6 +1584,59 @@ class ApiService {
       maximumFractionDigits: 0
     }).format(amount);
   }
+
+  // ==========================================
+  // CONFIGURACIÓN DE NOTIFICACIONES
+  // ==========================================
+
+  /**
+   * Obtener configuración de notificaciones
+   */
+  async getNotificationConfig(): Promise<any> {
+    console.log('🔔 Obteniendo configuración de notificaciones...');
+
+    try {
+      return await this.request('/admin/notifications/config', {
+        method: 'GET'
+      });
+    } catch (error: any) {
+      console.error('❌ Error obteniendo configuración de notificaciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar configuración de notificaciones (solo admin)
+   */
+  async updateNotificationConfig(config: any): Promise<any> {
+    console.log('💾 Actualizando configuración de notificaciones...');
+
+    try {
+      return await this.request('/admin/notifications/config', {
+        method: 'PUT',
+        body: JSON.stringify(config)
+      });
+    } catch (error: any) {
+      console.error('❌ Error actualizando configuración de notificaciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restablecer configuración de notificaciones a valores por defecto (solo admin)
+   */
+  async resetNotificationConfig(): Promise<any> {
+    console.log('🔄 Restableciendo configuración de notificaciones...');
+
+    try {
+      return await this.request('/admin/notifications/config/reset', {
+        method: 'POST'
+      });
+    } catch (error: any) {
+      console.error('❌ Error restableciendo configuración de notificaciones:', error);
+      throw error;
+    }
+  }
 }
 
 // Instancia singleton

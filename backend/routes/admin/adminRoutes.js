@@ -1026,4 +1026,10 @@ router.get('/templates/:type',
   }
 );
 
+// ==========================================
+// 🔔 RUTAS DE CONFIGURACIÓN DE NOTIFICACIONES
+// ==========================================
+const notificationRoutes = require('./notificationRoutes');
+router.use('/notifications', notificationRoutes);
+
 module.exports = router;

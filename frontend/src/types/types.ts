@@ -451,3 +451,100 @@ declare global {
     startViewTransition(callback: () => void): ViewTransition;
   }
 }
+
+// ==========================================
+// TIPOS PARA CONFIGURACIÓN DE NOTIFICACIONES
+// ==========================================
+
+export type NotificationPosition =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+export type NotificationSize = 'small' | 'medium' | 'large';
+
+export interface NotificationColors {
+  // Colores del gradiente principal
+  gradientFrom: string;
+  gradientTo: string;
+
+  // Color de la barra de progreso
+  progressBarFrom: string;
+  progressBarTo: string;
+
+  // Color del borde
+  borderColor: string;
+
+  // Color de fondo
+  backgroundColor: string;
+
+  // Colores del texto
+  titleColor: string;
+  textColor: string;
+  descriptionColor: string;
+}
+
+export interface NotificationConfig {
+  // Estado
+  enabled: boolean;
+
+  // Posición
+  position: NotificationPosition;
+
+  // Tamaño
+  size: NotificationSize;
+
+  // Duración (en milisegundos)
+  duration: number;
+
+  // Colores
+  colors: NotificationColors;
+
+  // Mostrar barra de progreso
+  showProgressBar: boolean;
+
+  // Mostrar botón de cerrar
+  showCloseButton: boolean;
+
+  // Mostrar icono de dinero
+  showMoneyIcon: boolean;
+
+  // Ancho personalizado (en px, solo si size es 'custom')
+  customWidth?: number;
+
+  // Configuración adicional
+  playSound: boolean;
+  showDescription: boolean;
+  soundData?: string; // Base64 encoded audio file
+
+  // Metadata
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
+  enabled: true,
+  position: 'bottom-right',
+  size: 'medium',
+  duration: 8000,
+  colors: {
+    gradientFrom: '#193cb8',
+    gradientTo: '#0e2167',
+    progressBarFrom: '#193cb8',
+    progressBarTo: '#0e2167',
+    borderColor: '#dbeafe',
+    backgroundColor: '#ffffff',
+    titleColor: '#111827',
+    textColor: '#374151',
+    descriptionColor: '#6b7280',
+  },
+  showProgressBar: true,
+  showCloseButton: true,
+  showMoneyIcon: true,
+  playSound: false,
+  showDescription: true,
+  soundData: '',
+};
