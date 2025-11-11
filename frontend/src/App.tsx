@@ -14,6 +14,8 @@ import DashboardLayout from './components/Layout/DashboardLayout';
 import LoadingScreen from './components/Auth/LoadingScreen';
 import { apiService } from './services/api';
 import { User } from './types/types';
+import NotificationHub from './components/NotificationHub';
+import transferNotificationService from './services/transferNotificationService';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -109,6 +111,9 @@ function App() {
       console.error('⚠️ Error al cerrar sesión:', error);
       // Continuar con el logout local aunque falle el backend
     } finally {
+      // Detener servicio de notificaciones
+      transferNotificationService.reset();
+
       // Limpiar estado local
       setUser(null);
       setLoginCompleted(false);
@@ -163,19 +168,22 @@ function App() {
 
   return (
     <Router>
+      {/* Sistema de notificaciones - solo cuando hay usuario autenticado */}
+      {user && <NotificationHub autoStart={true} />}
+
       {showLoadingScreen && (
         <>
           {/* 🔍 DEBUG: Verificar nombre antes de pasarlo */}
           {console.log('🎯 LoadingScreen userName:', getUserDisplayName())}
           {console.log('🎯 loadingUser:', loadingUser)}
           {console.log('🎯 user:', user)}
-          <LoadingScreen 
+          <LoadingScreen
             onComplete={handleLoadingComplete}
             userName={getUserDisplayName()} // 🎯 AQUÍ ESTÁ EL CAMBIO PRINCIPAL
           />
         </>
       )}
-      
+
       <Routes>
         <Route 
           path="/login" 

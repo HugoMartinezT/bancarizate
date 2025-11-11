@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { apiService } from "../services/api";
 import type { User as ApiUser, Transfer, UserStats } from '../services/api';
+import { toast } from 'sonner';
 
 // ---- Tipos auxiliares ----
 interface SelectedRecipient extends ApiUser {
@@ -361,10 +362,18 @@ const Transfers = () => {
       setActiveTab('history');
       setTransferTypeFilter('all');
 
-      alert(`✅ ${response.message}\nNuevo saldo: ${formatCurrency(response.data.newBalance)}`);
+      // Mostrar notificación de éxito
+      toast.success(response.message, {
+        description: `Nuevo saldo: ${formatCurrency(response.data.newBalance)}`,
+        duration: 5000,
+      });
     } catch (err: any) {
       setErrors({ transfer: err.message });
-      alert(`❌ Error: ${err.message}`);
+      // Mostrar notificación de error
+      toast.error('Error al crear transferencia', {
+        description: err.message,
+        duration: 5000,
+      });
     } finally {
       setIsCreatingTransfer(false);
     }
